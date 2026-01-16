@@ -204,6 +204,91 @@ function retrieveMemories(seedText) {
     }
 }
 
+function battleStateCheck() {
+    try {
+        const s = getSettings();
+        const st = s?.battle?.state;
+        if (!st || st.active !== true) return "";
+        const enemies = Array.isArray(st.enemies) ? st.enemies : [];
+        const e0 = enemies.find(e => String(e?.name || "").trim()) || enemies[0] || null;
+        if (!e0) return "[COMBAT ACTIVE]";
+        const name = String(e0.name || "Enemy").trim();
+        const hp = Number.isFinite(Number(e0.hp)) ? Number(e0.hp) : 0;
+        const max = Number.isFinite(Number(e0.maxHp)) ? Number(e0.maxHp) : 0;
+        const se = Array.isArray(e0.statusEffects) ? e0.statusEffects.map(x => String(x || "").trim()).filter(Boolean).slice(0, 4) : [];
+        const status = se.length ? ` ${se.join(", ")}` : "";
+        return `[COMBAT ACTIVE: ${name} (${hp}/${max} HP)${status}]`;
+    } catch (_) {
+        return "";
+    }
+}
+
+function statusEffectCheck() {
+    try {
+        const s = getSettings();
+        const eff = Array.isArray(s?.character?.statusEffects) ? s.character.statusEffects : [];
+        const list = eff.map(x => String(x || "").trim()).filter(Boolean).slice(0, 10);
+        if (!list.length) return "";
+        return `[PLAYER STATUS: ${list.join(", ")}]`;
+    } catch (_) {
+        return "";
+    }
+}
+
+function worldStateCheck() {
+    try {
+        const s = getSettings();
+        const ws = s?.worldState || {};
+        if (!ws || typeof ws !== "object") return "";
+        const loc = String(ws.location || "").trim();
+        const time = String(ws.time || "").trim();
+        const weather = String(ws.weather || "").trim();
+        const parts = [loc && `Location=${loc}`, time && `Time=${time}`, weather && `Weather=${weather}`].filter(Boolean);
+        if (!parts.length) return "";
+        return `[WORLD: ${parts.join(", ")}]`;
+    } catch (_) {
+        return "";
+    }
+}
+
+function questLogCheck() {
+    try {
+        const s = getSettings();
+        const q0 = Array.isArray(s?.journal?.active) ? s.journal.active[0] : null;
+        if (!q0 || typeof q0 !== "object") return "";
+        const title = String(q0.title || q0.name || "").trim();
+        const obj = String(q0.desc || q0.objective || q0.summary || "").trim();
+        if (!title && !obj) return "";
+        return `[QUEST: ${title || "Untitled"}${obj ? ` - ${obj}` : ""}]`;
+    } catch (_) {
+        return "";
+    }
+}
+
+function socialContextCheck() {
+    try {
+        const s = getSettings();
+        const threads = s?.phone?.smsThreads;
+        if (!threads || typeof threads !== "object") return "";
+        const rows = [];
+        for (const [name, list] of Object.entries(threads)) {
+            if (!Array.isArray(list) || !list.length) continue;
+            const last = list[list.length - 1];
+            const ts = Number(last?.ts || 0);
+            const text = String(last?.text || "").trim();
+            if (!text) continue;
+            rows.push({ name: String(name || "").trim(), text, ts });
+        }
+        rows.sort((a, b) => (Number(b.ts || 0) - Number(a.ts || 0)));
+        const pick = rows.slice(0, 2).filter(x => x.name && x.text);
+        if (!pick.length) return "";
+        const formatted = pick.map(x => `${x.name}: "${x.text.slice(0, 160)}"`).join(" | ");
+        return `[RECENT TEXTS: ${formatted}]`;
+    } catch (_) {
+        return "";
+    }
+}
+
 function rootProtocolBlock(seedText) {
     const chat = chatLogCheck();
     const lore = loreCheck();
@@ -213,6 +298,11 @@ function rootProtocolBlock(seedText) {
     const digital = digitalStateCheck();
     const temporal = temporalAnchor();
     const mem = retrieveMemories(`${seedText}\n${chat}`);
+    const combat = battleStateCheck();
+    const status = statusEffectCheck();
+    const world = worldStateCheck();
+    const quest = questLogCheck();
+    const texts = socialContextCheck();
     return `
 [SYSTEM OVERRIDE: IMMERSION_PROTOCOL_V26]
 [CRITICAL PRIORITY: HIGHEST]
@@ -227,6 +317,9 @@ Current action MUST flow logically from recent events.
 Do not reset the scene.
 --- CHAT LOG (last messages) ---
 ${chat}
+
+1B) OMNISCIENT GAME STATE (High Priority Overrides)
+${[combat, status, world, quest, texts].filter(Boolean).join("\n") || "[GAME STATE = None]"}
 
 2) INVENTORY AUDIT
 Scan user's current inventory. If user attempts to use an unowned item -> NARRATE FAILURE.
@@ -310,7 +403,21 @@ function buildTurboUrlCandidates(rawUrl) {
 
     const out = [];
 
+    const isOpenRouterHost = (() => {
+        try {
+            const u = new URL(base0);
+            return String(u.hostname || "").toLowerCase().includes("openrouter.ai");
+        } catch (_) {
+            return /openrouter\.ai/i.test(base0);
+        }
+    })();
+
     if (/\/v1$/i.test(base0)) {
+        if (isOpenRouterHost && !/\/api\/v1$/i.test(base0)) {
+            add(`${base0.replace(/\/v1$/i, "/api/v1")}/chat/completions${suffix}`, out);
+            add(`${base0.replace(/\/v1$/i, "/api/v1")}/completions${suffix}`, out);
+            add(`${base0.replace(/\/v1$/i, "/api/v1")}/responses${suffix}`, out);
+        }
         add(`${base0}/chat/completions${suffix}`, out);
         add(`${base0}/completions${suffix}`, out);
         add(`${base0}/responses${suffix}`, out);
@@ -318,6 +425,9 @@ function buildTurboUrlCandidates(rawUrl) {
     }
 
     if (/\/v1\/chat\/completions$/i.test(base0)) {
+        if (isOpenRouterHost && !/\/api\/v1\/chat\/completions$/i.test(base0)) {
+            add(`${base0.replace(/\/v1\/chat\/completions$/i, "/api/v1/chat/completions")}${suffix}`, out);
+        }
         add(`${base0}${suffix}`, out);
         add(`${base0.replace(/\/chat\/completions$/i, "/completions")}${suffix}`, out);
         add(`${base0.replace(/\/chat\/completions$/i, "/responses")}${suffix}`, out);
@@ -325,6 +435,11 @@ function buildTurboUrlCandidates(rawUrl) {
     }
 
     if (/\/v1\/completions$/i.test(base0)) {
+        if (isOpenRouterHost && !/\/api\/v1\/completions$/i.test(base0)) {
+            add(`${base0.replace(/\/v1\/completions$/i, "/api/v1/chat/completions")}${suffix}`, out);
+            add(`${base0.replace(/\/v1\/completions$/i, "/api/v1/completions")}${suffix}`, out);
+            add(`${base0.replace(/\/v1\/completions$/i, "/api/v1/responses")}${suffix}`, out);
+        }
         add(`${base0.replace(/\/completions$/i, "/chat/completions")}${suffix}`, out);
         add(`${base0}${suffix}`, out);
         add(`${base0.replace(/\/completions$/i, "/responses")}${suffix}`, out);
@@ -332,6 +447,11 @@ function buildTurboUrlCandidates(rawUrl) {
     }
 
     if (/\/v1\/responses$/i.test(base0)) {
+        if (isOpenRouterHost && !/\/api\/v1\/responses$/i.test(base0)) {
+            add(`${base0.replace(/\/v1\/responses$/i, "/api/v1/chat/completions")}${suffix}`, out);
+            add(`${base0.replace(/\/v1\/responses$/i, "/api/v1/completions")}${suffix}`, out);
+            add(`${base0.replace(/\/v1\/responses$/i, "/api/v1/responses")}${suffix}`, out);
+        }
         add(`${base0.replace(/\/responses$/i, "/chat/completions")}${suffix}`, out);
         add(`${base0.replace(/\/responses$/i, "/completions")}${suffix}`, out);
         add(`${base0}${suffix}`, out);
@@ -346,6 +466,12 @@ function buildTurboUrlCandidates(rawUrl) {
     if (/\/chat\/completions$/i.test(base0)) {
         add(`${base0}${suffix}`, out);
         return out;
+    }
+
+    if (isOpenRouterHost && !/\/api(\/|$)/i.test(base0)) {
+        add(`${base0}/api/v1/chat/completions${suffix}`, out);
+        add(`${base0}/api/v1/completions${suffix}`, out);
+        add(`${base0}/api/v1/responses${suffix}`, out);
     }
 
     add(`${base0}/v1/chat/completions${suffix}`, out);
@@ -401,14 +527,14 @@ function buildCorsProxyCandidates(targetUrl) {
     const enc = encodeURIComponent(u);
     const out = [];
     const add = (x) => { if (x && !out.includes(x)) out.push(x); };
-    add(`/cors-proxy/${enc}`);
-    add(`/cors-proxy?url=${enc}`);
-    add(`/api/cors-proxy/${enc}`);
-    add(`/api/cors-proxy?url=${enc}`);
-    add(`/proxy/${enc}`);
-    add(`/proxy?url=${enc}`);
-    add(`/api/proxy/${enc}`);
     add(`/api/proxy?url=${enc}`);
+    add(`/proxy?url=${enc}`);
+    add(`/api/cors-proxy?url=${enc}`);
+    add(`/cors-proxy?url=${enc}`);
+    add(`/api/proxy/${enc}`);
+    add(`/proxy/${enc}`);
+    add(`/api/cors-proxy/${enc}`);
+    add(`/cors-proxy/${enc}`);
     return out;
 }
 
@@ -428,12 +554,14 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
         for (const proxyUrl of candidates) {
             try {
                 const r = await fetch(proxyUrl, options);
+                if (r.status === 404 || r.status === 405 || (r.status >= 500 && r.status <= 599)) continue;
                 if (r.status === 403 || r.status === 401) {
                     const tok = await getCsrfToken();
                     if (tok) {
                         const h = new Headers(options?.headers || {});
                         if (!h.has("X-CSRF-Token")) h.set("X-CSRF-Token", tok);
                         const r2 = await fetch(proxyUrl, { ...options, headers: h });
+                        if (r2.status === 404 || r2.status === 405 || (r2.status >= 500 && r2.status <= 599)) continue;
                         return { response: r2, via: "proxy", requestUrl: proxyUrl };
                     }
                 }
@@ -589,7 +717,6 @@ export async function generateContent(prompt, type) {
 
     let system = "";
     if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML code. Start immediately with <style> or <div class='app-container'>. Do not include markdown ``` blocks. Do not write conversational text.";
-    if(type === "System Check" || type === "Shop") system = "You are a Logic Engine. Output ONLY valid JSON.";
     if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, one short line.";
     system = [customSystem, logicSystem, system].filter(Boolean).join("\n\n");
 

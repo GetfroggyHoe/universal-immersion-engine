@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
+import { injectRpEvent } from "./features/rp_log.js";
 
 let currentTab = "active";
 let bound = false;
@@ -384,7 +385,7 @@ export function initJournal() {
         If no clear quests, return empty array [].`;
 
         try {
-            const res = await generateContent(prompt, "QuestGen");
+            const res = await generateContent(prompt, "System Check");
             // Basic JSON cleanup
             const jsonStr = res.replace(/```json|```/g, "").trim();
             const quests = JSON.parse(jsonStr);
@@ -453,6 +454,7 @@ export function initJournal() {
         s.journal.pending.splice(idx, 1);
         s.journal.active.push(quest);
         saveSettings();
+        try { if (quest) injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Active.]`); } catch (_) {}
         renderJournal();
         notify("success", "Quest Accepted!", "Quests", "questsAccepted");
     });
@@ -470,6 +472,7 @@ export function initJournal() {
         if (!Array.isArray(s.journal.abandoned)) s.journal.abandoned = [];
         if (quest) s.journal.abandoned.push({ ...quest, failed: false, abandonedAt: Date.now() });
         saveSettings();
+        try { if (quest) injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Abandoned.]`); } catch (_) {}
         renderJournal();
         notify("info", "Quest Abandoned.", "Quests", "questsAbandoned");
     });
@@ -492,6 +495,7 @@ export function initJournal() {
         s.xp = Number(s.xp || 0) + gain;
 
         saveSettings();
+        try { injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Completed.]`); } catch (_) {}
         renderJournal();
         notify("success", `Quest Completed! +${gain} XP`, "Quests", "questsCompleted");
         $(document).trigger("uie:updateVitals");
@@ -517,6 +521,7 @@ export function initJournal() {
         s.hearts = Math.max(0, Number(s.hearts || 0) - heartLoss);
 
         saveSettings();
+        try { injectRpEvent(`[System: Quest '${String(quest.title || "Quest")}' is now Failed.]`); } catch (_) {}
         renderJournal();
         notify("error", `Quest Failed! -${xpLoss} XP, -${heartLoss} Heart`, "Quests", "questsFailed");
         $(document).trigger("uie:updateVitals");

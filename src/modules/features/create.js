@@ -8,12 +8,12 @@ export function init() {
   const ensureOverlay = () => {
     if ($("#uie-create-overlay").length) return;
     $("body").append(`
-      <div id="uie-create-overlay" style="display:none; position:fixed; inset:0; z-index:2147483646; background:#000; isolation:isolate;">
-        <div style="height:52px; display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.65);">
+      <div id="uie-create-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; background:rgba(0,0,0,0.94); isolation:isolate; transform:none; pointer-events:auto; flex-direction:column;">
+        <div style="height:52px; flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.65);">
           <button id="uie-create-overlay-exit" style="height:34px; padding:0 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Exit</button>
           <div id="uie-create-overlay-title" style="font-weight:900; color:#f1c40f; letter-spacing:0.8px;">CREATE</div>
         </div>
-        <div id="uie-create-overlay-body" style="height:calc(100% - 52px); overflow:hidden; position:relative;"></div>
+        <div id="uie-create-overlay-body" style="flex:1 1 auto; min-height:0; overflow:hidden; position:relative;"></div>
       </div>
     `);
   };
@@ -37,7 +37,7 @@ export function init() {
 
     ensureOverlay();
     $("#uie-create-overlay-title").text(String(target || "CREATE").toUpperCase());
-    $("#uie-create-overlay").show();
+    $("#uie-create-overlay").css("display", "flex");
     const $host = $("#uie-create-overlay-body");
     $host.css({ overflow: "hidden", background: "#000", height: "100%", minHeight: 0 }).html(`<div style="padding:16px;color:rgba(255,255,255,.7);font-weight:800;">Loading...</div>`);
     onExit = closeOverlay;
@@ -69,7 +69,7 @@ export function init() {
         $host.css({ overflow: "hidden", background: "transparent", height: "100%", minHeight: 0 }).html(html);
         const mod = await import("./kitchen.js");
         if (mod?.init) mod.init();
-        if (mod?.open) mod.open({ mode: "inline", hostEl: $host.get(0), zIndex: 2147483646, onExit });
+        if (mod?.open) mod.open({ mode: "inline", hostEl: $host.get(0), zIndex: 2147483647, onExit });
         return;
       }
     } catch (err) {

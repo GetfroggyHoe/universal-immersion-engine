@@ -544,9 +544,9 @@ async function actOnItem(kind) {
     render();
     try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
     const msg = String(note || "").trim()
-      ? `Equipped ${name} to ${slotId}. (${String(note).trim()})`
-      : `Equipped ${name} to ${slotId}.`;
-    await injectRpEvent(msg, { uie: { type: "equip", item: name, slotId } });
+      ? `[System: User equipped ${name}. Stats updated.] (${String(note).trim()})`
+      : `[System: User equipped ${name}. Stats updated.]`;
+    await injectRpEvent(msg);
     return;
   }
 
@@ -563,7 +563,7 @@ async function actOnItem(kind) {
     closeItemModal();
     render();
     try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-    await injectRpEvent(`Equipped ${name} to ${slotId}.`, { uie: { type: "equip", item: name, slotId } });
+    await injectRpEvent(`[System: User equipped ${name}. Stats updated.]`);
     return;
   }
 
@@ -628,5 +628,10 @@ async function actOnItem(kind) {
   saveSettings();
   closeItemModal();
   render();
-  await injectRpEvent(`Used ${name}${consumes ? " (consumed)" : ""}.`, { uie: { type: "use", item: name, consumes } });
+  if (consumes) {
+    const eff = String(it?.use?.desc || it?.desc || it?.effect || it?.description || "").trim().slice(0, 220) || "—";
+    await injectRpEvent(`[System: User consumed ${name}. Effect: ${eff}.]`);
+  } else {
+    await injectRpEvent(`[System: User used ${name}.]`);
+  }
 }

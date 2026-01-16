@@ -803,91 +803,169 @@ async function scanChatIntoSocial({ silent } = {}) {
     normalizeSocial(s);
     const ctx = getContext ? getContext() : {};
     const userName = String(ctx?.name1 || "").trim();
-    const mainName = String(ctx?.name2 || "").trim();
-    const userNames = [userName, "You"].filter(Boolean);
-    const mainKey = mainName.toLowerCase();
     const deleted = deletedNameSet(s);
 
-    const messageNodes = getChatMessageNodes(260);
-    const debugNameList = (() => {
-        try {
-            const sample = extractNamesFromChatDom(120).slice(0, 12);
-            return sample.length ? sample.join(", ") : "";
-        } catch (_) {
-            return "";
-        }
-    })();
+    const purgeTerms = ["HP:", "MP:", "Level:", "XP:", "System:", "Objective:", "Inventory:"];
+    const roleBlock = new Set(["narrator", "game master", "gm", "you", "system"]);
 
-    let found = [
-        ...extractNamesFromChatDom(220),
-        ...extractNamesFromTextHeuristics(240),
-        ...extractTaggedNamesFromChatText(240),
-    ].map(n => String(n || "").trim()).filter(Boolean);
-    found = Array.from(new Set(found)).slice(0, 40);
-    try {
-        if (mainName) {
-            const blob = String(getChatTranscript(220) || "");
-            if (/<char>/i.test(blob) || /<Char>/i.test(blob)) found.push(mainName);
-        }
-    } catch (_) {}
-    found = Array.from(new Set(found)).slice(0, 40);
-    found = found.filter(n => {
-        const k = String(n || "").toLowerCase().trim();
-        if (!k) return false;
-        if (k === mainKey) return !deleted.has(k);
-        return !shouldExcludeName(n, { userNames, deletedSet: deleted });
-    });
-    if (!found.length) {
-        let ai = null;
-        try {
-            const allow = getSettings()?.ai?.socialScan !== false;
-            if (allow) ai = await aiExtractNamesFromChat(140);
-        } catch (_) {}
-        found = (ai?.names || []).map(n => String(n || "").trim()).filter(Boolean).filter(n => {
-            const k = String(n || "").toLowerCase().trim();
-            if (!k) return false;
-            if (k === mainKey) return !deleted.has(k);
-            return !shouldExcludeName(n, { userNames, deletedSet: deleted });
-        });
-        if (!silent && Array.isArray(ai?.questions) && ai.questions.length) {
-            try { notify("info", `Social scan questions:\n- ${ai.questions.join("\n- ")}`, "Social", "social"); } catch (_) {}
-        }
+    const rawTranscript = String(getChatTranscript(260) || "");
+    const lines = rawTranscript.split("\n").map(x => String(x || "").trim()).filter(Boolean);
+    const filteredLines = lines.filter(l => !purgeTerms.some(k => l.includes(k)));
+
+    const candidates = new Set();
+    for (const line of filteredLines) {
+        const m = line.match(/^([^:]{2,64}):\s/);
+        if (m && m[1]) candidates.add(String(m[1]).trim());
+        const reA = /<char:([^>]{2,48})>/ig;
+        const reB = /<npc:([^>]{2,48})>/ig;
+        let x = null;
+        while ((x = reA.exec(line)) !== null) candidates.add(String(x[1] || "").trim());
+        while ((x = reB.exec(line)) !== null) candidates.add(String(x[1] || "").trim());
     }
-    if (!found.length) {
-        if (!silent) {
-            const msgCount = Array.isArray(messageNodes) ? messageNodes.length : 0;
-            const hint = msgCount ? `Found ${msgCount} chat messages but no names parsed.` : "Could not find chat DOM messages.";
-            const extra = debugNameList ? ` Sample parsed names: ${debugNameList}` : "";
-            notify("info", `${hint}${extra}`, "Social", "social");
-        }
+
+    let list = Array.from(candidates)
+        .map(n => String(n || "").trim())
+        .filter(Boolean)
+        .filter(n => {
+            const k = n.toLowerCase();
+            if (deleted.has(k)) return false;
+            if (roleBlock.has(k)) return false;
+            if (userName && k === userName.toLowerCase()) return false;
+            if (k === "<user>" || k === "user") return false;
+            if (/^<.*>$/.test(n) && n.toLowerCase() !== "<char>") return false;
+            if (/\b(hp|mp|xp|level)\b/i.test(n)) return false;
+            return true;
+        })
+        .slice(0, 40);
+
+    if (!list.length) {
+        if (!silent) notify("info", filteredLines.length ? "Chat found, but all candidate names were filtered (stat blocks/roles/user/deleted)." : "No chat transcript found.", "Social", "social");
         return;
     }
 
-    const existing = new Set(
-        ["friends","romance","family","rivals"]
-            .flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase()).filter(Boolean))
-    );
+    const contextSnippet = filteredLines.slice(-80).join("\n").slice(-8000);
+    const prompt = `[UIE_LOCKED]
+Analyze these names found in the chat:
+${JSON.stringify(list)}
 
-    let added = 0;
-    const addedNames = [];
-    for (const n of found) {
-        const key = n.toLowerCase();
-        if (existing.has(key)) continue;
-        if (deleted.has(key)) continue;
-        s.social.friends.push({ id: newId("person"), name: n, affinity: 50, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: "", url: "", tab: "friends", memories: [] });
-        existing.add(key);
-        added++;
-        addedNames.push(n);
+Based on the context, which are REAL CHARACTERS physically present in the scene?
+(Ignore names mentioned in passing, lore, or stat blocks).
+
+Context:
+${contextSnippet}
+
+Return ONLY valid JSON:
+{"verified":[{"name":"","role":"","affinity":50}]}
+
+Rules:
+- verified: 0-24 entries max.
+- name must be from the provided list exactly (case-insensitive ok, but do not invent new names).
+- role is a short label like friend|romance|family|rival|npc|enemy|ally.
+- affinity is an integer 0-100.`;
+
+    let verified = [];
+    try {
+        const res = await generateContent(prompt, "System Check");
+        const obj = JSON.parse(String(res || "").replace(/```json|```/g, "").trim());
+        verified = Array.isArray(obj?.verified) ? obj.verified : [];
+    } catch (_) {
+        verified = [];
     }
-    if (added) {
+
+    const normalizeRoleToTab = (role) => {
+        const r = String(role || "").toLowerCase();
+        if (r.includes("romance") || r.includes("lover") || r.includes("dating")) return "romance";
+        if (r.includes("family") || r.includes("sister") || r.includes("brother") || r.includes("mother") || r.includes("father")) return "family";
+        if (r.includes("rival") || r.includes("enemy") || r.includes("hostile")) return "rivals";
+        return "friends";
+    };
+
+    const existingLower = new Set(["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase()).filter(Boolean)));
+    let added = 0;
+    for (const v of verified.slice(0, 24)) {
+        const nm = String(v?.name || "").trim();
+        if (!nm) continue;
+        const key = nm.toLowerCase();
+        if (deleted.has(key)) continue;
+        if (existingLower.has(key)) continue;
+        const tab = normalizeRoleToTab(v?.role);
+        const aff = Math.max(0, Math.min(100, Math.round(Number(v?.affinity ?? 50))));
+        const p = { id: newId("person"), name: nm, affinity: aff, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: String(v?.role || "").trim().slice(0, 80), url: "", tab, memories: [], met_physically: true };
+        s.social[tab].push(p);
+        existingLower.add(key);
+        added++;
+    }
+
+    saveSettings();
+    renderSocial();
+    if (!silent) notify("success", added ? `Added ${added} verified character(s).` : "No new verified characters to add.", "Social", "social");
+}
+
+export async function updateRelationshipScore(name, text, source) {
+    const nm = String(name || "").trim();
+    const tx = String(text || "").trim();
+    const src = String(source || "").trim();
+    if (!nm || !tx) return;
+    const s = getSettings();
+    normalizeSocial(s);
+    const deleted = deletedNameSet(s);
+    if (deleted.has(nm.toLowerCase())) return;
+
+    const tabs = ["friends", "romance", "family", "rivals"];
+    let curTab = tabs.find(k => (s.social[k] || []).some(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase())) || "friends";
+    let idx = (s.social[curTab] || []).findIndex(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
+    if (idx < 0) {
+        s.social.friends.push({ id: newId("person"), name: nm, affinity: 50, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: "", url: "", tab: "friends", memories: [], met_physically: false });
+        curTab = "friends";
+        idx = s.social.friends.length - 1;
+    }
+    const person = s.social[curTab][idx];
+    const prevAff = Math.max(0, Math.min(100, Number(person?.affinity ?? 50)));
+    const prevRole = String(person?.relationshipStatus || "").trim();
+    const prevMet = person?.met_physically === true;
+
+    const prompt = `[UIE_LOCKED]
+Analyze this interaction and update relationship info.
+
+Character: ${nm}
+Source: ${src}
+Message:
+${tx.slice(0, 1200)}
+
+Current:
+{"affinity":${prevAff},"role":"${prevRole}","met_physically":${prevMet}}
+
+Return ONLY valid JSON:
+{"delta":0,"role":"","notes":""}
+
+Rules:
+- delta is integer -10..10 representing affinity change due to this message tone.
+- role is a short updated role/status label (can be empty to keep).
+- notes is optional (short).`;
+
+    let delta = 0;
+    let role = "";
+    try {
+        const res = await generateContent(prompt, "System Check");
+        const obj = JSON.parse(String(res || "").replace(/```json|```/g, "").trim());
+        delta = Math.max(-10, Math.min(10, Math.round(Number(obj?.delta || 0))));
+        role = String(obj?.role || "").trim().slice(0, 80);
+    } catch (_) {
+        delta = 0;
+        role = "";
+    }
+
+    const nextAff = Math.max(0, Math.min(100, prevAff + delta));
+    if (delta !== 0) person.affinity = nextAff;
+    if (role) person.relationshipStatus = role;
+    if (src === "face_to_face") person.met_physically = true;
+    else if (person.met_physically !== true) person.met_physically = false;
+
+    if (delta !== 0 || (role && role !== prevRole)) {
         saveSettings();
-        renderSocial();
-        if (!silent) notify("success", `Added ${added} contact(s).`, "Social", "social");
-        if (!silent) {
-            try { await promptOrganizationForNewContacts(addedNames); } catch (_) {}
-        }
+        try { injectRpEvent(`[Canon Event: Interaction with ${nm}. Affinity: ${Math.round(Number(person.affinity || prevAff))}. Status: ${String(person.relationshipStatus || prevRole || "").trim() || "—"}.]`); } catch (_) {}
     } else {
-        if (!silent) notify("info", `Found ${found.length} name(s) in chat (already added or deleted).`, "Social", "social");
+        saveSettings();
     }
 }
 

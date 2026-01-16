@@ -41,6 +41,51 @@ export function initInteractions() {
         return "/scripts/extensions/third-party/universal-immersion-engine/";
     })();
 
+    const ensureLauncherStore = (s2) => {
+        if (!s2.launcher) s2.launcher = {};
+        if (!Array.isArray(s2.launcher.savedIcons)) s2.launcher.savedIcons = [];
+    };
+
+    const syncLauncherIconSelect = (s2) => {
+        try {
+            ensureLauncherStore(s2);
+            const sel = document.getElementById("uie-launcher-icon");
+            if (!sel) return;
+
+            Array.from(sel.querySelectorAll("optgroup[data-uie-saved='1']")).forEach(x => x.remove());
+            Array.from(sel.querySelectorAll("option[data-uie-temp='1']")).forEach(x => x.remove());
+
+            const list = s2.launcher.savedIcons
+                .map(x => ({ id: String(x?.id || ""), name: String(x?.name || "").trim(), dataUrl: String(x?.dataUrl || x?.data || "") }))
+                .filter(x => x.id && x.name && x.dataUrl && x.dataUrl.startsWith("data:"))
+                .slice(0, 40);
+
+            if (!list.length) return;
+
+            const g = document.createElement("optgroup");
+            g.label = "Saved Icons";
+            g.setAttribute("data-uie-saved", "1");
+            for (const it of list) {
+                const o = document.createElement("option");
+                o.value = it.dataUrl;
+                o.textContent = it.name.slice(0, 60);
+                o.setAttribute("data-uie-saved", "1");
+                o.setAttribute("data-uie-saved-id", it.id);
+                g.appendChild(o);
+            }
+
+            const customOpt = sel.querySelector("option[value='custom']");
+            if (customOpt && customOpt.parentNode === sel) sel.insertBefore(g, customOpt.nextSibling);
+            else sel.insertBefore(g, sel.firstChild);
+        } catch (_) {}
+    };
+
+    const setLauncherPreview = (src) => {
+        const v = String(src || "");
+        if (v && v.startsWith("data:")) $("#uie-launcher-preview").css("backgroundImage", `url("${v}")`).show();
+        else $("#uie-launcher-preview").hide();
+    };
+
     const syncAutomationLabels = (root = document) => {
         const pairs = [
             ["#uie-ai-phone-browser", "Phone Browser Pages"],
@@ -63,6 +108,122 @@ export function initInteractions() {
             const on = el.checked !== false;
             lab.textContent = on ? label : `${label} (OFF)`;
         }
+    };
+
+    const refreshProfileSelect = (scope, s2) => {
+        try {
+            const sel = scope?.querySelector?.("#uie-profile-select");
+            if (!sel) return;
+            const cur = String(sel.value || "");
+            const profs = Array.isArray(s2?.connections?.profiles) ? s2.connections.profiles : [];
+            const active = String(s2?.connections?.activeProfileId || "");
+            const renderSelect = () => {
+                const st = Array.isArray(window.UIE_ST_CONN_PROFILES) ? window.UIE_ST_CONN_PROFILES : [];
+                sel.innerHTML = "";
+                const opt0 = document.createElement("option");
+                opt0.value = "";
+                opt0.textContent = "—";
+                sel.appendChild(opt0);
+
+                if (profs.length) {
+                    const g = document.createElement("optgroup");
+                    g.label = "UIE Profiles";
+                    for (const p of profs) {
+                        const id = String(p?.id || "");
+                        const nm = String(p?.name || "").trim();
+                        if (!id || !nm) continue;
+                        const o = document.createElement("option");
+                        o.value = id;
+                        o.textContent = nm;
+                        g.appendChild(o);
+                    }
+                    sel.appendChild(g);
+                }
+
+                if (st.length) {
+                    const g2 = document.createElement("optgroup");
+                    g2.label = "SillyTavern Profiles";
+                    for (const p of st) {
+                        const id = String(p?.id || "");
+                        const nm = String(p?.name || "").trim();
+                        if (!id || !nm) continue;
+                        const o = document.createElement("option");
+                        o.value = `st:${id}`;
+                        o.textContent = nm;
+                        g2.appendChild(o);
+                    }
+                    sel.appendChild(g2);
+                }
+
+                const want = active || cur;
+                if (want) sel.value = want;
+            };
+
+            const shouldTryLoad =
+                !window.UIE_ST_CONN_PROFILES_LOADING &&
+                (!Array.isArray(window.UIE_ST_CONN_PROFILES) || (Array.isArray(window.UIE_ST_CONN_PROFILES) && window.UIE_ST_CONN_PROFILES.length === 0 && window.UIE_ST_CONN_PROFILES_TRIED !== true));
+
+            if (shouldTryLoad) {
+                window.UIE_ST_CONN_PROFILES_LOADING = true;
+                window.UIE_ST_CONN_PROFILES_TRIED = true;
+                const fromLocalStorage = () => {
+                    try {
+                        const keys = ["connection_profiles", "connectionProfiles", "st_connection_profiles", "stConnectionProfiles"];
+                        for (const k of keys) {
+                            const raw = localStorage.getItem(k);
+                            if (!raw) continue;
+                            const j = JSON.parse(raw);
+                            if (j) return j;
+                        }
+                    } catch (_) {}
+                    return null;
+                };
+                import("../../../../../extensions.js").then((mod) => {
+                    const ctx = mod?.getContext?.() || {};
+                    const raw =
+                        ctx?.connection_profiles ||
+                        ctx?.connectionProfiles ||
+                        ctx?.connections ||
+                        ctx?.profiles ||
+                        ctx?.api_settings?.connection_profiles ||
+                        ctx?.api_settings?.connectionProfiles ||
+                        window?.connection_profiles ||
+                        window?.connectionProfiles ||
+                        window?.SillyTavern?.connection_profiles ||
+                        window?.SillyTavern?.connectionProfiles ||
+                        fromLocalStorage() ||
+                        null;
+                    const map = {};
+                    const out = [];
+                    const push = (it) => {
+                        if (!it || typeof it !== "object") return;
+                        const id = String(it.id || it.profile_id || it.profileId || it.name || it.title || "");
+                        const name = String(it.name || it.title || it.profile_name || it.profileName || id || "").trim();
+                        if (!id || !name) return;
+                        if (map[id]) return;
+                        map[id] = it;
+                        out.push({ id, name });
+                    };
+                    if (Array.isArray(raw)) raw.forEach(push);
+                    else if (raw && typeof raw === "object") {
+                        const maybeArr = raw.profiles || raw.items || raw.list;
+                        if (Array.isArray(maybeArr)) maybeArr.forEach(push);
+                        else for (const v of Object.values(raw)) push(v);
+                    }
+                    window.UIE_ST_CONN_PROFILE_MAP = map;
+                    window.UIE_ST_CONN_PROFILES = out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+                    window.UIE_ST_CONN_PROFILES_LOADING = false;
+                    try { renderSelect(); } catch (_) {}
+                }).catch(() => {
+                    window.UIE_ST_CONN_PROFILE_MAP = {};
+                    window.UIE_ST_CONN_PROFILES = [];
+                    window.UIE_ST_CONN_PROFILES_LOADING = false;
+                    try { renderSelect(); } catch (_) {}
+                });
+            }
+
+            renderSelect();
+        } catch (_) {}
     };
 
     const refreshSettingsDrawer = () => {
@@ -194,100 +355,7 @@ export function initInteractions() {
             if (ip) ip.value = String(by?.["Image Gen"] || "");
         } catch (_) {}
 
-        try {
-            const sel = scope.querySelector("#uie-profile-select");
-            if (sel) {
-                const cur = String(sel.value || "");
-                const profs = Array.isArray(s2?.connections?.profiles) ? s2.connections.profiles : [];
-                const active = String(s2?.connections?.activeProfileId || "");
-                const renderSelect = () => {
-                    const st = Array.isArray(window.UIE_ST_CONN_PROFILES) ? window.UIE_ST_CONN_PROFILES : [];
-                    sel.innerHTML = "";
-                    const opt0 = document.createElement("option");
-                    opt0.value = "";
-                    opt0.textContent = "—";
-                    sel.appendChild(opt0);
-
-                    if (profs.length) {
-                        const g = document.createElement("optgroup");
-                        g.label = "UIE Profiles";
-                        for (const p of profs) {
-                            const id = String(p?.id || "");
-                            const nm = String(p?.name || "").trim();
-                            if (!id || !nm) continue;
-                            const o = document.createElement("option");
-                            o.value = id;
-                            o.textContent = nm;
-                            g.appendChild(o);
-                        }
-                        sel.appendChild(g);
-                    }
-
-                    if (st.length) {
-                        const g2 = document.createElement("optgroup");
-                        g2.label = "SillyTavern Profiles";
-                        for (const p of st) {
-                            const id = String(p?.id || "");
-                            const nm = String(p?.name || "").trim();
-                            if (!id || !nm) continue;
-                            const o = document.createElement("option");
-                            o.value = `st:${id}`;
-                            o.textContent = nm;
-                            g2.appendChild(o);
-                        }
-                        sel.appendChild(g2);
-                    }
-
-                    const want = active || cur;
-                    if (want) sel.value = want;
-                };
-
-                if (!window.UIE_ST_CONN_PROFILES_LOADING && !Array.isArray(window.UIE_ST_CONN_PROFILES)) {
-                    window.UIE_ST_CONN_PROFILES_LOADING = true;
-                    import("../../../../../extensions.js").then((mod) => {
-                        const ctx = mod?.getContext?.() || {};
-                        const raw =
-                            ctx?.connection_profiles ||
-                            ctx?.connectionProfiles ||
-                            ctx?.connections ||
-                            ctx?.profiles ||
-                            window?.connection_profiles ||
-                            window?.connectionProfiles ||
-                            window?.SillyTavern?.connection_profiles ||
-                            window?.SillyTavern?.connectionProfiles ||
-                            null;
-                        const map = {};
-                        const out = [];
-                        const push = (it) => {
-                            if (!it || typeof it !== "object") return;
-                            const id = String(it.id || it.profile_id || it.profileId || it.name || it.title || "");
-                            const name = String(it.name || it.title || it.profile_name || it.profileName || id || "").trim();
-                            if (!id || !name) return;
-                            if (map[id]) return;
-                            map[id] = it;
-                            out.push({ id, name });
-                        };
-                        if (Array.isArray(raw)) raw.forEach(push);
-                        else if (raw && typeof raw === "object") {
-                            const maybeArr = raw.profiles || raw.items || raw.list;
-                            if (Array.isArray(maybeArr)) maybeArr.forEach(push);
-                            else for (const v of Object.values(raw)) push(v);
-                        }
-                        window.UIE_ST_CONN_PROFILE_MAP = map;
-                        window.UIE_ST_CONN_PROFILES = out.sort((a, b) => String(a.name).localeCompare(String(b.name)));
-                        window.UIE_ST_CONN_PROFILES_LOADING = false;
-                        try { renderSelect(); } catch (_) {}
-                    }).catch(() => {
-                        window.UIE_ST_CONN_PROFILE_MAP = {};
-                        window.UIE_ST_CONN_PROFILES = [];
-                        window.UIE_ST_CONN_PROFILES_LOADING = false;
-                        try { renderSelect(); } catch (_) {}
-                    });
-                }
-
-                renderSelect();
-            }
-        } catch (_) {}
+        refreshProfileSelect(scope, s2);
 
         syncAutomationLabels(scope);
     };
@@ -351,6 +419,7 @@ export function initInteractions() {
         const st = getSettings();
         if (!st) return;
         ensureUiBuckets(st);
+        try { refreshProfileSelect(document.getElementById("uie-settings-window"), st); } catch (_) {}
 
         $("#uie-hide-inventory").prop("checked", !!st.menuHidden?.inventory);
         $("#uie-hide-shop").prop("checked", !!st.menuHidden?.shop);
@@ -663,6 +732,7 @@ export function initInteractions() {
                     s2.connections.activeProfileId = sel;
                     saveSettings();
                     refreshSettingsDrawer();
+                    try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
                     try { window.toastr?.success?.("SillyTavern profile applied to Turbo."); } catch (_) {}
                     return;
                 }
@@ -685,6 +755,7 @@ export function initInteractions() {
                 s2.connections.activeProfileId = sel;
                 saveSettings();
                 refreshSettingsDrawer();
+                try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
                 try { window.toastr?.success?.("Profile applied."); } catch (_) {}
                 return;
             }
@@ -695,6 +766,7 @@ export function initInteractions() {
                     if (s2.connections.activeProfileId === sel) s2.connections.activeProfileId = "";
                     saveSettings();
                     refreshSettingsDrawer();
+                    try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
                     try { window.toastr?.info?.("SillyTavern profiles can’t be deleted here."); } catch (_) {}
                     return;
                 }
@@ -702,6 +774,7 @@ export function initInteractions() {
                 if (s2.connections.activeProfileId === sel) s2.connections.activeProfileId = "";
                 saveSettings();
                 refreshSettingsDrawer();
+                try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
                 try { window.toastr?.info?.("Profile deleted."); } catch (_) {}
                 return;
             }
@@ -720,6 +793,7 @@ export function initInteractions() {
                 s2.connections.activeProfileId = id;
                 saveSettings();
                 refreshSettingsDrawer();
+                try { refreshProfileSelect(document.getElementById("uie-settings-window"), s2); } catch (_) {}
                 try { window.toastr?.success?.("Profile saved."); } catch (_) {}
             }
         });
@@ -1411,24 +1485,30 @@ export function initInteractions() {
         try { $("#uie-mem-auto").prop("checked", s.memories?.auto === true); } catch (_) {}
         
         // LAUNCHER SETTINGS
-        if (!s.launcher) s.launcher = {};
+        ensureLauncherStore(s);
         $("#uie-launcher-name").val(s.launcher.name || "");
         const $iconSel = $("#uie-launcher-icon");
-        // Keep existing options but select correct one
-        $iconSel.val(s.launcher.src || "");
-        if (!$iconSel.val() && s.launcher.src) {
-             // Custom or missing option
-             if (s.launcher.src.startsWith("data:")) {
-                 $iconSel.val("custom");
-                 $("#uie-launcher-preview").css("backgroundImage", `url("${s.launcher.src}")`).show();
-             } else {
-                 // Try to add it if it looks like a folder file
-                 $iconSel.append(`<option value="${s.launcher.src}">${s.launcher.src.split("/").pop()}</option>`);
-                 $iconSel.val(s.launcher.src);
-             }
-        } else {
-             $("#uie-launcher-preview").hide();
+        syncLauncherIconSelect(s);
+        const curSrc = String(s.launcher.src || "");
+        $iconSel.val(curSrc);
+        if (!$iconSel.val() && curSrc) {
+            if (curSrc.startsWith("data:")) {
+                const label = String(s.launcher.lastUploadName || "Unsaved Upload").trim().slice(0, 60) || "Unsaved Upload";
+                $iconSel.find("option[data-uie-temp='1']").remove();
+                const opt = document.createElement("option");
+                opt.value = curSrc;
+                opt.textContent = label;
+                opt.setAttribute("data-uie-temp", "1");
+                const selEl = $iconSel.get(0);
+                const customOpt = selEl ? selEl.querySelector("option[value='custom']") : null;
+                if (selEl) selEl.insertBefore(opt, customOpt ? customOpt.nextSibling : selEl.firstChild);
+                $iconSel.val(curSrc);
+            } else {
+                $iconSel.append(`<option value="${curSrc}">${curSrc.split("/").pop()}</option>`);
+                $iconSel.val(curSrc);
+            }
         }
+        setLauncherPreview(curSrc);
 
         if (!s.menuHidden) s.menuHidden = {};
         $("#uie-hide-inventory").prop("checked", !!s.menuHidden.inventory);
@@ -1686,7 +1766,7 @@ export function initInteractions() {
         });
 
     // Launcher Settings Logic
-    $(document).on("input", "#uie-launcher-name", function() {
+    $(document).off("input.uieLauncherName").on("input.uieLauncherName", "#uie-launcher-name", function() {
         const s = getSettings();
         if (!s.launcher) s.launcher = {};
         s.launcher.name = $(this).val();
@@ -1694,21 +1774,21 @@ export function initInteractions() {
         updateLayout();
     });
 
-    $(document).on("change", "#uie-launcher-icon", function() {
+    $(document).off("change.uieLauncherIcon").on("change.uieLauncherIcon", "#uie-launcher-icon", function() {
         const val = $(this).val();
         if (val === "custom") {
             $("#uie-launcher-file").trigger("click");
             return;
         }
         const s = getSettings();
-        if (!s.launcher) s.launcher = {};
+        ensureLauncherStore(s);
         s.launcher.src = val;
         saveSettings();
         updateLayout();
-        $("#uie-launcher-preview").hide();
+        setLauncherPreview(val);
     });
 
-    $(document).on("change", "#uie-launcher-file", function() {
+    $(document).off("change.uieLauncherFile").on("change.uieLauncherFile", "#uie-launcher-file", function() {
         const file = this.files && this.files[0];
         if (!file) {
              $("#uie-launcher-icon").val(""); 
@@ -1717,58 +1797,83 @@ export function initInteractions() {
         const reader = new FileReader();
         reader.onload = function(ev) {
             const s = getSettings();
-            if (!s.launcher) s.launcher = {};
-            s.launcher.src = ev.target.result;
+            ensureLauncherStore(s);
+            const dataUrl = String(ev?.target?.result || "");
+            if (!dataUrl.startsWith("data:")) return;
+            s.launcher.src = dataUrl;
+            s.launcher.lastUploadName = String(file?.name || "Custom Icon").trim().slice(0, 80);
             saveSettings();
             updateLayout();
-            $("#uie-launcher-preview").css("backgroundImage", `url("${s.launcher.src}")`).show();
+            syncLauncherIconSelect(s);
+            const $sel = $("#uie-launcher-icon");
+            $sel.find("option[data-uie-temp='1']").remove();
+            const label = String(s.launcher.lastUploadName || "Unsaved Upload").replace(/\.[a-z0-9]+$/i, "").slice(0, 60) || "Unsaved Upload";
+            const opt = document.createElement("option");
+            opt.value = dataUrl;
+            opt.textContent = label;
+            opt.setAttribute("data-uie-temp", "1");
+            const selEl = $sel.get(0);
+            const customOpt = selEl ? selEl.querySelector("option[value='custom']") : null;
+            if (selEl) selEl.insertBefore(opt, customOpt ? customOpt.nextSibling : selEl.firstChild);
+            $sel.val(dataUrl);
+            setLauncherPreview(dataUrl);
         };
         reader.readAsDataURL(file);
         $(this).val("");
     });
 
-    $(document).on("click", "#uie-launcher-refresh", async function(e) {
+    $(document).off("click.uieLauncherSave").on("click.uieLauncherSave", "#uie-launcher-save", async function(e) {
         e.preventDefault();
         e.stopPropagation();
-        const $btn = $(this);
-        $btn.addClass("fa-spin");
-        
-        const folder = "./assets/launcher/"; // Default convention
-        try {
-            // Attempt to list directory (requires server auto-indexing or valid response)
-            const html = await $.get(folder).catch(() => "");
-            if (!html) {
-                 notify("info", "No 'assets/launcher/' folder found or accessible.", "UIE");
-                 $btn.removeClass("fa-spin");
-                 return;
-            }
-            const doc = new DOMParser().parseFromString(html, "text/html");
-            const links = Array.from(doc.querySelectorAll("a"));
-            const images = links
-                .map(a => a.getAttribute("href"))
-                .filter(href => href && /\.(png|jpg|jpeg|gif|svg|ico)$/i.test(href) && !href.startsWith("?"));
-            
-            const $sel = $("#uie-launcher-icon");
-            // Remove old folder items (heuristic: if value contains /launcher/)
-            $sel.find("option").each(function() {
-                if ($(this).val().includes("/launcher/")) $(this).remove();
-            });
-            
-            if (images.length === 0) {
-                 notify("info", "No images found in assets/launcher/", "UIE");
-            } else {
-                 images.forEach(img => {
-                     // Clean path
-                     const name = decodeURIComponent(img.split("/").pop());
-                     const fullPath = folder + name;
-                     $sel.append(`<option value="${fullPath}">${name}</option>`);
-                 });
-                 notify("success", `Found ${images.length} icons.`, "UIE");
-            }
-        } catch (e) {
-            console.error("Launcher Scan Error", e);
+        const s = getSettings();
+        ensureLauncherStore(s);
+        const src = String(s.launcher?.src || "");
+        if (!src.startsWith("data:")) {
+            notify("info", "Upload/select a custom icon first.", "UIE");
+            return;
         }
-        $btn.removeClass("fa-spin");
+        const suggested = String(s.launcher.lastUploadName || "Custom Icon").replace(/\.[a-z0-9]+$/i, "").slice(0, 60) || "Custom Icon";
+        const name = String(prompt("Save icon as:", suggested) || "").trim().slice(0, 60);
+        if (!name) return;
+
+        const list = Array.isArray(s.launcher.savedIcons) ? s.launcher.savedIcons : [];
+        const hit = list.findIndex(x => String(x?.dataUrl || x?.data || "") === src);
+        if (hit >= 0) list[hit] = { ...list[hit], name, dataUrl: src, ts: Date.now() };
+        else list.push({ id: `lic_${Date.now()}_${Math.random().toString(16).slice(2)}`, name, dataUrl: src, ts: Date.now() });
+        s.launcher.savedIcons = list.slice(0, 40);
+        saveSettings();
+        syncLauncherIconSelect(s);
+        $("#uie-launcher-icon").val(src);
+        setLauncherPreview(src);
+        notify("success", "Saved launcher icon.", "UIE");
+    });
+
+    $(document).off("click.uieLauncherDelete").on("click.uieLauncherDelete", "#uie-launcher-delete", async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        ensureLauncherStore(s);
+        const val = String($("#uie-launcher-icon").val() || "");
+        if (!val.startsWith("data:")) {
+            notify("info", "Select a saved custom icon to delete.", "UIE");
+            return;
+        }
+        const list = Array.isArray(s.launcher.savedIcons) ? s.launcher.savedIcons : [];
+        const idx = list.findIndex(x => String(x?.dataUrl || x?.data || "") === val);
+        if (idx < 0) {
+            notify("info", "That icon is not saved yet.", "UIE");
+            return;
+        }
+        if (!confirm("Delete this saved launcher icon?")) return;
+        list.splice(idx, 1);
+        s.launcher.savedIcons = list.slice(0, 40);
+        if (String(s.launcher.src || "") === val) s.launcher.src = "";
+        saveSettings();
+        syncLauncherIconSelect(s);
+        $("#uie-launcher-icon").val(String(s.launcher.src || ""));
+        setLauncherPreview(String(s.launcher.src || ""));
+        updateLayout();
+        notify("success", "Deleted saved launcher icon.", "UIE");
     });
 
     $(document)

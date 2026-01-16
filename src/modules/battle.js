@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
+import { injectRpEvent } from "./features/rp_log.js";
 
 let bound = false;
 let observer = null;
@@ -261,6 +262,7 @@ ${chat}
 
   const st = s.battle.state;
   const prevActive = !!st.active;
+  const prevEnemyHp = new Map((Array.isArray(st.enemies) ? st.enemies : []).map(e => [String(e?.name || "").toLowerCase().trim(), Number(e?.hp || 0)]).filter(x => x[0]));
   st.active = !!obj.active;
   const incomingEnemies = Array.isArray(obj.enemies) ? obj.enemies : [];
   st.enemies = mergeEnemies(st.enemies, incomingEnemies);
@@ -272,6 +274,21 @@ ${chat}
 
   saveSettings();
   renderBattle();
+  if (!prevActive && st.active) {
+    try {
+      const names = (Array.isArray(st.enemies) ? st.enemies : []).map(e => String(e?.name || "").trim()).filter(Boolean).slice(0, 6);
+      injectRpEvent(`[System: Combat Started against ${names.length ? names.join(", ") : "unknown enemies"}.]`);
+    } catch (_) {}
+  }
+  try {
+    for (const e of (Array.isArray(st.enemies) ? st.enemies : [])) {
+      const k = String(e?.name || "").toLowerCase().trim();
+      if (!k) continue;
+      const prevHp = Number(prevEnemyHp.get(k) || 0);
+      const hp = Number(e?.hp || 0);
+      if (prevHp > 0 && hp <= 0) injectRpEvent(`[System: ${String(e?.name || "Enemy")} has been defeated.]`);
+    }
+  } catch (_) {}
   if (prevActive && !st.active) await maybePostBattleRewards(chat);
 }
 

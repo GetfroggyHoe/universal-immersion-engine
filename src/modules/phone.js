@@ -13,6 +13,43 @@ let arrivalObserver = null;
 let arrivalLastMesId = null;
 let callChatContext = "";
 
+function getMainChatContext(lines) {
+    try {
+        const max = Math.max(3, Number(lines || 10));
+        const nodes = Array.from(document.querySelectorAll("#chat .mes")).slice(-1 * max);
+        const out = [];
+        for (const m of nodes) {
+            const name =
+                m.querySelector(".mes_name")?.textContent ||
+                m.querySelector(".name_text")?.textContent ||
+                m.querySelector(".name")?.textContent ||
+                "";
+            const text =
+                m.querySelector(".mes_text")?.textContent ||
+                m.querySelector(".mes-text")?.textContent ||
+                m.querySelector(".message")?.textContent ||
+                m.textContent ||
+                "";
+            const nm = String(name || "").trim() || "Unknown";
+            const tx = String(text || "").trim();
+            if (!tx) continue;
+            out.push(`${nm}: ${tx}`.slice(0, 360));
+        }
+        if (!out.length) return "";
+        return `[Recent RP]\n${out.join("\n")}`.slice(0, 2200);
+    } catch (_) {
+        return "";
+    }
+}
+
+async function relayRelationship(name, text, source) {
+    try {
+        const mod = await import("./social.js");
+        if (typeof mod?.updateRelationshipScore !== "function") return;
+        await mod.updateRelationshipScore(String(name || ""), String(text || ""), String(source || ""));
+    } catch (_) {}
+}
+
 function esc(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -717,6 +754,7 @@ export function initPhone() {
         $("#msg-input").val("");
         try { $("#msg-input").css("height", ""); } catch (_) {}
         notify("success", "Message sent.", "Messages", "phoneMessages");
+        try { relayRelationship(targetName, t, "text"); } catch (_) {}
         try {
             const inj = await injectRpEvent(`(Text) ${getPersonaName()} → ${targetName}: "${String(t).slice(0, 500)}"`, { uie: { type: "phone_text", who: targetName } });
             if (inj && inj.ok && inj.mesid) {
@@ -729,6 +767,7 @@ export function initPhone() {
         const allow = !!(s2?.ai?.phoneMessages);
         if (!allow) return;
 
+        const mainCtx = getMainChatContext(5);
         const chat = getChatSnippet(50);
         const lore = (() => { try { const ctx = getContext?.(); const maybe = ctx?.world_info || ctx?.lorebook || ctx?.lore || ctx?.worldInfo; const keys=[]; if(Array.isArray(maybe)){ for(const it of maybe){ const k=it?.key||it?.name||it?.title; if(k) keys.push(String(k)); } } return Array.from(new Set(keys)).slice(0, 60).join(", "); } catch(_) { return ""; } })();
         const character = (() => { try { const ctx = getContext?.(); return JSON.stringify({ user: ctx?.name1, character: ctx?.name2, chatId: ctx?.chatId, characterId: ctx?.characterId, groupId: ctx?.groupId }); } catch(_) { return "{}"; } })();
@@ -737,6 +776,8 @@ export function initPhone() {
         const card = getCharacterCardBlock(2600);
         const mem = getSocialMemoryBlockForName(targetName, 8);
         const prompt = `
+${mainCtx ? `${mainCtx}\n\n` : ""}The user is texting you based on this recent context. React naturally.
+
 Phone Text Rules:
 - You are ${targetName} replying by text to ${persona}.
 - Stay strictly in-character and consistent with the chat context; do not invent sudden personality changes.
@@ -787,6 +828,7 @@ ${chat}`.slice(0, 6000);
                     saveSettings();
                     if($("#uie-app-msg-view").is(":visible")) renderMessages();
                     notify("success", `${targetName} replied.`, "Messages", "phoneMessages");
+                    try { relayRelationship(targetName, replyText, "text"); } catch (_) {}
                     try {
                         const inj = await injectRpEvent(`(Text) ${targetName} → ${persona}: "${replyText}"${replyObj.image ? " [Image]" : ""}`, { uie: { type: "phone_text", who: targetName } });
                         if (inj && inj.ok && inj.mesid) {
@@ -847,7 +889,10 @@ ${chat}`.slice(0, 6000);
         saveSettings();
         renderMessages();
         try {
-            const inj = await injectRpEvent(`(Text) ${getPersonaName()} → ${activeContact}: [Image]`, { uie: { type: "phone_text", who: activeContact } });
+            const persona = getPersonaName();
+            const desc = `User sent an image file to ${String(activeContact)}.`;
+            await injectRpEvent(`[System: User sent an image file to ${String(activeContact)}. Description: ${desc}. Prompt used: (none).]`);
+            const inj = await injectRpEvent(`(Text) ${persona} → ${activeContact}: [Image]`, { uie: { type: "phone_text", who: activeContact } });
             if (inj && inj.ok && inj.mesid) {
                 msgObj.chatMesId = inj.mesid;
                 saveSettings();
@@ -932,7 +977,13 @@ ${chat}`.slice(0, 6000);
         if (root) root.style.display = "none";
     };
 
-    $(document).off("click.phoneStickerOpen", "#msg-sticker-btn").on("click.phoneStickerOpen", "#msg-sticker-btn", function(e){
+    $(document)
+        .off("click.phoneStickerOpen pointerup.phoneStickerOpen touchend.phoneStickerOpen", "#msg-sticker-btn")
+        .on("click.phoneStickerOpen pointerup.phoneStickerOpen touchend.phoneStickerOpen", "#msg-sticker-btn", function(e){
+        if (e.type === "pointerup") {
+            const pt = String(e.pointerType || "").toLowerCase();
+            if (pt && pt !== "touch" && pt !== "pen") return;
+        }
         e.preventDefault();
         e.stopPropagation();
         openStickerDrawer();
@@ -1358,6 +1409,7 @@ ${chat}`.slice(0, 6000), "System Check");
             if (window.toastr) toastr.success("New message", "Phone");
             const persona = getPersonaName();
             injectRpEvent(`(Text) ${name} → ${persona}: "${msg.slice(0, 500)}"`, { uie: { type: "phone_text", who: name } });
+            try { relayRelationship(name, msg, "text"); } catch (_) {}
         } catch (e) { console.warn("[UIE] Incoming text handler failed:", e); }
     };
 
@@ -1368,12 +1420,14 @@ ${chat}`.slice(0, 6000), "System Check");
         $("#call-transcript").append(`<div style="text-align:right;color:white;margin:5px;">${t}</div>`);
         $("#call-input").val("");
         injectRpEvent(`(On phone) You: "${t}"`, { uie: { type: "phone_call_line", who: $("#call-name-disp").text() } });
+        try { relayRelationship($("#call-name-disp").text(), t, "phone_call"); } catch (_) {}
         handleCallReply(t, $("#call-name-disp").text());
     });
 
     const handleCallReply = async (t, n, greeting=false) => {
         const s = getSettings();
         if (s?.ai && s.ai.phoneCalls === false) return;
+        const mainCtx = getMainChatContext(10);
         const chat = callChatContext || getChatSnippet(12);
         const lore = (() => { try { const ctx = getContext?.(); const maybe = ctx?.world_info || ctx?.lorebook || ctx?.lore || ctx?.worldInfo; const keys=[]; if(Array.isArray(maybe)){ for(const it of maybe){ const k=it?.key||it?.name||it?.title; if(k) keys.push(String(k)); } } return Array.from(new Set(keys)).slice(0, 60).join(", "); } catch(_) { return ""; } })();
         const character = (() => { try { const ctx = getContext?.(); return JSON.stringify({ user: ctx?.name1, character: ctx?.name2, chatId: ctx?.chatId, characterId: ctx?.characterId, groupId: ctx?.groupId }); } catch(_) { return "{}"; } })();
@@ -1393,15 +1447,16 @@ ${chat}`.slice(0, 6000), "System Check");
             "",
         ].join("\n");
         const p = greeting
-            ? `${rules}You just answered. Say a natural greeting.\n\nRecent call transcript:\n${transcript}\n\nContext:\n${chat}`
-            : `${rules}${persona} just said: ${t}\n\nRecent call transcript:\n${transcript}\n\n<character check>\n${character}\n</character check>\n<lore check>\n${lore}\n</lore check>\nContext:\n${chat}`;
+            ? `${mainCtx ? `${mainCtx}\n\nThe user is calling you based on this recent context. React naturally.\n\n` : ""}${rules}You just answered. Say a natural greeting.\n\nRecent call transcript:\n${transcript}\n\nContext:\n${chat}`
+            : `${mainCtx ? `${mainCtx}\n\nThe user is calling you based on this recent context. React naturally.\n\n` : ""}${rules}${persona} just said: ${t}\n\nRecent call transcript:\n${transcript}\n\n<character check>\n${character}\n</character check>\n<lore check>\n${lore}\n</lore check>\nContext:\n${chat}`;
         const p2 = `${p}\n\n<character_card>\n${card}\n</character_card>\n${mem}`.slice(0, 7000);
-        const r = await generateContent(p2, "Phone Call");
+        const r = await generateContent(p2, "System Check");
         if(r) {
             const line = sanitizePhoneLine(cleanOutput(r, "chat"), 320);
             if (!line) return;
             $("#call-transcript").append(`<div style="text-align:left;color:#ccc;margin:5px;">${n}: ${line}</div>`);
             injectRpEvent(`(On phone) ${n}: "${line}"`, { uie: { type: "phone_call_line", who: n } });
+            try { relayRelationship(n, line, "phone_call"); } catch (_) {}
         }
     };
 

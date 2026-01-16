@@ -3,6 +3,8 @@ import { saveSettingsDebounced } from "../../../../../../script.js";
 
 export const EXT_ID = "universal-immersion-engine";
 
+let uieLauncherIconProbe = { src: "", ok: null, t: 0 };
+
 export const SETTINGS_DEFAULT = { 
     enabled: true, 
     permadeath: false,
@@ -357,18 +359,63 @@ export function updateLayout() {
     } catch (_) {
         $("#uie-launcher").css({ top: s.launcherY, left: s.launcherX });
     }
-    // Restore default if empty
-    const icon = s.launcher?.src || s.launcherIcon || "https://user.uploads.dev/file/b3fc92e1b70f0c8f0c200b544f7a4cce.png";
+    const baseUrl = (() => {
+        try {
+            const u = String(window.UIE_BASEURL || "");
+            if (u) return u.endsWith("/") ? u : `${u}/`;
+        } catch (_) {}
+        return "/scripts/extensions/third-party/universal-immersion-engine/";
+    })();
+
+    const defaultIcon = "https://user.uploads.dev/file/b3fc92e1b70f0c8f0c200b544f7a4cce.png";
+    let icon = String(s.launcher?.src || s.launcherIcon || defaultIcon);
+    if (/^\.\//.test(icon)) icon = icon.slice(2);
+    if (/^assets\/launcher\//i.test(icon) || /^\/assets\/launcher\//i.test(icon)) {
+        icon = `${baseUrl}${icon.replace(/^\/+/, "")}`;
+    }
+    if (/^assets\//i.test(icon)) icon = `${baseUrl}${icon.replace(/^\/+/, "")}`;
+
     const launcherEl = document.getElementById("uie-launcher");
     if (launcherEl && !launcherEl.querySelector(".uie-launcher-fallback")) {
         launcherEl.insertAdjacentHTML("afterbegin", `<svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:none;stroke:#cba35c;stroke-width:2;display:block;opacity:0.92;" class="uie-launcher-fallback"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`);
     }
+
+    const knownOk = (() => {
+        if (!icon) return false;
+        if (icon.startsWith("data:")) return true;
+        if (uieLauncherIconProbe.src === icon && Date.now() - Number(uieLauncherIconProbe.t || 0) < 60 * 60 * 1000) return uieLauncherIconProbe.ok;
+        return null;
+    })();
+
     try {
         const fb = launcherEl ? launcherEl.querySelector(".uie-launcher-fallback") : null;
-        if (fb) fb.style.display = icon ? "none" : "block";
+        if (fb) fb.style.display = knownOk === true ? "none" : "block";
     } catch (_) {}
+
+    if (knownOk === null && icon && !icon.startsWith("data:")) {
+        const src = icon;
+        uieLauncherIconProbe = { src, ok: null, t: Date.now() };
+        try {
+            const img = new Image();
+            img.onload = () => {
+                uieLauncherIconProbe = { src, ok: true, t: Date.now() };
+                const el = document.getElementById("uie-launcher");
+                const fb = el ? el.querySelector(".uie-launcher-fallback") : null;
+                if (fb) fb.style.display = "none";
+            };
+            img.onerror = () => {
+                uieLauncherIconProbe = { src, ok: false, t: Date.now() };
+                const el = document.getElementById("uie-launcher");
+                const fb = el ? el.querySelector(".uie-launcher-fallback") : null;
+                if (fb) fb.style.display = "block";
+                try { $("#uie-launcher").css({ backgroundImage: "" }); } catch (_) {}
+            };
+            img.src = src;
+        } catch (_) {}
+    }
+
     $("#uie-launcher").css({
-        backgroundImage: icon ? `url("${icon}")` : "",
+        backgroundImage: icon && knownOk !== false ? `url("${icon}")` : "",
         backgroundSize: "contain",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
@@ -443,7 +490,8 @@ export function updateLayout() {
             const id = String($el.attr("id") || "");
             if (id === "uie-inventory-window") {
                 const $panel = $el.find(".uie-inv-panel");
-                $panel.css("transform", scale === 1 ? "" : `scale(${scale})`);
+                if (isFs) $panel.css("transform", "");
+                else $panel.css("transform", scale === 1 ? "" : `scale(${scale})`);
                 $panel.css("transform-origin", "top left");
                 $el.css("transform", "none");
                 return;

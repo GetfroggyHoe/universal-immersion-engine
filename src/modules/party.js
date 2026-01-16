@@ -1,5 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
+import { injectRpEvent } from "./features/rp_log.js";
 
 let selectedId = null;
 let tab = "roster";
@@ -636,6 +637,7 @@ function importUser(s) {
         m.images.portrait = s.character?.avatar || ""; // s.character might be null
         s.party.members.push(m);
         saveSettings();
+        try { injectRpEvent(`[System: ${String(name || "User")} joined the party.]`); } catch (_) {}
         render();
         if(window.toastr) toastr.success(`Imported User: ${name}`);
     } catch(e) { console.error(e); }
@@ -653,6 +655,7 @@ function importChatChar(s) {
         m.roles.push("Character");
         s.party.members.push(m);
         saveSettings();
+        try { injectRpEvent(`[System: ${String(finalName || "Member")} joined the party.]`); } catch (_) {}
         render();
         if(window.toastr) toastr.success(`Imported Character: ${finalName}`);
     } catch(e) { console.error(e); }
@@ -1152,6 +1155,7 @@ export function initParty() {
             openMemberModal(getSettings(), id, true);
         } else if (act === "delete") {
             if (confirm("Remove this member?")) {
+                const leavingName = String(s.party?.members?.[idx]?.identity?.name || s.party?.members?.[idx]?.name || "Member");
                 if (selectedId === id) {
                     try { closeMemberModal(); } catch (_) {}
                     selectedId = null;
@@ -1187,6 +1191,7 @@ export function initParty() {
                     }
                 } catch (_) {}
                 s.party.members.splice(idx, 1);
+                try { injectRpEvent(`[System: ${leavingName} left the party.]`); } catch (_) {}
                 if (!selectedId) {
                     const next = s.party.members.find(m => m && m.active !== false);
                     selectedId = next ? String(next.id || "") : null;

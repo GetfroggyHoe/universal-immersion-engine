@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js";
+import { injectRpEvent } from "./features/rp_log.js";
 
 function ensureShop(s) {
     if (!s.shop) s.shop = {};
@@ -96,7 +97,7 @@ Keywords: ${keys}
 Lore keys: ${lore}
 Recent chat: ${chat}
 `;
-    const res = await generateContent(prompt.slice(0, 6000), "Shop");
+    const res = await generateContent(prompt.slice(0, 6000), "System Check");
     if (!res) return;
     let arr = [];
     try { arr = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { arr = []; }
@@ -149,6 +150,7 @@ export function initShop() {
         if (!Array.isArray(s2.inventory.items)) s2.inventory.items = [];
         s2.inventory.items.push({ kind: "item", name: it.name, type: it.type || "misc", description: it.desc || "", rarity: "common", qty: 1, mods: {}, statusEffects: [] });
         saveSettings();
+        try { injectRpEvent(`[System: User purchased ${String(it.name || "Item")} for ${price} ${sym}.]`); } catch (_) {}
         try { if (window.toastr) toastr.success(`Purchased: ${it.name}`); } catch (_) {}
         import("./inventory.js").then(mod => { if (mod?.updateVitals) mod.updateVitals(); });
         renderShop();
