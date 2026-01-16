@@ -245,12 +245,41 @@ function pickLocalImage() {
         
         // Reset value so change event triggers even if same file selected
         input.value = "";
+
+        const prev = {
+            display: input.style.display,
+            position: input.style.position,
+            left: input.style.left,
+            top: input.style.top,
+            width: input.style.width,
+            height: input.style.height,
+            opacity: input.style.opacity,
+            pointerEvents: input.style.pointerEvents,
+            zIndex: input.style.zIndex
+        };
+        try {
+            input.style.display = "block";
+            input.style.position = "fixed";
+            input.style.left = "-9999px";
+            input.style.top = "0px";
+            input.style.width = "1px";
+            input.style.height = "1px";
+            input.style.opacity = "0";
+            input.style.pointerEvents = "none";
+            input.style.zIndex = "2147483647";
+        } catch (_) {}
         
         input.onchange = (e) => {
             const file = e.target.files[0];
-            if (!file) return resolve(null);
+            if (!file) {
+                try { Object.assign(input.style, prev); } catch (_) {}
+                return resolve(null);
+            }
             const reader = new FileReader();
-            reader.onload = (ev) => resolve(ev.target.result);
+            reader.onload = (ev) => {
+                try { Object.assign(input.style, prev); } catch (_) {}
+                resolve(ev.target.result);
+            };
             reader.readAsDataURL(file);
         };
         input.click();
@@ -563,6 +592,11 @@ function renderFormation(s) {
 function render() {
     const s = getSettings();
     ensureParty(s);
+    try {
+        const mm = $("#uie-party-member-modal");
+        if (memberModalOpen) mm.css({ display: "block", pointerEvents: "auto" });
+        else mm.css({ display: "none", pointerEvents: "none" });
+    } catch (_) {}
     if (!s.ui) s.ui = {};
     if (!s.ui.backgrounds) s.ui.backgrounds = {};
     const partyBg = String(s.ui.backgrounds.party || "");

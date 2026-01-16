@@ -412,6 +412,20 @@ export function initInteractions() {
             const v = Number($(this).val() || 1) || 1;
             s2.uiScale = v;
             $("#uie-scale-display").text(v.toFixed(1));
+            try {
+                if (window.UIE_scaleRaf) cancelAnimationFrame(window.UIE_scaleRaf);
+                window.UIE_scaleRaf = requestAnimationFrame(() => {
+                    try { updateLayout(); } catch (_) {}
+                });
+            } catch (_) { updateLayout(); }
+        });
+    $(document)
+        .off("change.uieSettings", "#uie-scale-slider")
+        .on("change.uieSettings", "#uie-scale-slider", function () {
+            const s2 = getSettings();
+            const v = Number($(this).val() || 1) || 1;
+            s2.uiScale = v;
+            $("#uie-scale-display").text(v.toFixed(1));
             saveSettings();
             updateLayout();
         });

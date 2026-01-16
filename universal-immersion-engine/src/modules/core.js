@@ -349,7 +349,6 @@ export function updateLayout() {
             ly = Math.max(0, Math.min(ly, vh - h));
             s.launcherX = lx;
             s.launcherY = ly;
-            saveSettings();
         }
         $("#uie-launcher").css({ top: ly, left: lx });
     } catch (_) {
@@ -444,6 +443,11 @@ export function updateLayout() {
                 $panel.css("transform", scale === 1 ? "" : `scale(${scale})`);
                 $panel.css("transform-origin", "top left");
                 $el.css("transform", "none");
+                return;
+            }
+            if (isMobile && $el.hasClass("uie-window")) {
+                $el.css("transform", "none");
+                $el.css("transform-origin", "");
                 return;
             }
             const top = $el.css("top");

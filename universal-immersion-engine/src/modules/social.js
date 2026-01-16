@@ -385,17 +385,17 @@ function openProfile(index, anchorEl) {
     $("#p-val-age").text(person.age || "Unknown");
     $("#p-val-family").text(person.knownFamily || "Unknown");
     $("#p-val-family-role").text(person.familyRole || "—");
-    const aff = Math.max(0, Math.min(100, Number(person.affinity ?? 50)));
+    const affNum = Math.max(0, Math.min(100, Number(person.affinity ?? 50)));
     const disp = (() => {
-        if (aff <= 10) return "Hostile";
-        if (aff <= 25) return "Wary";
-        if (aff <= 45) return "Cold";
-        if (aff <= 60) return "Neutral";
-        if (aff <= 75) return "Warm";
-        if (aff <= 90) return "Friendly";
+        if (affNum <= 10) return "Hostile";
+        if (affNum <= 25) return "Wary";
+        if (affNum <= 45) return "Cold";
+        if (affNum <= 60) return "Neutral";
+        if (affNum <= 75) return "Warm";
+        if (affNum <= 90) return "Friendly";
         return "Devoted";
     })();
-    $("#p-val-rel-status").text(`${person.relationshipStatus || "—"} (${disp}, ${aff}/100)`);
+    $("#p-val-rel-status").text(`${person.relationshipStatus || "—"} (${disp}, ${affNum}/100)`);
     $("#p-val-likes").text(person.likes || "-");
     $("#p-val-dislikes").text(person.dislikes || "-");
 
@@ -403,7 +403,7 @@ function openProfile(index, anchorEl) {
     if(av) { $("#p-img-disp").attr("src", av).show(); $(".uie-p-portrait i").hide(); } 
     else { $("#p-img-disp").hide(); $(".uie-p-portrait i").show(); }
 
-    const aff = person.affinity || 0;
+    const aff = Number(person.affinity || 0);
     const hearts = "❤".repeat(Math.floor(aff / 20)) + "♡".repeat(5 - Math.floor(aff / 20));
     $(".uie-p-hearts-lg").text(hearts);
 
@@ -537,34 +537,123 @@ function cancelMassDelete() {
     renderSocial();
 }
 
-function extractSpeakerNamesFromChat(maxMessages) {
+function extractNamesFromChatDom(maxMessages) {
     const names = new Set();
-    const nodes = Array.from(document.querySelectorAll("#chat .mes_text, #chat .mes_text *")).map(n => n.textContent).filter(Boolean);
-    const blob = nodes.join("\n");
-    const lines = blob.split("\n").slice(-1 * Math.max(10, Number(maxMessages || 60)));
-    const re = /^([A-Z][A-Za-z0-9' -]{2,36}):\s/m;
-    for (const line of lines) {
-        const m = String(line || "").match(re);
-        if (!m) continue;
-        const n = String(m[1] || "").trim();
-        if (n) names.add(n);
-    }
-    return Array.from(names).slice(0, 24);
+    try {
+        const nodes = Array.from(document.querySelectorAll("#chat .mes")).slice(-1 * Math.max(10, Number(maxMessages || 80)));
+        for (const m of nodes) {
+            const nm =
+                m.querySelector(".mes_name")?.textContent ||
+                m.querySelector(".name_text")?.textContent ||
+                m.querySelector(".name")?.textContent ||
+                "";
+            const n = String(nm || "").trim();
+            if (n) names.add(n);
+        }
+    } catch (_) {}
+    return Array.from(names);
 }
 
-function scanChatIntoSocial({ silent } = {}) {
+function extractNamesFromTextHeuristics(maxMessages) {
+    const names = new Set();
+    try {
+        const nodes = Array.from(document.querySelectorAll("#chat .mes_text, #chat .mes_text *")).map(n => n.textContent).filter(Boolean);
+        const blob = nodes.join("\n");
+        const lines = blob.split("\n").slice(-1 * Math.max(20, Number(maxMessages || 80)));
+        const re1 = /^([A-Za-z][A-Za-z0-9' -]{2,48}):\s/;
+        const re2 = /\b(?:NPC|Character|Speaker|Name)\s*[:=-]\s*([A-Za-z][A-Za-z0-9' -]{2,48})\b/;
+        for (const line of lines) {
+            const a = String(line || "").match(re1);
+            if (a && a[1]) names.add(String(a[1]).trim());
+            const b = String(line || "").match(re2);
+            if (b && b[1]) names.add(String(b[1]).trim());
+        }
+    } catch (_) {}
+    return Array.from(names);
+}
+
+async function aiExtractNamesFromChat(maxMessages) {
+    try {
+        const msgs = [];
+        const nodes = Array.from(document.querySelectorAll("#chat .mes")).slice(-1 * Math.max(20, Number(maxMessages || 90)));
+        for (const m of nodes) {
+            const nm =
+                m.querySelector(".mes_name")?.textContent ||
+                m.querySelector(".name_text")?.textContent ||
+                m.querySelector(".name")?.textContent ||
+                "";
+            const tx =
+                m.querySelector(".mes_text")?.textContent ||
+                m.querySelector(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            const n = String(nm || "").trim() || "Unknown";
+            const t = String(tx || "").trim();
+            if (!t) continue;
+            msgs.push(`${n}: ${t}`);
+        }
+        const transcript = msgs.join("\n").slice(-14000);
+        if (!transcript) return { names: [], questions: [] };
+
+        const ctx = getContext ? getContext() : {};
+        const user = String(ctx?.name1 || "").trim();
+        const main = String(ctx?.name2 || "").trim();
+
+        const prompt = `[UIE_LOCKED]
+Task: Extract a list of distinct NPC/person names that the user should add to a Social/Contacts list.
+
+Input chat transcript (may include omniscient tool cards / metadata; ignore anything that is not an in-world speaker/name):
+${transcript}
+
+User name: "${user}"
+Main character name: "${main}"
+
+Return ONLY valid JSON:
+{"names":["..."],"questions":["..."]}
+
+Rules:
+- names: 0 to 24 distinct person names seen in chat (speakers or explicitly referenced as characters).
+- Exclude the User name and Main character name.
+- Do not invent new people. Only output names that appear in the transcript.
+- If uncertain about whether a token is a name, do NOT include it; instead add a short question in questions asking what it refers to.
+- Keep names short (2–40 chars), no emojis, no titles like "Mr.", no roles like "Guard #2" unless that is literally used as the name.`;
+
+        const res = await generateContent(prompt, "System Check");
+        if (!res) return { names: [], questions: [] };
+        const obj = JSON.parse(String(res).replace(/```json|```/g, "").trim());
+        const names = Array.isArray(obj?.names) ? obj.names.map(x => String(x || "").trim()).filter(Boolean) : [];
+        const questions = Array.isArray(obj?.questions) ? obj.questions.map(x => String(x || "").trim()).filter(Boolean) : [];
+        return { names: names.slice(0, 24), questions: questions.slice(0, 6) };
+    } catch (_) {
+        return { names: [], questions: [] };
+    }
+}
+
+async function scanChatIntoSocial({ silent } = {}) {
     const s = getSettings();
     normalizeSocial(s);
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "").toLowerCase();
     const main = String(ctx?.name2 || "").toLowerCase();
 
-    const found = extractSpeakerNamesFromChat(80).filter(n => {
+    let found = [
+        ...extractNamesFromChatDom(90),
+        ...extractNamesFromTextHeuristics(90),
+    ].map(n => String(n || "").trim()).filter(Boolean);
+    found = Array.from(new Set(found)).slice(0, 40);
+    found = found.filter(n => {
         const k = n.toLowerCase();
         if (!k) return false;
         if (k === user || k === main) return false;
         return true;
     });
+    if (!found.length) {
+        const ai = await aiExtractNamesFromChat(100);
+        found = (ai?.names || []).map(n => String(n || "").trim()).filter(Boolean);
+        if (!silent && Array.isArray(ai?.questions) && ai.questions.length) {
+            try { notify("info", `Social scan questions:\n- ${ai.questions.join("\n- ")}`, "Social", "social"); } catch (_) {}
+        }
+    }
     if (!found.length) {
         if (!silent) notify("info", "No new names found in chat.", "Social", "social");
         return;
@@ -579,7 +668,7 @@ function scanChatIntoSocial({ silent } = {}) {
     for (const n of found) {
         const key = n.toLowerCase();
         if (existing.has(key)) continue;
-        s.social.friends.push({ name: n, affinity: 50, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", url: "", tab: "friends" });
+        s.social.friends.push({ id: newId("person"), name: n, affinity: 50, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: "", url: "", tab: "friends", memories: [] });
         existing.add(key);
         added++;
     }
@@ -721,7 +810,7 @@ export function initSocial() {
     b.on("click.uieSocialActions", "#uie-delete-controls .uie-del-confirm", (e) => { e.preventDefault(); e.stopPropagation(); confirmMassDelete(); });
     b.on("click.uieSocialActions", "#uie-delete-controls .uie-del-cancel", (e) => { e.preventDefault(); e.stopPropagation(); cancelMassDelete(); });
 
-    b.on("click.uieSocialActions", "#uie-act-scan", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").hide(); scanChatIntoSocial(); });
+    b.on("click.uieSocialActions", "#uie-act-scan", async (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").hide(); await scanChatIntoSocial(); });
     b.on("click.uieSocialActions", "#uie-act-toggle-auto", (e) => {
         e.preventDefault(); e.stopPropagation();
         const s = getSettings();
