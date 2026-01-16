@@ -287,6 +287,98 @@ async function confirmAICall({ what, providerModel, preview }) {
     });
 }
 
+function normalizeTurboInputUrl(u) {
+    let raw = String(u || "").trim();
+    if (!raw) return "";
+    raw = raw.replace(/,/g, ".");
+    if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+    return raw;
+}
+
+function buildTurboUrlCandidates(rawUrl) {
+    const input = normalizeTurboInputUrl(rawUrl);
+    if (!input) return [];
+    const m = input.match(/^([^?#]+)([?#].*)?$/);
+    const base0 = String(m?.[1] || input).trim().replace(/\/+$/g, "");
+    const suffix = String(m?.[2] || "");
+
+    const add = (u, out) => {
+        const x = String(u || "").trim();
+        if (!x) return;
+        if (!out.includes(x)) out.push(x);
+    };
+
+    const out = [];
+
+    if (/\/v1$/i.test(base0)) {
+        add(`${base0}/chat/completions${suffix}`, out);
+        add(`${base0}/completions${suffix}`, out);
+        add(`${base0}/responses${suffix}`, out);
+        return out;
+    }
+
+    if (/\/v1\/chat\/completions$/i.test(base0)) {
+        add(`${base0}${suffix}`, out);
+        add(`${base0.replace(/\/chat\/completions$/i, "/completions")}${suffix}`, out);
+        add(`${base0.replace(/\/chat\/completions$/i, "/responses")}${suffix}`, out);
+        return out;
+    }
+
+    if (/\/v1\/completions$/i.test(base0)) {
+        add(`${base0.replace(/\/completions$/i, "/chat/completions")}${suffix}`, out);
+        add(`${base0}${suffix}`, out);
+        add(`${base0.replace(/\/completions$/i, "/responses")}${suffix}`, out);
+        return out;
+    }
+
+    if (/\/v1\/responses$/i.test(base0)) {
+        add(`${base0.replace(/\/responses$/i, "/chat/completions")}${suffix}`, out);
+        add(`${base0.replace(/\/responses$/i, "/completions")}${suffix}`, out);
+        add(`${base0}${suffix}`, out);
+        return out;
+    }
+
+    if (/\/chat$/i.test(base0)) {
+        add(`${base0}/completions${suffix}`, out);
+        return out;
+    }
+
+    if (/\/chat\/completions$/i.test(base0)) {
+        add(`${base0}${suffix}`, out);
+        return out;
+    }
+
+    add(`${base0}/v1/chat/completions${suffix}`, out);
+    add(`${base0}/v1/completions${suffix}`, out);
+    add(`${base0}/v1/responses${suffix}`, out);
+    add(`${base0}/chat/completions${suffix}`, out);
+    add(`${base0}/completions${suffix}`, out);
+    add(`${base0}/responses${suffix}`, out);
+    return out;
+}
+
+function extractTurboText(data) {
+    try {
+        const d = data;
+        const c0 = d?.choices?.[0];
+        const msg = c0?.message?.content;
+        if (typeof msg === "string" && msg.trim()) return msg;
+        const txt = c0?.text;
+        if (typeof txt === "string" && txt.trim()) return txt;
+        const outText = d?.output_text;
+        if (typeof outText === "string" && outText.trim()) return outText;
+        const o0 = d?.output?.[0]?.content?.[0]?.text;
+        if (typeof o0 === "string" && o0.trim()) return o0;
+        const o1 = d?.output?.[0]?.content?.[0]?.content;
+        if (typeof o1 === "string" && o1.trim()) return o1;
+        const gen = d?.generated_text;
+        if (typeof gen === "string" && gen.trim()) return gen;
+        const any = d?.result || d?.response || d?.data;
+        if (typeof any === "string" && any.trim()) return any;
+    } catch (_) {}
+    return "";
+}
+
 async function generateTurbo(prompt, systemPrompt) {
     const s = getSettings();
     const t = s.turbo || {};
@@ -294,27 +386,14 @@ async function generateTurbo(prompt, systemPrompt) {
     const rawUrl = String(t.url || "").trim();
     const rawKey = String(t.key || "").trim();
     if (!rawUrl) return null;
-    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(rawUrl);
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(normalizeTurboInputUrl(rawUrl));
     if (!rawKey && !isLocal) return null;
 
-    const normalizeTurboUrl = (u) => {
-        const raw = String(u || "").trim();
-        if (!raw) return "";
-        const m = raw.match(/^([^?#]+)([?#].*)?$/);
-        let base = String(m?.[1] || raw).trim().replace(/\/+$/g, "");
-        const suffix = String(m?.[2] || "");
-
-        if (/\/v1$/i.test(base)) return `${base}/chat/completions${suffix}`;
-        if (/\/chat$/i.test(base)) return `${base}/completions${suffix}`;
-        if (/\/completions$/i.test(base) && !/\/chat\/completions$/i.test(base)) return `${base.replace(/\/completions$/i, "")}/chat/completions${suffix}`;
-        if (/\/chat\/completions$/i.test(base)) return `${base}${suffix}`;
-
-        if (base.endsWith("/")) base = base.slice(0, -1);
-        return `${base}/v1/chat/completions${suffix}`;
-    };
-
-    const url = normalizeTurboUrl(rawUrl);
-    if (!url) return null;
+    const urls = buildTurboUrlCandidates(rawUrl);
+    if (!urls.length) {
+        try { window.UIE_lastTurbo = { ok: false, url: "", ms: 0, status: 0, error: "Invalid Turbo endpoint." }; } catch (_) {}
+        return null;
+    }
 
     try {
         const headers = { 
@@ -323,30 +402,71 @@ async function generateTurbo(prompt, systemPrompt) {
             "HTTP-Referer": "https://github.com/SillyTavern/SillyTavern",
             "X-Title": "UIE"
         };
-        if (rawKey) headers.Authorization = `Bearer ${rawKey}`;
-        const response = await fetch(url, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ 
-                model: String(t.model || "google/gemini-2.0-flash-exp"), 
-                messages: [
-                    ...(systemPrompt ? [{ role: "system", content: String(systemPrompt) }] : []),
-                    { role: "user", content: String(prompt || "") }
-                ],
-                temperature: 0.5, 
-                max_tokens: 1000,
-                stream: false
-            })
-        });
-
-        if (!response.ok) {
-            const errText = await response.text();
-            throw new Error(`API Error ${response.status}: ${String(errText || "").slice(0, 240)}`);
+        if (rawKey) {
+            headers.Authorization = `Bearer ${rawKey}`;
+            headers["x-api-key"] = rawKey;
+            headers["api-key"] = rawKey;
         }
 
-        const data = await response.json();
-        if (!data.choices || !data.choices[0]) throw new Error("Invalid API Response");
-        return data.choices[0].message.content;
+        const model = String(t.model || "google/gemini-2.0-flash-exp");
+        const messages = [
+            ...(systemPrompt ? [{ role: "system", content: String(systemPrompt) }] : []),
+            { role: "user", content: String(prompt || "") }
+        ];
+        const baseBody = {
+            model,
+            temperature: 0.5,
+            max_tokens: 1000,
+            stream: false
+        };
+
+        let lastErr = "";
+        const startedAt = Date.now();
+
+        for (const url of urls) {
+            try {
+                let body = null;
+                if (/\/chat\/completions/i.test(url)) {
+                    body = { ...baseBody, messages };
+                } else if (/\/completions/i.test(url)) {
+                    const flat = messages.map(m => `${String(m.role).toUpperCase()}: ${String(m.content)}`).join("\n\n");
+                    body = { ...baseBody, prompt: flat };
+                } else if (/\/responses/i.test(url)) {
+                    body = { ...baseBody, input: messages };
+                } else {
+                    body = { ...baseBody, messages };
+                }
+
+                const response = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+                const ms = Date.now() - startedAt;
+                if (!response.ok) {
+                    const errText = await response.text().catch(() => "");
+                    lastErr = `API Error ${response.status}: ${String(errText || "").slice(0, 360)}`;
+                    window.UIE_lastTurbo = { ok: false, url, ms, status: response.status, error: lastErr };
+                    continue;
+                }
+                const data = await response.json().catch(() => null);
+                const text = extractTurboText(data);
+                if (!text) {
+                    lastErr = "Invalid API response (no text).";
+                    window.UIE_lastTurbo = { ok: false, url, ms, status: 200, error: lastErr };
+                    continue;
+                }
+                window.UIE_lastTurbo = { ok: true, url, ms, status: 200, error: "" };
+                return text;
+            } catch (e) {
+                const ms = Date.now() - startedAt;
+                lastErr = String(e?.message || e || "Turbo fetch failed").slice(0, 360);
+                window.UIE_lastTurbo = { ok: false, url, ms, status: 0, error: lastErr };
+                continue;
+            }
+        }
+
+        try {
+            const ms = Date.now() - startedAt;
+            window.UIE_lastTurbo = { ok: false, url: urls[0] || "", ms, status: 0, error: lastErr || "Turbo failed." };
+        } catch (_) {}
+        return null;
 
     } catch (e) { 
         try { console.warn("[UIE] Turbo request failed:", e); } catch (_) {}
@@ -354,9 +474,30 @@ async function generateTurbo(prompt, systemPrompt) {
     }
 }
 
+export async function testTurboConnection() {
+    const s = getSettings();
+    const t = s.turbo || {};
+    const rawUrl = String(t.url || "").trim();
+    const rawKey = String(t.key || "").trim();
+    const urls = buildTurboUrlCandidates(rawUrl);
+    if (!urls.length) return { ok: false, error: "No Turbo endpoint set." };
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(normalizeTurboInputUrl(rawUrl));
+    if (!rawKey && !isLocal) return { ok: false, error: "No Turbo API key." };
+
+    const startedAt = Date.now();
+    const sys = 'Return ONLY valid JSON: {"ok":true}';
+    const res = await generateTurbo('Return ONLY valid JSON: {"ok":true}', sys);
+    const ms = Date.now() - startedAt;
+    if (!res) {
+        const lt = window.UIE_lastTurbo || {};
+        return { ok: false, ms, tried: urls, error: String(lt?.error || "Turbo request failed.") };
+    }
+    return { ok: true, ms, tried: urls, sample: String(res).slice(0, 240) };
+}
+
 export async function generateContent(prompt, type) {
     const s = getSettings();
-    const useTurbo = s.turbo && s.turbo.enabled;
+    const useTurbo = !!(s.turbo && s.turbo.enabled);
 
     if (type === "Logic" || type === "JSON") type = "System Check";
 
@@ -446,7 +587,9 @@ export async function generateContent(prompt, type) {
     if (!out) {
         try {
             if (useTurbo) {
-                notify("error", "Turbo failed — main API fallback disabled.", "UIE", "api");
+                const lt = window.UIE_lastTurbo || {};
+                const err = String(lt?.error || "").trim();
+                notify("error", `Turbo failed — main API fallback disabled.${err ? ` (${err.slice(0, 160)})` : ""}`, "UIE", "api");
                 return null;
             }
             out = await generateRaw({ prompt: `${system}\n\n${finalPrompt}`, quietToLoud: false, skip_w_info: true });

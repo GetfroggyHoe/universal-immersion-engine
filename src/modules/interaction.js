@@ -440,6 +440,33 @@ export function initInteractions() {
             s2.turbo.model = String($(this).val() || "").trim();
             saveSettings();
         });
+
+    $(document)
+        .off("click.uieTurboTest", "#uie-turbo-test")
+        .on("click.uieTurboTest", "#uie-turbo-test", async function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const btn = $(this);
+            const prev = String(btn.text() || "");
+            btn.text("Testing...");
+            btn.prop("disabled", true);
+            try {
+                const mod = await import("./apiClient.js");
+                const r = await mod.testTurboConnection();
+                if (r?.ok) {
+                    try { window.toastr?.success?.(`Turbo OK (${Number(r.ms || 0)}ms)`); } catch (_) {}
+                } else {
+                    const msg = String(r?.error || "Turbo failed.");
+                    const hint = /failed to fetch|cors|network/i.test(msg) ? " (Browser blocked request — try SillyTavern server proxy or a local gateway.)" : "";
+                    try { window.toastr?.error?.(`Turbo FAIL: ${msg}${hint}`); } catch (_) {}
+                }
+            } catch (err) {
+                try { window.toastr?.error?.(`Turbo FAIL: ${String(err?.message || err || "Unknown error")}`); } catch (_) {}
+            } finally {
+                btn.text(prev || "Test Connection");
+                btn.prop("disabled", false);
+            }
+        });
     $(document)
         .off("change.uieTurboKey", "#uie-turbo-key")
         .on("change.uieTurboKey", "#uie-turbo-key", function () {
