@@ -28,6 +28,56 @@ function activePhoneScreen(s) {
   return v;
 }
 
+function summarizePhoneLog(s) {
+  try {
+    const phone = s?.phone || {};
+    const threads = phone?.smsThreads && typeof phone.smsThreads === "object" ? phone.smsThreads : {};
+    const entries = [];
+    for (const [k, list] of Object.entries(threads)) {
+      if (!Array.isArray(list) || !list.length) continue;
+      const last = list[list.length - 1];
+      const ts = Number(last?.ts || 0) || 0;
+      entries.push({ who: String(k || "").trim(), ts, list });
+    }
+    entries.sort((a, b) => Number(b.ts || 0) - Number(a.ts || 0));
+    const topThreads = entries.slice(0, 3);
+    const lines = [];
+    for (const th of topThreads) {
+      const who = String(th.who || "").trim() || "Unknown";
+      const msgs = (Array.isArray(th.list) ? th.list : []).slice(-4);
+      if (!msgs.length) continue;
+      lines.push(`- ${who}:`);
+      for (const m of msgs) {
+        const isUser = !!m?.isUser;
+        const txt = String(m?.text || "").replace(/\s+/g, " ").trim().slice(0, 220);
+        if (!txt) continue;
+        lines.push(`  - ${isUser ? "You" : who}: ${txt}`);
+      }
+    }
+    const calls = Array.isArray(phone.callHistory) ? phone.callHistory : [];
+    const recentCalls = calls.slice(-2);
+    if (recentCalls.length) {
+      lines.push("");
+      lines.push("Recent Calls:");
+      for (const c of recentCalls) {
+        const who = String(c?.who || "Unknown").trim() || "Unknown";
+        const msgs = Array.isArray(c?.lines) ? c.lines.slice(-8) : [];
+        lines.push(`- Call with ${who}:`);
+        for (const m of msgs) {
+          const isUser = !!m?.isUser;
+          const txt = String(m?.text || "").replace(/\s+/g, " ").trim().slice(0, 220);
+          if (!txt) continue;
+          lines.push(`  - ${isUser ? "You" : who}: ${txt}`);
+        }
+      }
+    }
+    const out = lines.join("\n").trim();
+    return out ? out.slice(0, 2400) : "";
+  } catch (_) {
+    return "";
+  }
+}
+
 function extractNsfwSystemRules(ctx) {
   const hit = [];
   const seen = new Set();
@@ -90,6 +140,13 @@ export function buildSystemPrompt() {
   lines.push("");
   lines.push("[Rule: Communication] When you see [INCOMING TEXT] or [INCOMING CALL], you must interrupt the current action and describe the device notification (ring/vibrate) and display the message content.");
   lines.push("");
+
+  const phoneLog = summarizePhoneLog(s);
+  if (phoneLog) {
+    lines.push("Recent Phone Log (Canon):");
+    lines.push(phoneLog);
+    lines.push("");
+  }
 
   const nsfwRules = extractNsfwSystemRules(ctx);
   if (nsfwRules) {

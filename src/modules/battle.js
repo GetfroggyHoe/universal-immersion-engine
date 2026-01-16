@@ -317,6 +317,7 @@ function startAuto() {
         const min = Math.max(2000, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
         if (autoInFlight) return;
         if (now - autoLastAt < min) return;
+        if (s?.generation?.scanOnlyOnGenerateButtons === true) return;
         const last = $(".chat-msg-txt").last();
         const txt = last.length ? (last.text() || "") : "";
         const h = simpleHash(txt);

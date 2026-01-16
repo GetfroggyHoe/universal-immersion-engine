@@ -39,6 +39,23 @@ function findLifeTracker(s, name) {
     return null;
 }
 
+function ensureSocial(s) {
+    if (!s.social || typeof s.social !== "object") s.social = { friends: [], romance: [], family: [], rivals: [] };
+    for (const k of ["friends", "romance", "family", "rivals"]) {
+        if (!Array.isArray(s.social[k])) s.social[k] = [];
+    }
+    if (!s.socialMeta || typeof s.socialMeta !== "object") s.socialMeta = { autoScan: false, deletedNames: [] };
+    if (!Array.isArray(s.socialMeta.deletedNames)) s.socialMeta.deletedNames = [];
+}
+
+function roleToTab(role) {
+    const r = String(role || "").toLowerCase();
+    if (r.includes("romance") || r.includes("lover") || r.includes("dating")) return "romance";
+    if (r.includes("family") || r.includes("sister") || r.includes("brother") || r.includes("mother") || r.includes("father")) return "family";
+    if (r.includes("rival") || r.includes("enemy") || r.includes("hostile")) return "rivals";
+    return "friends";
+}
+
 /**
  * UNIFIED SCANNER: Scans World State, Loot, and Status in ONE call.
  */
@@ -63,18 +80,60 @@ export async function scanEverything() {
     if (!gate.ok) return;
     try {
 
-    // Context: Last 10 messages
-    let chatSnippet = "";
-    $(".chat-msg-txt").slice(-10).each(function() {
-        chatSnippet += $(this).text() + "\n";
-    });
-    chatSnippet = chatSnippet.trim().slice(0, 3000);
+    const readChatSnippet = (max) => {
+        try {
+            let raw = "";
+            const $txt = $(".chat-msg-txt");
+            if ($txt.length) {
+                $txt.slice(-1 * Math.max(1, Number(max || 10))).each(function () { raw += $(this).text() + "\n"; });
+                return raw.trim().slice(0, 4200);
+            }
+            const chatEl = document.getElementById("chat");
+            if (!chatEl) return "";
+            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 10)));
+            for (const m of msgs) {
+                const isUser =
+                    m.classList?.contains("is_user") ||
+                    m.getAttribute?.("is_user") === "true" ||
+                    m.getAttribute?.("data-is-user") === "true" ||
+                    m.dataset?.isUser === "true";
+                const t =
+                    m.querySelector?.(".mes_text")?.textContent ||
+                    m.querySelector?.(".mes-text")?.textContent ||
+                    m.textContent ||
+                    "";
+                raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+            }
+            return raw.trim().slice(0, 4200);
+        } catch (_) {
+            return "";
+        }
+    };
+
+    const chatSnippet = readChatSnippet(10);
 
     if (!chatSnippet) return;
 
     // --- PHASE 1: FREE REGEX CHECKS (Currency) ---
     // We check the LAST message for instant currency updates (avoids AI cost/latency for simple gold)
-    const lastMsg = $(".chat-msg-txt").last().text() || "";
+    const lastMsg = (() => {
+        try {
+            const $txt = $(".chat-msg-txt");
+            if ($txt.length) return String($txt.last().text() || "");
+            const chatEl = document.getElementById("chat");
+            if (!chatEl) return "";
+            const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
+            if (!last) return "";
+            return String(
+                last.querySelector?.(".mes_text")?.textContent ||
+                last.querySelector?.(".mes-text")?.textContent ||
+                last.textContent ||
+                ""
+            );
+        } catch (_) {
+            return "";
+        }
+    })();
     const currencyGain = lastMsg.match(/(?:found|received|gained|picked up|looted|loot|earned|rewarded|added)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     const currencyLoss = lastMsg.match(/(?:lost|paid|spent|gave|removed|pay|subtracted)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     
@@ -113,6 +172,8 @@ Current World: ${JSON.stringify(s.worldState)}
 Current HP: ${s.stats?.hp || "100"} / ${s.stats?.maxHp || "100"}
 Life Trackers: ${JSON.stringify((s.life?.trackers || []).slice(0, 30).map(t => ({ name: t.name, current: t.current, max: t.max })))}
 Current Status Effects: ${JSON.stringify((s.character?.statusEffects || []).slice(0, 30))}
+Existing Social Names: ${JSON.stringify((() => { try { ensureSocial(s); const arr = ["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").trim()).filter(Boolean)); return Array.from(new Set(arr)).slice(0, 120); } catch (_) { return []; } })())}
+Deleted Social Names: ${JSON.stringify((() => { try { ensureSocial(s); return (s.socialMeta.deletedNames || []).slice(-120); } catch (_) { return []; } })())}
 
 Task: Return a SINGLE JSON object with these keys:
 1. "world": Update location, threat, status, time, weather.
@@ -123,6 +184,7 @@ Task: Return a SINGLE JSON object with these keys:
 6. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
 7. "life": (optional) { "lifeUpdates":[{"name":"","delta":0,"set":null,"max":null}], "newTrackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}] }
 8. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
+9. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for characters that are present or directly interacting.
 
 Rules:
 - Only report EXPLICIT changes.
@@ -131,6 +193,7 @@ Rules:
 - "world": Keep values short.
 - If no change, omit the key or leave empty.
 - Status effects should be short labels like "Tired", "Poisoned", "Smells like smoke", "Base: Crumbling", "Grades: Failing". No emojis.
+- For social.add: only include names that appear in the Chat snippet; do not invent.
 
 Chat:
 ${chatSnippet}
@@ -333,6 +396,46 @@ ${chatSnippet}
                 notify("success", `Message from ${m.from}`, "Phone", "phoneMessages");
                 needsSave = true;
             });
+        }
+
+        // 7. Social
+        if (data.social && typeof data.social === "object") {
+            ensureSocial(s);
+            const deleted = new Set((s.socialMeta.deletedNames || []).map(x => String(x || "").toLowerCase().trim()).filter(Boolean));
+            const existingLower = new Set(["friends", "romance", "family", "rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").toLowerCase().trim()).filter(Boolean)));
+            const addList = Array.isArray(data.social.add) ? data.social.add : [];
+            let added = 0;
+            for (const v of addList.slice(0, 24)) {
+                const nm = String(v?.name || "").trim();
+                if (!nm) continue;
+                const key = nm.toLowerCase();
+                if (deleted.has(key)) continue;
+                if (existingLower.has(key)) continue;
+                const tab = roleToTab(v?.role);
+                const aff = Math.max(0, Math.min(100, Math.round(Number(v?.affinity ?? 50))));
+                s.social[tab].push({
+                    id: `person_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`,
+                    name: nm,
+                    affinity: aff,
+                    thoughts: "",
+                    avatar: "",
+                    likes: "",
+                    dislikes: "",
+                    birthday: "",
+                    location: "",
+                    age: "",
+                    knownFamily: "",
+                    familyRole: "",
+                    relationshipStatus: String(v?.role || "").trim().slice(0, 80),
+                    url: "",
+                    tab,
+                    memories: [],
+                    met_physically: true
+                });
+                existingLower.add(key);
+                added++;
+            }
+            if (added) needsSave = true;
         }
 
         if (needsSave) {

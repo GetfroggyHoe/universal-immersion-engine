@@ -886,6 +886,9 @@ Rules:
     } catch (_) {
         verified = [];
     }
+    if (!Array.isArray(verified) || !verified.length) {
+        verified = list.slice(0, 14).map(n => ({ name: n, role: "npc", affinity: 50 }));
+    }
 
     const normalizeRoleToTab = (role) => {
         const r = String(role || "").toLowerCase();
@@ -1230,6 +1233,7 @@ export function initSocial() {
                 const min = Math.max(2000, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
                 if (autoScanInFlight) return;
                 if (now - autoScanLastAt < min) return;
+                if (s?.generation?.scanOnlyOnGenerateButtons === true) return;
                 autoScanInFlight = true;
                 autoScanLastAt = now;
                 try {

@@ -72,7 +72,7 @@ export function init() {
         if (mod?.open) mod.open({ mode: "inline", hostEl: $host.get(0), zIndex: 2147483647, onExit });
         return;
       }
-    } catch (err) {
+      } catch (err) {
       console.error("[UIE] Station load failed:", err);
       $host.html(`<div style="padding:16px;color:#f38ba8;font-weight:900;">Error loading station.</div>`);
     }

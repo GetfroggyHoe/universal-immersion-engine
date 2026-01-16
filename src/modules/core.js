@@ -32,7 +32,7 @@ export const SETTINGS_DEFAULT = {
         shop: true,
         loot: true
     },
-    generation: { requireConfirm: false, promptUI: true, aiConfirm: false, systemCheckMinIntervalMs: 20000, autoScanMinIntervalMs: 8000, customSystemPrompt: "", promptPrefixes: { global: "", byType: {} } },
+    generation: { requireConfirm: false, promptUI: true, aiConfirm: false, scanOnlyOnGenerateButtons: true, systemCheckMinIntervalMs: 20000, autoScanMinIntervalMs: 8000, customSystemPrompt: "", promptPrefixes: { global: "", byType: {} } },
     party: {
         name: "My Party",
         banner: "",
@@ -172,6 +172,7 @@ export function sanitizeSettings() {
     if (typeof s.generation.requireConfirm !== "boolean") s.generation.requireConfirm = false;
     if (typeof s.generation.promptUI !== "boolean") s.generation.promptUI = true;
     if (typeof s.generation.aiConfirm !== "boolean") s.generation.aiConfirm = false;
+    if (typeof s.generation.scanOnlyOnGenerateButtons !== "boolean") s.generation.scanOnlyOnGenerateButtons = true;
     if (!Number.isFinite(Number(s.generation.systemCheckMinIntervalMs))) s.generation.systemCheckMinIntervalMs = Number(SETTINGS_DEFAULT.generation.systemCheckMinIntervalMs ?? 20000) || 20000;
     if (!Number.isFinite(Number(s.generation.autoScanMinIntervalMs))) s.generation.autoScanMinIntervalMs = Number(SETTINGS_DEFAULT.generation.autoScanMinIntervalMs ?? 8000) || 8000;
     if (typeof s.generation.customSystemPrompt !== "string") s.generation.customSystemPrompt = String(s.generation.customSystemPrompt || "");

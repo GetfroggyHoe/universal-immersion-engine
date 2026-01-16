@@ -63,11 +63,33 @@ function getLoreKeys() {
 }
 
 function getChatSnippet() {
-    let raw = "";
-    $(".chat-msg-txt").slice(-12).each(function () {
-        raw += $(this).text() + "\n";
-    });
-    return raw.trim().slice(0, 1400);
+    try {
+        let raw = "";
+        const $txt = $(".chat-msg-txt");
+        if ($txt.length) {
+            $txt.slice(-12).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 1400);
+        }
+        const chatEl = document.getElementById("chat");
+        if (!chatEl) return "";
+        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-12);
+        for (const m of msgs) {
+            const isUser =
+                m.classList?.contains("is_user") ||
+                m.getAttribute?.("is_user") === "true" ||
+                m.getAttribute?.("data-is-user") === "true" ||
+                m.dataset?.isUser === "true";
+            const t =
+                m.querySelector?.(".mes_text")?.textContent ||
+                m.querySelector?.(".mes-text")?.textContent ||
+                m.textContent ||
+                "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+        }
+        return raw.trim().slice(0, 1400);
+    } catch (_) {
+        return "";
+    }
 }
 
 function hash32(str) {
@@ -319,7 +341,7 @@ Rules:
 User request: ${prompt}
 Lore keys: ${loreKeys.join(", ")}
 Chat: ${chat}`.slice(0, 6000);
-    const res = await generateContent(p, "Creating World");
+    const res = await generateContent(p, "Map Names");
     if (!res) return null;
     try { return JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { return null; }
 }
@@ -370,11 +392,11 @@ function renderFromState() {
     });
 }
 
-async function generateMap({ prompt, scope }) {
+async function generateMap({ prompt, scope, forceProcedural = false }) {
     const s = getSettings();
     ensureMap(s);
     
-    const canImg = s.image?.enabled === true && (s.image?.features?.map !== false);
+    const canImg = forceProcedural ? false : (s.image?.enabled === true && (s.image?.features?.map !== false));
     if (canImg) {
         const imgPrompt = `[UIE_LOCKED]
 Top-down fantasy map illustration of: ${prompt}.
@@ -464,16 +486,7 @@ export function initMap() {
                 try { if (window.toastr) toastr.info("Describe the map first."); } catch (_) {}
                 return;
             }
-            const s2 = getSettings();
-            ensureMap(s2);
-            s2.map.mode = "procedural";
-            s2.map.seed = String(prompt).slice(0, 120);
-            s2.map.data = null;
-            s2.map.prompt = String(prompt);
-            s2.map.scope = String(scope);
-            if (!s2.map.location) s2.map.location = "Unknown";
-            saveSettings();
-            renderFromState();
+            await generateMap({ prompt, scope, forceProcedural: true });
         }
         if (id === "uie-map-act-location") {
             const i = document.getElementById("uie-map-location-input");

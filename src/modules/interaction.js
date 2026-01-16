@@ -14,11 +14,61 @@ export function initChatListener() {
     if (chatObserver) chatObserver.disconnect();
     
     let timeout = null;
+    const pending = (window.UIE_pendingUnifiedScan = window.UIE_pendingUnifiedScan || { pending: false, sig: "", at: 0, reason: "" });
+
+    const hash = (str) => {
+        let h = 0;
+        const s = String(str || "");
+        for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+        return String(h);
+    };
+
+    const lastChatText = () => {
+        try {
+            const $txt = $(".chat-msg-txt");
+            if ($txt.length) return String($txt.last().text() || "");
+            const chatEl = document.getElementById("chat");
+            if (!chatEl) return "";
+            const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
+            if (!last) return "";
+            return String(
+                last.querySelector?.(".mes_text")?.textContent ||
+                last.querySelector?.(".mes-text")?.textContent ||
+                last.textContent ||
+                ""
+            );
+        } catch (_) {
+            return "";
+        }
+    };
+
+    const markRequested = (reason) => {
+        try {
+            pending.pending = true;
+            pending.at = Date.now();
+            pending.reason = String(reason || "");
+            pending.sig = hash(lastChatText().slice(-1200));
+        } catch (_) {}
+    };
+
+    $(document)
+        .off("click.uieScanRequest")
+        .on("click.uieScanRequest", "#continue_but, #send_but, #regenerate_but, #impersonate_but, #continue, #regenerate, [data-testid='continue'], [data-testid='regenerate']", function () {
+            markRequested(this?.id || "generate");
+        });
     
     chatObserver = new MutationObserver(() => {
         // Debounce scan
         if (timeout) clearTimeout(timeout);
         timeout = setTimeout(() => {
+            const s = getSettings();
+            if (s?.generation?.scanOnlyOnGenerateButtons === true && !pending.pending) return;
+            if (s?.generation?.scanOnlyOnGenerateButtons === true) {
+                const sigNow = hash(lastChatText().slice(-1200));
+                if (sigNow === String(pending.sig || "")) return;
+                pending.pending = false;
+                pending.sig = sigNow;
+            }
             scanEverything();
         }, 3000); // Scan 3 seconds after chat stops updating
     });
@@ -31,6 +81,45 @@ export function initInteractions() {
     const disabled = s.enabled === false;
     if (!disabled) initChatListener();
     $(document).off("click.uie"); 
+
+    const injectScanAll = () => {
+        if (document.getElementById("uie-scanall-btn")) return true;
+        const host =
+            document.querySelector("#extensionsMenu") ||
+            document.querySelector("#extensions_menu") ||
+            document.querySelector("#options") ||
+            document.querySelector("#chat_controls") ||
+            document.querySelector("#send_form") ||
+            document.querySelector("#form_sheld") ||
+            null;
+        if (!host) return false;
+        const btn = document.createElement("button");
+        btn.id = "uie-scanall-btn";
+        btn.type = "button";
+        btn.textContent = "UIE Scan All";
+        btn.style.cssText = "margin:4px; padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(203,163,92,0.16); color:#cba35c; font-weight:900; cursor:pointer;";
+        btn.addEventListener("click", async (e) => {
+            e.preventDefault(); e.stopPropagation();
+            try { await scanEverything(); } catch (_) {}
+        });
+        try {
+            const anchor = document.querySelector("#continue_but") || document.querySelector("#regenerate_but");
+            if (anchor && anchor.parentElement) anchor.parentElement.insertBefore(btn, anchor.nextSibling);
+            else host.appendChild(btn);
+        } catch (_) {
+            try { host.appendChild(btn); } catch (_) {}
+        }
+        return true;
+    };
+    try {
+        if (!injectScanAll()) {
+            let tries = 0;
+            const t = setInterval(() => {
+                tries++;
+                if (injectScanAll() || tries > 20) clearInterval(t);
+            }, 750);
+        }
+    } catch (_) {}
 
     const baseUrl = (() => {
         try {
@@ -114,6 +203,9 @@ export function initInteractions() {
             const sel = document.getElementById("uie-turbo-model-select");
             if (!sel) return;
             const cur = String(selected || "");
+            const urlNow = String(getSettings()?.turbo?.url || "").trim().toLowerCase();
+            const isNvidia = urlNow.includes("nvidia.com");
+            const isNanoGpt = urlNow.includes("nano-gpt.com") || urlNow.includes("nanogpt");
             sel.innerHTML = "";
             const opt0 = document.createElement("option");
             opt0.value = "";
@@ -123,6 +215,52 @@ export function initInteractions() {
             optC.value = "__custom__";
             optC.textContent = "Custom…";
             sel.appendChild(optC);
+
+            const suggested = [
+                { id: "openai/gpt-4.1-nano", label: "OpenAI: gpt-4.1-nano" },
+                { id: "nvidia/llama-3.1-nemotron-70b-instruct", label: "NVIDIA: llama-3.1-nemotron-70b-instruct" },
+                { id: "stabilityai/stable-diffusion-3.5-large", label: "Stability AI: stable-diffusion-3.5-large" },
+                { id: "stabilityai/stable-diffusion-3.5-large-turbo", label: "Stability AI: stable-diffusion-3.5-large-turbo" }
+            ];
+            const seen = new Set();
+            const addOpt = (group, id, label) => {
+                const v = String(id || "").trim();
+                if (!v || seen.has(v)) return;
+                seen.add(v);
+                const o = document.createElement("option");
+                o.value = v;
+                o.textContent = String(label || v).trim().slice(0, 140);
+                group.appendChild(o);
+            };
+            const gS = document.createElement("optgroup");
+            gS.label = "Suggested Models";
+            for (const it of suggested) addOpt(gS, it.id, it.label);
+            sel.appendChild(gS);
+
+            if (!Array.isArray(models) || !models.length) {
+                if (isNvidia) {
+                    const gN = document.createElement("optgroup");
+                    gN.label = "NVIDIA Models (Fallback)";
+                    const list = [
+                        { id: "meta/llama-3.1-8b-instruct", label: "Meta: Llama 3.1 8B Instruct" },
+                        { id: "meta/llama-3.1-70b-instruct", label: "Meta: Llama 3.1 70B Instruct" },
+                        { id: "meta/llama-3.2-1b-instruct", label: "Meta: Llama 3.2 1B Instruct" },
+                        { id: "meta/llama-3.2-3b-instruct", label: "Meta: Llama 3.2 3B Instruct" },
+                        { id: "meta/llama-3.2-11b-vision-instruct", label: "Meta: Llama 3.2 11B Vision Instruct" },
+                        { id: "meta/llama-3.2-90b-vision-instruct", label: "Meta: Llama 3.2 90B Vision Instruct" },
+                        { id: "meta/llama-4-scout-17b-16e-instruct", label: "Meta: Llama 4 Scout 17B 16E Instruct" },
+                        { id: "nvidia/nemotron-nano-12b-v2-vl", label: "NVIDIA: Nemotron Nano 12B v2 VL" }
+                    ];
+                    for (const it of list) addOpt(gN, it.id, it.label);
+                    sel.appendChild(gN);
+                } else if (isNanoGpt) {
+                    const gN = document.createElement("optgroup");
+                    gN.label = "NanoGPT (Tip)";
+                    addOpt(gN, "deepseek/deepseek-chat-v3-0324", "DeepSeek: deepseek-chat-v3-0324");
+                    addOpt(gN, "chatgpt-4o-latest", "OpenAI: chatgpt-4o-latest");
+                    sel.appendChild(gN);
+                }
+            }
 
             if (Array.isArray(models) && models.length) {
                 const g = document.createElement("optgroup");
@@ -490,6 +628,10 @@ export function initInteractions() {
         const aiConfirm = scope.querySelector("#uie-ai-confirm-toggle");
         if (aiConfirm) aiConfirm.checked = s2.generation?.aiConfirm === true;
         try {
+            const onlyBtn = scope.querySelector("#uie-gen-scan-only-buttons");
+            if (onlyBtn) onlyBtn.checked = s2.generation?.scanOnlyOnGenerateButtons !== false;
+        } catch (_) {}
+        try {
             const sysMin = scope.querySelector("#uie-gen-syscheck-min");
             const autoMin = scope.querySelector("#uie-gen-autoscan-min");
             if (sysMin) sysMin.value = String(Math.max(0, Math.round(Number(s2?.generation?.systemCheckMinIntervalMs || 0) / 1000)));
@@ -722,7 +864,11 @@ export function initInteractions() {
         .off("change.uieTurboModelSelect", "#uie-turbo-model-select")
         .on("change.uieTurboModelSelect", "#uie-turbo-model-select", function () {
             const val = String($(this).val() || "");
-            if (val === "__custom__" || !val) return;
+            if (!val) return;
+            if (val === "__custom__") {
+                try { $("#uie-turbo-model").trigger("focus"); } catch (_) {}
+                return;
+            }
             $("#uie-turbo-model").val(val);
             const s2 = getSettings();
             if (!s2.turbo || typeof s2.turbo !== "object") s2.turbo = {};
@@ -1426,6 +1572,15 @@ export function initInteractions() {
         });
 
     $(document)
+        .off("change.uieScanOnlyButtons", "#uie-gen-scan-only-buttons")
+        .on("change.uieScanOnlyButtons", "#uie-gen-scan-only-buttons", function () {
+            const s2 = getSettings();
+            if (!s2.generation) s2.generation = {};
+            s2.generation.scanOnlyOnGenerateButtons = $(this).is(":checked");
+            saveSettings();
+        });
+
+    $(document)
         .off("change.uieSysCheckMin", "#uie-gen-syscheck-min")
         .on("change.uieSysCheckMin", "#uie-gen-syscheck-min", function () {
             const sec = Math.max(0, Number($(this).val() || 0));
@@ -1443,6 +1598,80 @@ export function initInteractions() {
             if (!s2.generation) s2.generation = {};
             s2.generation.autoScanMinIntervalMs = Math.round(sec * 1000);
             saveSettings();
+        });
+
+    const ensureKitchenCanvasTestOverlay = () => {
+        if (document.getElementById("uie-kitchen-canvas-test-overlay")) return;
+        $("body").append(`
+            <div id="uie-kitchen-canvas-test-overlay" style="display:none; position:fixed; inset:0; z-index:2147483647; background:rgba(0,0,0,0.94); isolation:isolate; pointer-events:auto; flex-direction:column;">
+                <div style="height:52px; flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.65);">
+                    <button id="uie-kitchen-canvas-test-exit" style="height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Exit</button>
+                    <div style="font-weight:900; color:#cba35c; letter-spacing:0.6px;">KITCHEN (CANVAS TEST)</div>
+                </div>
+                <div id="uie-kitchen-canvas-test-body" style="flex:1 1 auto; min-height:0; overflow:hidden; position:relative;"></div>
+            </div>
+        `);
+    };
+
+    const closeKitchenCanvasTestOverlay = async () => {
+        try {
+            const mod = await import("./features/kitchen_canvas/kitchen.js");
+            if (mod?.close) mod.close();
+        } catch (_) {}
+        $("#uie-kitchen-canvas-test-overlay").hide();
+        $("#uie-kitchen-canvas-test-body").empty();
+    };
+
+    $(document)
+        .off("click.uieKitchenCanvasTestExit", "#uie-kitchen-canvas-test-exit")
+        .on("click.uieKitchenCanvasTestExit", "#uie-kitchen-canvas-test-exit", function (e) {
+            e.preventDefault(); e.stopPropagation();
+            closeKitchenCanvasTestOverlay();
+        });
+
+    $(document)
+        .off("click.uieOpenKitchenCanvas", "#uie-open-kitchen-canvas")
+        .on("click.uieOpenKitchenCanvas", "#uie-open-kitchen-canvas", async function (e) {
+            e.preventDefault(); e.stopPropagation();
+            ensureKitchenCanvasTestOverlay();
+            $("#uie-kitchen-canvas-test-overlay").css("display", "flex");
+            const $host = $("#uie-kitchen-canvas-test-body");
+            $host.css({ overflow: "hidden", background: "transparent", height: "100%", minHeight: 0 }).html(`<div style="padding:16px;color:rgba(255,255,255,.7);font-weight:900;">Loading...</div>`);
+            try {
+                const templateCandidates = [
+                    "/uie/kitchen_canvas/kitchen_canvas.html",
+                    "/scripts/extensions/uie/kitchen_canvas/kitchen_canvas.html",
+                    "/scripts/extensions/UIE/uie/kitchen_canvas/kitchen_canvas.html"
+                ];
+                let html = "";
+                for (const u of templateCandidates) {
+                    try {
+                        const res = await fetch(u, { cache: "no-cache", credentials: "same-origin" });
+                        if (!res.ok) continue;
+                        const t = await res.text();
+                        if (String(t || "").trim()) { html = t; break; }
+                    } catch (_) {}
+                }
+                if (!html) throw new Error("Kitchen canvas template not found.");
+                $host.html(html);
+
+                const moduleCandidates = [
+                    "/uie/kitchen_canvas/kitchen.js",
+                    "/scripts/extensions/uie/kitchen_canvas/kitchen.js",
+                    "/scripts/extensions/UIE/uie/kitchen_canvas/kitchen.js"
+                ];
+                let mod = null;
+                let lastErr = null;
+                for (const u of moduleCandidates) {
+                    try { mod = await import(u); if (mod) break; } catch (err) { lastErr = err; }
+                }
+                if (!mod) throw lastErr || new Error("Kitchen canvas module not found.");
+                if (mod?.init) mod.init();
+                if (mod?.open) mod.open({ mode: "inline", hostEl: $host.get(0), zIndex: 2147483647, onExit: closeKitchenCanvasTestOverlay });
+            } catch (err) {
+                try { console.error("[UIE] Kitchen canvas test open failed:", err); } catch (_) {}
+                $host.html(`<div style="padding:16px;color:#f38ba8;font-weight:900;">Error loading Kitchen Canvas Test.</div>`);
+            }
         });
 
     const ensureInvForceStyle = () => {

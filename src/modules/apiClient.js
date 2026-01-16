@@ -412,6 +412,18 @@ function buildTurboUrlCandidates(rawUrl) {
         }
     })();
 
+    const isNanoGptHost = (() => {
+        try {
+            const u = new URL(base0);
+            const h = String(u.hostname || "").toLowerCase();
+            return h.includes("nano-gpt.com") || h.includes("nanogpt");
+        } catch (_) {
+            return /nano-?gpt/i.test(base0);
+        }
+    })();
+
+    const hasApiV1 = /\/api\/v1$/i.test(base0) || /\/api\/v1\//i.test(base0);
+
     if (/\/v1$/i.test(base0)) {
         if (isOpenRouterHost && !/\/api\/v1$/i.test(base0)) {
             add(`${base0.replace(/\/v1$/i, "/api/v1")}/chat/completions${suffix}`, out);
@@ -421,6 +433,26 @@ function buildTurboUrlCandidates(rawUrl) {
         add(`${base0}/chat/completions${suffix}`, out);
         add(`${base0}/completions${suffix}`, out);
         add(`${base0}/responses${suffix}`, out);
+        if (isOpenRouterHost) {
+            add(`/api/openrouter/v1/chat/completions${suffix}`, out);
+            add(`/api/openrouter/chat/completions${suffix}`, out);
+            add(`/api/openrouter/v1/completions${suffix}`, out);
+            add(`/api/openrouter/completions${suffix}`, out);
+            add(`/api/openrouter/v1/responses${suffix}`, out);
+            add(`/api/openrouter/responses${suffix}`, out);
+        }
+        return out;
+    }
+
+    if (/\/api\/v1$/i.test(base0)) {
+        add(`${base0}/chat/completions${suffix}`, out);
+        add(`${base0}/completions${suffix}`, out);
+        add(`${base0}/responses${suffix}`, out);
+        if (isNanoGptHost) {
+            add(`${base0.replace(/\/api\/v1$/i, "/v1")}/chat/completions${suffix}`, out);
+            add(`${base0.replace(/\/api\/v1$/i, "/v1")}/completions${suffix}`, out);
+            add(`${base0.replace(/\/api\/v1$/i, "/v1")}/responses${suffix}`, out);
+        }
         return out;
     }
 
@@ -431,6 +463,16 @@ function buildTurboUrlCandidates(rawUrl) {
         add(`${base0}${suffix}`, out);
         add(`${base0.replace(/\/chat\/completions$/i, "/completions")}${suffix}`, out);
         add(`${base0.replace(/\/chat\/completions$/i, "/responses")}${suffix}`, out);
+        return out;
+    }
+
+    if (/\/api\/v1\/chat\/completions$/i.test(base0)) {
+        add(`${base0}${suffix}`, out);
+        add(`${base0.replace(/\/chat\/completions$/i, "/completions")}${suffix}`, out);
+        add(`${base0.replace(/\/chat\/completions$/i, "/responses")}${suffix}`, out);
+        if (isNanoGptHost) {
+            add(`${base0.replace(/\/api\/v1\/chat\/completions$/i, "/v1/chat/completions")}${suffix}`, out);
+        }
         return out;
     }
 
@@ -446,6 +488,14 @@ function buildTurboUrlCandidates(rawUrl) {
         return out;
     }
 
+    if (/\/api\/v1\/completions$/i.test(base0)) {
+        add(`${base0.replace(/\/completions$/i, "/chat/completions")}${suffix}`, out);
+        add(`${base0}${suffix}`, out);
+        add(`${base0.replace(/\/completions$/i, "/responses")}${suffix}`, out);
+        if (isNanoGptHost) add(`${base0.replace(/\/api\/v1\/completions$/i, "/v1/completions")}${suffix}`, out);
+        return out;
+    }
+
     if (/\/v1\/responses$/i.test(base0)) {
         if (isOpenRouterHost && !/\/api\/v1\/responses$/i.test(base0)) {
             add(`${base0.replace(/\/v1\/responses$/i, "/api/v1/chat/completions")}${suffix}`, out);
@@ -455,6 +505,14 @@ function buildTurboUrlCandidates(rawUrl) {
         add(`${base0.replace(/\/responses$/i, "/chat/completions")}${suffix}`, out);
         add(`${base0.replace(/\/responses$/i, "/completions")}${suffix}`, out);
         add(`${base0}${suffix}`, out);
+        return out;
+    }
+
+    if (/\/api\/v1\/responses$/i.test(base0)) {
+        add(`${base0.replace(/\/responses$/i, "/chat/completions")}${suffix}`, out);
+        add(`${base0.replace(/\/responses$/i, "/completions")}${suffix}`, out);
+        add(`${base0}${suffix}`, out);
+        if (isNanoGptHost) add(`${base0.replace(/\/api\/v1\/responses$/i, "/v1/responses")}${suffix}`, out);
         return out;
     }
 
@@ -472,6 +530,20 @@ function buildTurboUrlCandidates(rawUrl) {
         add(`${base0}/api/v1/chat/completions${suffix}`, out);
         add(`${base0}/api/v1/completions${suffix}`, out);
         add(`${base0}/api/v1/responses${suffix}`, out);
+    }
+    if (isOpenRouterHost) {
+        add(`/api/openrouter/v1/chat/completions${suffix}`, out);
+        add(`/api/openrouter/chat/completions${suffix}`, out);
+        add(`/api/openrouter/v1/completions${suffix}`, out);
+        add(`/api/openrouter/completions${suffix}`, out);
+        add(`/api/openrouter/v1/responses${suffix}`, out);
+        add(`/api/openrouter/responses${suffix}`, out);
+    }
+
+    if (hasApiV1) {
+        add(`${base0.replace(/\/+$/g, "")}/api/v1/chat/completions${suffix}`, out);
+        add(`${base0.replace(/\/+$/g, "")}/api/v1/completions${suffix}`, out);
+        add(`${base0.replace(/\/+$/g, "")}/api/v1/responses${suffix}`, out);
     }
 
     add(`${base0}/v1/chat/completions${suffix}`, out);
@@ -531,10 +603,19 @@ function buildCorsProxyCandidates(targetUrl) {
     add(`/proxy?url=${enc}`);
     add(`/api/cors-proxy?url=${enc}`);
     add(`/cors-proxy?url=${enc}`);
+    add(`/api/corsProxy?url=${enc}`);
+    add(`/corsProxy?url=${enc}`);
+    add(`/api/proxy/url?url=${enc}`);
+    add(`/api/proxy-url?url=${enc}`);
+    add(`/api/forward?url=${enc}`);
     add(`/api/proxy/${enc}`);
     add(`/proxy/${enc}`);
     add(`/api/cors-proxy/${enc}`);
     add(`/cors-proxy/${enc}`);
+    add(`/api/corsProxy/${enc}`);
+    add(`/corsProxy/${enc}`);
+    add(`/api/openrouter/v1/chat/completions?url=${enc}`);
+    add(`/api/openrouter/v1/models?url=${enc}`);
     return out;
 }
 
@@ -551,6 +632,29 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
         if (!isFailedToFetchError(e)) throw e;
         const candidates = buildCorsProxyCandidates(targetUrl);
         let lastErr = e;
+        const tryServerForward = async (endpoint) => {
+            try {
+                const hdr = new Headers(options?.headers || {});
+                hdr.set("Content-Type", "application/json");
+                const payload = {
+                    url: String(targetUrl || ""),
+                    method: String(options?.method || "GET"),
+                    headers: Object.fromEntries(hdr.entries()),
+                    body: options?.body ?? null
+                };
+                const tok = await getCsrfToken();
+                if (tok && !hdr.has("X-CSRF-Token")) hdr.set("X-CSRF-Token", tok);
+                const r = await fetch(String(endpoint || ""), { method: "POST", headers: hdr, body: JSON.stringify(payload) });
+                if (!r.ok) return null;
+                return r;
+            } catch (_) {
+                return null;
+            }
+        };
+        for (const ep of ["/api/forward", "/api/proxy", "/api/cors-proxy", "/api/corsProxy"]) {
+            const r = await tryServerForward(ep);
+            if (r) return { response: r, via: "server-forward", requestUrl: ep };
+        }
         for (const proxyUrl of candidates) {
             try {
                 const r = await fetch(proxyUrl, options);
@@ -599,10 +703,22 @@ async function generateTurbo(prompt, systemPrompt) {
             "X-Title": "UIE"
         };
         const key = rawKey ? rawKey.replace(/^bearer\s+/i, "").trim() : "";
+        const providerHost = (() => {
+            try { return String(new URL(normalizeTurboInputUrl(rawUrl)).hostname || "").toLowerCase(); } catch (_) { return ""; }
+        })();
+        const isOpenRouter = providerHost.includes("openrouter.ai");
+        const isNvidia = providerHost.includes("nvidia.com");
+        const isNanoGpt = providerHost.includes("nano-gpt.com") || providerHost.includes("nanogpt");
         if (key) {
             headers.Authorization = `Bearer ${key}`;
-            headers["x-api-key"] = key;
-            headers["api-key"] = key;
+            if (isNvidia || isNanoGpt) {
+                headers["x-api-key"] = key;
+                headers["api-key"] = key;
+            }
+            if (isOpenRouter) {
+                delete headers["x-api-key"];
+                delete headers["api-key"];
+            }
         }
 
         const norm = normalizeTurboInputUrl(rawUrl);
@@ -707,7 +823,7 @@ export async function listTurboModels() {
     if (!rawUrl) return { ok: false, error: "No Turbo endpoint set.", models: [] };
 
     const key = rawKey ? rawKey.replace(/^bearer\s+/i, "").trim() : "";
-    const headers = { "Accept": "application/json" };
+    const headers = { "Accept": "application/json", "HTTP-Referer": "https://github.com/SillyTavern/SillyTavern", "X-Title": "UIE" };
     if (key) {
         headers.Authorization = `Bearer ${key}`;
         headers["x-api-key"] = key;
@@ -730,6 +846,12 @@ export async function listTurboModels() {
 
     const p0 = stripKnown(path);
     const isOpenRouter = host.includes("openrouter.ai") || /openrouter\.ai/i.test(origin);
+    const isNanoGpt = host.includes("nano-gpt.com") || host.includes("nanogpt") || /nano-?gpt/i.test(origin);
+    const isNvidia = host.includes("nvidia.com") || /nvidia\.com/i.test(origin);
+    if (isOpenRouter) {
+        delete headers["x-api-key"];
+        delete headers["api-key"];
+    }
     const add = (u, out) => { const x = String(u || "").trim(); if (x && !out.includes(x)) out.push(x); };
     const urls = [];
 
@@ -737,11 +859,22 @@ export async function listTurboModels() {
         const basePath = /\/api\/v1$/i.test(p0) ? p0 : (p0.replace(/\/v1$/i, "/api/v1") || "/api/v1");
         add(`${origin}${basePath}/models`, urls);
         add(`https://openrouter.ai/api/v1/models`, urls);
+        add(`/api/openrouter/v1/models`, urls);
+        add(`/api/openrouter/models`, urls);
+    } else if (isNanoGpt) {
+        add(`${origin}/api/v1/models`, urls);
+        add(`${origin}/api/v1/models?detailed=true`, urls);
+        add(`${origin}/v1/models`, urls);
+        add(`${origin}/models`, urls);
     } else {
         if (/\/v1$/i.test(p0)) add(`${origin}${p0}/models`, urls);
         add(`${origin}/v1/models`, urls);
         add(`${origin}${p0}/models`, urls);
         add(`${origin}/models`, urls);
+        if (isNvidia) {
+            add(`https://api.nvidia.com/v1/models`, urls);
+            add(`https://integrate.api.nvidia.com/v1/models`, urls);
+        }
     }
 
     const startedAt = Date.now();
@@ -779,6 +912,21 @@ export async function listTurboModels() {
             continue;
         }
     }
+    if (isNvidia) {
+        const fallback = [
+            { id: "meta/llama-3.1-8b-instruct", label: "Meta: Llama 3.1 8B Instruct" },
+            { id: "meta/llama-3.1-70b-instruct", label: "Meta: Llama 3.1 70B Instruct" },
+            { id: "meta/llama-3.2-1b-instruct", label: "Meta: Llama 3.2 1B Instruct" },
+            { id: "meta/llama-3.2-3b-instruct", label: "Meta: Llama 3.2 3B Instruct" },
+            { id: "meta/llama-3.2-11b-vision-instruct", label: "Meta: Llama 3.2 11B Vision Instruct" },
+            { id: "meta/llama-3.2-90b-vision-instruct", label: "Meta: Llama 3.2 90B Vision Instruct" },
+            { id: "meta/llama-4-scout-17b-16e-instruct", label: "Meta: Llama 4 Scout 17B 16E Instruct" },
+            { id: "nvidia/nemotron-nano-12b-v2-vl", label: "NVIDIA: Nemotron Nano 12B v2 VL" }
+        ];
+        const ms = Date.now() - startedAt;
+        try { window.UIE_lastTurboModels = { ok: true, url: urls[0] || "", ms, count: fallback.length, note: "fallback" }; } catch (_) {}
+        return { ok: true, models: fallback, ms, url: urls[0] || "", note: "fallback" };
+    }
     const ms = Date.now() - startedAt;
     try { window.UIE_lastTurboModels = { ok: false, url: urls[0] || "", ms, error: lastErr }; } catch (_) {}
     return { ok: false, error: lastErr || "Model list failed.", models: [] };
@@ -791,7 +939,8 @@ export async function generateContent(prompt, type) {
     const turboKeyRaw = String(s?.turbo?.key || "").trim();
     const turboIsLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(normalizeTurboInputUrl(turboUrl));
     const turboReady = turboEnabled && !!turboUrl && (turboIsLocal || !!turboKeyRaw);
-    const useTurbo = turboReady;
+    const turboBlockTypes = new Set(["Creating World", "Map", "Map Names", "Webpage", "Image Gen"]);
+    const useTurbo = turboReady && !turboBlockTypes.has(String(type || "").trim());
 
     if (type === "Logic" || type === "JSON") type = "System Check";
 
@@ -847,7 +996,7 @@ export async function generateContent(prompt, type) {
         try {
             const typeKey = String(type || "").trim();
             if (lockedPrompt) return "";
-            if (typeKey === "Creating World" || typeKey === "Map" || typeKey === "Map Names") return "";
+            if (typeKey === "Creating World") return "";
             const p = s?.generation?.promptPrefixes || {};
             const global = String(p?.global || "").trim();
             const by = (p?.byType && typeof p.byType === "object") ? p.byType : {};
@@ -923,8 +1072,7 @@ export async function generateContent(prompt, type) {
             if (useTurbo) {
                 const lt = window.UIE_lastTurbo || {};
                 const err = String(lt?.error || "").trim();
-                notify("error", `Turbo failed — main API fallback disabled.${err ? ` (${err.slice(0, 160)})` : ""}`, "UIE", "api");
-                return null;
+                notify("warning", `Turbo failed — using Main API fallback.${err ? ` (${err.slice(0, 160)})` : ""}`, "UIE", "api");
             }
             out = await generateRaw({ prompt: `${system}\n\n${finalPrompt}`, quietToLoud: false, skip_w_info: true });
         } catch (e) { return null; }

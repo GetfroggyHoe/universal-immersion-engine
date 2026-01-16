@@ -1,6 +1,83 @@
 import { getSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 
+let uieImgCsrfCache = { t: 0, token: "" };
+async function getCsrfToken() {
+    const now = Date.now();
+    if (uieImgCsrfCache.token && now - uieImgCsrfCache.t < 5 * 60 * 1000) return uieImgCsrfCache.token;
+    try {
+        const r = await fetch("/csrf-token", { method: "GET" });
+        if (!r.ok) return "";
+        const j = await r.json().catch(() => null);
+        const tok = String(j?.csrfToken || j?.token || "").trim();
+        if (tok) uieImgCsrfCache = { t: now, token: tok };
+        return tok;
+    } catch (_) {
+        return "";
+    }
+}
+
+function buildCorsProxyCandidates(targetUrl) {
+    const u = String(targetUrl || "").trim();
+    if (!u) return [];
+    const enc = encodeURIComponent(u);
+    const out = [];
+    const add = (x) => { if (x && !out.includes(x)) out.push(x); };
+    add(`/api/proxy?url=${enc}`);
+    add(`/proxy?url=${enc}`);
+    add(`/api/cors-proxy?url=${enc}`);
+    add(`/cors-proxy?url=${enc}`);
+    add(`/api/corsProxy?url=${enc}`);
+    add(`/corsProxy?url=${enc}`);
+    add(`/api/proxy/url?url=${enc}`);
+    add(`/api/proxy-url?url=${enc}`);
+    add(`/api/forward?url=${enc}`);
+    add(`/api/proxy/${enc}`);
+    add(`/proxy/${enc}`);
+    add(`/api/cors-proxy/${enc}`);
+    add(`/cors-proxy/${enc}`);
+    add(`/api/corsProxy/${enc}`);
+    add(`/corsProxy/${enc}`);
+    return out;
+}
+
+function isFailedToFetchError(e) {
+    const m = String(e?.message || e || "").toLowerCase();
+    return m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed");
+}
+
+async function fetchWithCorsProxyFallback(targetUrl, options) {
+    try {
+        const r = await fetch(targetUrl, options);
+        return { response: r, via: "direct", requestUrl: targetUrl };
+    } catch (e) {
+        if (!isFailedToFetchError(e)) throw e;
+        const candidates = buildCorsProxyCandidates(targetUrl);
+        let lastErr = e;
+        for (const proxyUrl of candidates) {
+            try {
+                const r = await fetch(proxyUrl, options);
+                if (r.status === 404 || r.status === 405 || (r.status >= 500 && r.status <= 599)) continue;
+                if (r.status === 403 || r.status === 401) {
+                    const tok = await getCsrfToken();
+                    if (tok) {
+                        const h = new Headers(options?.headers || {});
+                        if (!h.has("X-CSRF-Token")) h.set("X-CSRF-Token", tok);
+                        const r2 = await fetch(proxyUrl, { ...options, headers: h });
+                        if (r2.status === 404 || r2.status === 405 || (r2.status >= 500 && r2.status <= 599)) continue;
+                        return { response: r2, via: "proxy", requestUrl: proxyUrl };
+                    }
+                }
+                return { response: r, via: "proxy", requestUrl: proxyUrl };
+            } catch (e2) {
+                lastErr = e2;
+                continue;
+            }
+        }
+        throw lastErr;
+    }
+}
+
 /**
  * Checks if an image should be generated based on context, then generates it.
  * @param {string} context - The text content (chat, item desc, etc.)
@@ -107,7 +184,7 @@ export async function generateImageAPI(prompt) {
         }
 
         if (isSdWebUi) {
-            const res = await fetch(endpoint, {
+            const fx = await fetchWithCorsProxyFallback(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -120,6 +197,7 @@ export async function generateImageAPI(prompt) {
                     sampler_name: "DPM++ 2M Karras"
                 })
             });
+            const res = fx.response;
             if (!res.ok) {
                 const err = await res.text();
                 console.error("Image Gen Error:", err);
@@ -246,11 +324,12 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
     graph = injectTextNodes(graph);
 
     const client_id = `uie_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
-    const res = await fetch(promptUrl, {
+    const fx = await fetchWithCorsProxyFallback(promptUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: graph, client_id })
     });
+    const res = fx.response;
     if (!res.ok) {
         const err = await res.text();
         console.error("ComfyUI Error:", err);
@@ -269,7 +348,8 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
         await sleep(1000);
         let h;
         try {
-            const hr = await fetch(`${historyUrl}/${encodeURIComponent(prompt_id)}`);
+            const hrFx = await fetchWithCorsProxyFallback(`${historyUrl}/${encodeURIComponent(prompt_id)}`, { method: "GET" });
+            const hr = hrFx.response;
             if (!hr.ok) continue;
             h = await hr.json();
         } catch (_) {
@@ -305,7 +385,8 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
     const filename = encodeURIComponent(String(imgRef.filename || ""));
     const subfolder = encodeURIComponent(String(imgRef.subfolder || ""));
     const type = encodeURIComponent(String(imgRef.type || "output"));
-    const imgRes = await fetch(`${viewUrl}?filename=${filename}&subfolder=${subfolder}&type=${type}`);
+    const imgFx = await fetchWithCorsProxyFallback(`${viewUrl}?filename=${filename}&subfolder=${subfolder}&type=${type}`, { method: "GET" });
+    const imgRes = imgFx.response;
     if (!imgRes.ok) return null;
     const blob = await imgRes.blob();
 

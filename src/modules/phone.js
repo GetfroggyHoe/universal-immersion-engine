@@ -718,8 +718,7 @@ export function initPhone() {
             const img = String(m.image || "");
             const preview = img ? `<div style="margin-bottom:${text ? "8px" : "0"};"><img src="${esc(img)}" style="max-width:220px; width:100%; height:auto; border-radius:12px; display:block; border:1px solid rgba(255,255,255,0.10);"></div>` : "";
             const body = text ? `<div style="white-space:pre-wrap; word-break:break-word;">${esc(text)}</div>` : "";
-            const del = `<button class="msg-del" data-mid="${idx}" title="Delete" style="position:absolute; top:6px; right:6px; width:20px; height:20px; border-radius:8px; border:1px solid rgba(0,0,0,0.10); background:rgba(255,255,255,0.55); color:#111; cursor:pointer; opacity:0.55; display:grid; place-items:center;"><i class="fa-solid fa-trash" style="font-size:10px;"></i></button>`;
-            container.append(`<div class="p-bubble ${cls}" data-mid="${idx}" style="position:relative;">${del}${preview}${body}</div>`);
+            container.append(`<div class="p-bubble ${cls}" data-mid="${idx}" style="position:relative;">${preview}${body}</div>`);
         });
         container.scrollTop(container.prop("scrollHeight"));
     };
@@ -1086,22 +1085,7 @@ ${chat}`.slice(0, 6000);
         } catch (_) {}
     };
 
-    $(document).off("click.phoneMsgDel", "#msg-container .msg-del").on("click.phoneMsgDel", "#msg-container .msg-del", function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        if (!activeContact) return;
-        const idx = Number($(this).data("mid"));
-        if (!Number.isFinite(idx)) return;
-        const s = getSettings();
-        const th = getThread(activeContact);
-        const msg = th.list[idx];
-        if (!msg) return;
-        if (!confirm("Delete this text?")) return;
-        th.list.splice(idx, 1);
-        saveSettings();
-        if (msg?.chatMesId) removeChatMes(msg.chatMesId);
-        renderMessages();
-    });
+    $(document).off("click.phoneMsgDel", "#msg-container .msg-del");
 
     $(document).off("click.phoneMsgDelThread", "#msg-del-thread").on("click.phoneMsgDelThread", "#msg-del-thread", function(e){
         e.preventDefault();
@@ -1295,6 +1279,14 @@ ${chat}`.slice(0, 6000);
         $("#call-name-disp").text(name);
         $(".call-status").text("Dialing...");
         $("#call-transcript").empty();
+        try {
+            const s0 = getSettings();
+            if (s0?.phone) {
+                if (!Array.isArray(s0.phone.callHistory)) s0.phone.callHistory = [];
+                s0.phone.activeCall = { who: String(name || "").trim(), startedAt: Date.now(), lines: [] };
+                saveSettings();
+            }
+        } catch (_) {}
         syncToMainChat(`(On phone) Calling ${name}...`);
 
         const sAllow = getSettings();
@@ -1365,6 +1357,14 @@ ${chat}`.slice(0, 6000), "System Check");
         const n = $("#call-name-disp").text();
         const gl = sanitizePhoneLine(cleanOutput(greetingLine, "chat"), 240) || "Hello?";
         $("#call-transcript").append(`<div style="text-align:left;color:#ccc;margin:5px;">${n}: ${gl}</div>`);
+        try {
+            const s0 = getSettings();
+            if (s0?.phone?.activeCall && typeof s0.phone.activeCall === "object") {
+                if (!Array.isArray(s0.phone.activeCall.lines)) s0.phone.activeCall.lines = [];
+                s0.phone.activeCall.lines.push({ who: String(n || ""), isUser: false, text: gl.slice(0, 320), ts: Date.now() });
+                saveSettings();
+            }
+        } catch (_) {}
         injectRpEvent(`(On phone) Connected with ${n}.`, { uie: { type: "phone_call", who: n } });
         if (arrivalTurns > 0) scheduleArrival(n, arrivalTurns, arrivalReason || "They agreed to come over.");
     };
@@ -1372,6 +1372,20 @@ ${chat}`.slice(0, 6000), "System Check");
     const endCall = () => {
         clearInterval(callTimerInt);
         $("#uie-call-screen").fadeOut(200, () => goHome());
+        try {
+            const s0 = getSettings();
+            if (s0?.phone) {
+                if (!Array.isArray(s0.phone.callHistory)) s0.phone.callHistory = [];
+                const ac = s0.phone.activeCall && typeof s0.phone.activeCall === "object" ? s0.phone.activeCall : null;
+                const who = String(ac?.who || $("#call-name-disp").text() || "").trim() || "Unknown";
+                const lines = Array.isArray(ac?.lines) ? ac.lines : [];
+                const tail = lines.slice(-12).map(x => ({ who: String(x?.who || who), isUser: !!x?.isUser, text: String(x?.text || "").slice(0, 320), ts: Number(x?.ts || 0) || Date.now() }));
+                s0.phone.callHistory.push({ who, startedAt: Number(ac?.startedAt || 0) || Date.now(), endedAt: Date.now(), lines: tail });
+                while (s0.phone.callHistory.length > 30) s0.phone.callHistory.shift();
+                s0.phone.activeCall = null;
+                saveSettings();
+            }
+        } catch (_) {}
         syncToMainChat(`hung up the phone.`);
         callChatContext = "";
     };
@@ -1419,6 +1433,17 @@ ${chat}`.slice(0, 6000), "System Check");
         if(!t) return;
         $("#call-transcript").append(`<div style="text-align:right;color:white;margin:5px;">${t}</div>`);
         $("#call-input").val("");
+        try {
+            const s0 = getSettings();
+            const who = String($("#call-name-disp").text() || "").trim() || "Unknown";
+            if (s0?.phone) {
+                if (!Array.isArray(s0.phone.callHistory)) s0.phone.callHistory = [];
+                if (!s0.phone.activeCall || typeof s0.phone.activeCall !== "object") s0.phone.activeCall = { who, startedAt: Date.now(), lines: [] };
+                if (!Array.isArray(s0.phone.activeCall.lines)) s0.phone.activeCall.lines = [];
+                s0.phone.activeCall.lines.push({ who, isUser: true, text: String(t || "").slice(0, 320), ts: Date.now() });
+                saveSettings();
+            }
+        } catch (_) {}
         injectRpEvent(`(On phone) You: "${t}"`, { uie: { type: "phone_call_line", who: $("#call-name-disp").text() } });
         try { relayRelationship($("#call-name-disp").text(), t, "phone_call"); } catch (_) {}
         handleCallReply(t, $("#call-name-disp").text());
@@ -1455,6 +1480,14 @@ ${chat}`.slice(0, 6000), "System Check");
             const line = sanitizePhoneLine(cleanOutput(r, "chat"), 320);
             if (!line) return;
             $("#call-transcript").append(`<div style="text-align:left;color:#ccc;margin:5px;">${n}: ${line}</div>`);
+            try {
+                const s0 = getSettings();
+                if (s0?.phone?.activeCall && typeof s0.phone.activeCall === "object") {
+                    if (!Array.isArray(s0.phone.activeCall.lines)) s0.phone.activeCall.lines = [];
+                    s0.phone.activeCall.lines.push({ who: String(n || ""), isUser: false, text: String(line || "").slice(0, 320), ts: Date.now() });
+                    saveSettings();
+                }
+            } catch (_) {}
             injectRpEvent(`(On phone) ${n}: "${line}"`, { uie: { type: "phone_call_line", who: n } });
             try { relayRelationship(n, line, "phone_call"); } catch (_) {}
         }
