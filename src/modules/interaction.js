@@ -20,7 +20,6 @@ export function initChatListener() {
         if (timeout) clearTimeout(timeout);
         timeout = setTimeout(() => {
             scanEverything();
-            try { scanRecentMemories(); } catch (_) {}
         }, 3000); // Scan 3 seconds after chat stops updating
     });
     
@@ -490,6 +489,12 @@ export function initInteractions() {
 
         const aiConfirm = scope.querySelector("#uie-ai-confirm-toggle");
         if (aiConfirm) aiConfirm.checked = s2.generation?.aiConfirm === true;
+        try {
+            const sysMin = scope.querySelector("#uie-gen-syscheck-min");
+            const autoMin = scope.querySelector("#uie-gen-autoscan-min");
+            if (sysMin) sysMin.value = String(Math.max(0, Math.round(Number(s2?.generation?.systemCheckMinIntervalMs || 0) / 1000)));
+            if (autoMin) autoMin.value = String(Math.max(0, Math.round(Number(s2?.generation?.autoScanMinIntervalMs || 0) / 1000)));
+        } catch (_) {}
 
         try {
             const gp = scope.querySelector("#uie-gen-prompt-global");
@@ -1417,6 +1422,26 @@ export function initInteractions() {
             const s2 = getSettings();
             if (!s2.generation) s2.generation = {};
             s2.generation.aiConfirm = $(this).is(":checked");
+            saveSettings();
+        });
+
+    $(document)
+        .off("change.uieSysCheckMin", "#uie-gen-syscheck-min")
+        .on("change.uieSysCheckMin", "#uie-gen-syscheck-min", function () {
+            const sec = Math.max(0, Number($(this).val() || 0));
+            const s2 = getSettings();
+            if (!s2.generation) s2.generation = {};
+            s2.generation.systemCheckMinIntervalMs = Math.round(sec * 1000);
+            saveSettings();
+        });
+
+    $(document)
+        .off("change.uieAutoScanMin", "#uie-gen-autoscan-min")
+        .on("change.uieAutoScanMin", "#uie-gen-autoscan-min", function () {
+            const sec = Math.max(0, Number($(this).val() || 0));
+            const s2 = getSettings();
+            if (!s2.generation) s2.generation = {};
+            s2.generation.autoScanMinIntervalMs = Math.round(sec * 1000);
             saveSettings();
         });
 

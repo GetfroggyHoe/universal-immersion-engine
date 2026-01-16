@@ -46,6 +46,22 @@ export async function scanEverything() {
     const s = getSettings();
     if (s.enabled === false) return;
     ensureState(s);
+    const gate = (() => {
+        try {
+            const g = (window.UIE_scanEverythingGate = window.UIE_scanEverythingGate || { inFlight: false, lastAt: 0 });
+            const now = Date.now();
+            const min = Math.max(1000, Number(s?.generation?.autoScanMinIntervalMs || 8000));
+            if (g.inFlight) return { ok: false };
+            if (now - Number(g.lastAt || 0) < min) return { ok: false };
+            g.inFlight = true;
+            g.lastAt = now;
+            return { ok: true };
+        } catch (_) {
+            return { ok: true };
+        }
+    })();
+    if (!gate.ok) return;
+    try {
 
     // Context: Last 10 messages
     let chatSnippet = "";
@@ -326,6 +342,9 @@ ${chatSnippet}
 
     } catch (e) {
         console.warn("UIE Unified Scan Parse Error:", e);
+    }
+    } finally {
+        try { if (window.UIE_scanEverythingGate) window.UIE_scanEverythingGate.inFlight = false; } catch (_) {}
     }
 }
 

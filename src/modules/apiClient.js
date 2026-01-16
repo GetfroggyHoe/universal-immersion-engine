@@ -795,6 +795,27 @@ export async function generateContent(prompt, type) {
 
     if (type === "Logic" || type === "JSON") type = "System Check";
 
+    const sysGate = (() => {
+        if (type !== "System Check") return { ok: true, release: () => {} };
+        try {
+            const g = (window.UIE_systemCheckGate = window.UIE_systemCheckGate || { inFlight: false, lastAt: 0, blocked: 0, lastBlockedAt: 0 });
+            const now = Date.now();
+            const min = Math.max(0, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
+            if (g.inFlight || (min > 0 && now - Number(g.lastAt || 0) < min)) {
+                g.blocked = Number(g.blocked || 0) + 1;
+                g.lastBlockedAt = now;
+                return { ok: false, release: () => {} };
+            }
+            g.inFlight = true;
+            g.lastAt = now;
+            return { ok: true, release: () => { try { g.inFlight = false; } catch (_) {} } };
+        } catch (_) {
+            return { ok: true, release: () => {} };
+        }
+    })();
+    if (!sysGate.ok) return null;
+
+    try {
     const displayType = type === "System Check" ? "System Check" : (type === "Shop" ? "Gathering list!" : type);
 
     const customSystem = String(s?.generation?.customSystemPrompt || "").trim();
@@ -804,6 +825,16 @@ export async function generateContent(prompt, type) {
     if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML code. Start immediately with <style> or <div class='app-container'>. Do not include markdown ``` blocks. Do not write conversational text.";
     if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, one short line.";
     system = [customSystem, logicSystem, system].filter(Boolean).join("\n\n");
+    if (type === "System Check" || type === "Unified State Scan" || type === "Shop") {
+        const strict = [
+            "STRICT MODE:",
+            "- Output ONLY a single valid JSON object (no markdown, no code fences).",
+            "- Do NOT write any story, narration, dialogue, roleplay, or continuation.",
+            "- Do NOT address the user or the characters.",
+            "- If unsure, output the most conservative JSON that follows the schema."
+        ].join("\n");
+        system = [system, strict].filter(Boolean).join("\n\n");
+    }
 
     const providerModel = useTurbo
         ? `Turbo: ${String((s.turbo && s.turbo.model) || "unknown")}`
@@ -906,6 +937,9 @@ export async function generateContent(prompt, type) {
         return String(vr?.text ?? out);
     } catch (_) {
         return out;
+    }
+    } finally {
+        sysGate.release();
     }
 }
 

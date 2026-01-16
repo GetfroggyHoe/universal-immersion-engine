@@ -6,6 +6,9 @@ import { injectRpEvent } from "./features/rp_log.js";
 let bound = false;
 let observer = null;
 let lastHash = "";
+let autoTimer = null;
+let autoInFlight = false;
+let autoLastAt = 0;
 
 function esc(s) {
   return String(s ?? "")
@@ -289,7 +292,9 @@ ${chat}
       if (prevHp > 0 && hp <= 0) injectRpEvent(`[System: ${String(e?.name || "Enemy")} has been defeated.]`);
     }
   } catch (_) {}
-  if (prevActive && !st.active) await maybePostBattleRewards(chat);
+  if (prevActive && !st.active) {
+    try { notify("info", "Combat ended. Generate rewards manually if desired.", "War Room", "postBattle"); } catch (_) {}
+  }
 }
 
 export async function scanBattleNow() {
@@ -305,13 +310,26 @@ function startAuto() {
     if (!s) return;
     ensureBattle(s);
     if (!s.battle.auto) return;
-    const last = $(".chat-msg-txt").last();
-    if (!last.length) return;
-    const txt = last.text() || "";
-    const h = simpleHash(txt);
-    if (h === lastHash) return;
-    lastHash = h;
-    scanBattle();
+    try {
+      if (autoTimer) clearTimeout(autoTimer);
+      autoTimer = setTimeout(async () => {
+        const now = Date.now();
+        const min = Math.max(2000, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
+        if (autoInFlight) return;
+        if (now - autoLastAt < min) return;
+        const last = $(".chat-msg-txt").last();
+        const txt = last.length ? (last.text() || "") : "";
+        const h = simpleHash(txt);
+        if (h === lastHash) return;
+        lastHash = h;
+        autoInFlight = true;
+        autoLastAt = now;
+        try {
+          const mod = await import("./stateTracker.js");
+          if (mod?.scanEverything) await mod.scanEverything();
+        } finally { autoInFlight = false; }
+      }, 2500);
+    } catch (_) {}
   });
   observer.observe(chatEl, { childList: true, subtree: true });
 }

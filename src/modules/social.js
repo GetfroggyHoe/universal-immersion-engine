@@ -13,6 +13,9 @@ let editingIndex = null;
 let activeProfileIndex = null;
 let socialLongPressTimer = null;
 let socialLongPressFired = false;
+let autoScanTimer = null;
+let autoScanInFlight = false;
+let autoScanLastAt = 0;
 
 function esc(s) {
     return String(s ?? "")
@@ -596,13 +599,25 @@ function confirmMassDelete() {
     const s = getSettings();
     normalizeSocial(s);
     const list = s.social[currentTab] || [];
-    const removed = list.filter((_, idx) => selectedForDelete.includes(idx)).map(p => String(p?.name || "").trim()).filter(Boolean);
+    const selectedIdx = new Set((selectedForDelete || []).map(x => Number(x)).filter(n => Number.isFinite(n)));
+    const selectedNames = new Set(
+        (selectedForDelete || [])
+            .map(x => (Number.isFinite(Number(x)) ? "" : String(x || "")))
+            .map(x => x.trim().toLowerCase())
+            .filter(Boolean)
+    );
+    const isSelected = (p, idx) => {
+        if (selectedIdx.has(idx)) return true;
+        const nm = String(p?.name || "").trim().toLowerCase();
+        return nm && selectedNames.has(nm);
+    };
+    const removed = list.filter((p, idx) => isSelected(p, idx)).map(p => String(p?.name || "").trim()).filter(Boolean);
     if (!removed.length) {
         try { window.toastr?.info?.("No contacts selected."); } catch (_) {}
         return;
     }
     try { rememberDeletedNames(s, removed); } catch (_) {}
-    const keep = list.filter((_, idx) => !selectedForDelete.includes(idx));
+    const keep = list.filter((p, idx) => !isSelected(p, idx));
     s.social[currentTab] = keep;
     saveSettings();
     deleteMode = false;
@@ -1001,8 +1016,12 @@ export function initSocial() {
         try { clearTimeout(socialLongPressTimer); } catch (_) {}
         socialLongPressTimer = setTimeout(() => {
             socialLongPressFired = true;
-            if (!deleteMode) deleteMode = true;
-            if (!selectedForDelete.includes(idx)) selectedForDelete = [idx];
+            if (!deleteMode) {
+                deleteMode = true;
+                selectedForDelete = [];
+            }
+            if (selectedForDelete.includes(idx)) selectedForDelete = selectedForDelete.filter(x => x !== idx);
+            else selectedForDelete.push(idx);
             renderSocial();
             try { window.toastr?.info?.("Mass delete: tap contacts to select, then CONFIRM DELETE."); } catch (_) {}
         }, 520);
@@ -1205,7 +1224,19 @@ export function initSocial() {
         try {
             const s = getSettings();
             if (!s?.socialMeta?.autoScan) return;
-            scanChatIntoSocial({ silent: true });
+            if (autoScanTimer) clearTimeout(autoScanTimer);
+            autoScanTimer = setTimeout(async () => {
+                const now = Date.now();
+                const min = Math.max(2000, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
+                if (autoScanInFlight) return;
+                if (now - autoScanLastAt < min) return;
+                autoScanInFlight = true;
+                autoScanLastAt = now;
+                try {
+                    const mod = await import("./stateTracker.js");
+                    if (mod?.scanEverything) await mod.scanEverything();
+                } finally { autoScanInFlight = false; }
+            }, 4000);
         } catch (_) {}
     });
     const chatEl = document.querySelector('#chat');
