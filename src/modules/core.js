@@ -201,6 +201,10 @@ export function ensureChatStateLoaded() {
     if (!s.chatState || typeof s.chatState !== "object") s.chatState = { activeKey: "", states: {} };
     if (typeof s.chatState.activeKey !== "string") s.chatState.activeKey = "";
     if (!s.chatState.states || typeof s.chatState.states !== "object") s.chatState.states = {};
+    if (typeof s.chatState.legacyKey !== "string") s.chatState.legacyKey = "legacy:global";
+    if (!s.chatState.states[s.chatState.legacyKey]) {
+        try { s.chatState.states[s.chatState.legacyKey] = snapshotChatState(s); } catch (_) {}
+    }
 
     const key = getChatKeySafe();
     if (!key) return;
@@ -215,14 +219,10 @@ export function ensureChatStateLoaded() {
     try { s.chatState.states[cur] = snapshotChatState(s); } catch (_) {}
     const next = s.chatState.states[key];
     applyChatState(s, next);
-    s.chatState.activeKey = key;
-
-    const keys = Object.keys(s.chatState.states || {});
-    if (keys.length > 60) {
-        const keep = new Set([key]);
-        const trim = keys.filter(k => !keep.has(k)).slice(0, keys.length - 60);
-        for (const k of trim) delete s.chatState.states[k];
+    if (!s.chatState.states[key]) {
+        try { s.chatState.states[key] = snapshotChatState(s); } catch (_) {}
     }
+    s.chatState.activeKey = key;
     saveSettings();
 }
 
@@ -270,6 +270,8 @@ export function sanitizeSettings() {
     if (!s.calendar) s.calendar = SETTINGS_DEFAULT.calendar;
     if (!s.calendar.events || typeof s.calendar.events !== "object") s.calendar.events = {};
     if (typeof s.calendar.cursor !== "string") s.calendar.cursor = "";
+    if (typeof s.calendar.rpEnabled !== "boolean") s.calendar.rpEnabled = false;
+    if (typeof s.calendar.rpDate !== "string") s.calendar.rpDate = "";
     if (!s.battle) s.battle = SETTINGS_DEFAULT.battle;
     if (typeof s.battle.auto !== "boolean") s.battle.auto = false;
     if (!s.battle.state) s.battle.state = SETTINGS_DEFAULT.battle.state;

@@ -1,4 +1,4 @@
-import { getSettings, saveSettings, updateLayout, isMobileUI } from "./core.js";
+import { getSettings, saveSettings, updateLayout, isMobileUI, ensureChatStateLoaded } from "./core.js";
 import { notify } from "./notifications.js";
 import { scanEverything } from "./stateTracker.js";
 import { fetchTemplateHtml } from "./templateFetch.js";
@@ -1816,6 +1816,7 @@ export function initInteractions() {
     };
 
     const openWindow = (id, modulePath, renderFunc, opts = {}) => {
+        try { ensureChatStateLoaded(); } catch (_) {}
         const force = opts && opts.force === true;
         // GLOBAL OPENING LOCK
         if (!force && window.UIE_isOpening && (Date.now() - (window.UIE_lastOpenStart || 0) < 650) && window.UIE_openingTarget === id) {
@@ -2165,7 +2166,32 @@ export function initInteractions() {
     $(document).on("click.uie", "#uie-btn-party", (e) => { e.stopPropagation(); openWindow("#uie-party-window", "./party.js", "initParty"); });
     $(document).on("click.uie", "#uie-btn-battle", (e) => { e.stopPropagation(); openWindow("#uie-battle-window", "./battle.js", "renderBattle"); });
     $(document).on("click.uie", "#uie-btn-open-phone", (e) => { e.stopPropagation(); openWindow("#uie-phone-window", "./phone.js", "initPhone"); });
-    $(document).on("click.uie", "#uie-btn-open-calendar", (e) => { e.stopPropagation(); openWindow("#uie-calendar-window", "./calendar.js", "openCalendar"); });
+    $(document).on("click.uie", "#uie-btn-open-calendar", async (e) => {
+        e.stopPropagation();
+        if ($("#uie-calendar-window").length === 0) {
+            let root = "";
+            try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+            root = root.replace(/^\/+|\/+$/g, "");
+            const urls = [
+                `${baseUrl}src/templates/calendar.html`,
+                `/${root}/src/templates/calendar.html`,
+                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/calendar.html`
+            ];
+            let html = "";
+            for (const url of urls) {
+                try {
+                    html = await fetchTemplateHtml(url);
+                    if (html) break;
+                } catch (_) {}
+            }
+            if (!html) {
+                notify("error", "Calendar UI failed to load.", "UIE", "api");
+                return;
+            }
+            $("body").append(html);
+        }
+        openWindow("#uie-calendar-window", "./calendar.js", "openCalendar");
+    });
     $(document).on("click.uie", "#uie-btn-open-map", (e) => { e.stopPropagation(); openWindow("#uie-map-window", "./map.js", "initMap"); });
     $(document).on("click.uie", "#uie-btn-open-world", async (e) => {
         e.stopPropagation();

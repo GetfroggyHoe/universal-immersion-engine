@@ -1,4 +1,4 @@
-import { getSettings, saveSettings } from "./core.js";
+import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
 import { generateContent } from "./apiClient.js";
 
 function esc(s) {
@@ -23,15 +23,43 @@ function parseMonthCursor(cur) {
 }
 
 function getChatSnippet() {
-  let raw = "";
-  $(".chat-msg-txt").slice(-18).each(function () { raw += $(this).text() + "\n"; });
-  return raw.trim().slice(0, 2200);
+  try {
+    let raw = "";
+    const $txt = $(".chat-msg-txt");
+    if ($txt.length) {
+      $txt.slice(-18).each(function () { raw += $(this).text() + "\n"; });
+      return raw.trim().slice(0, 2200);
+    }
+    const chatEl = document.getElementById("chat");
+    if (!chatEl) return "";
+    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-18);
+    for (const m of msgs) {
+      const isUser =
+        m.classList?.contains("is_user") ||
+        m.getAttribute?.("is_user") === "true" ||
+        m.getAttribute?.("data-is-user") === "true" ||
+        m.dataset?.isUser === "true";
+      const t =
+        m.querySelector?.(".mes_text")?.textContent ||
+        m.querySelector?.(".mes-text")?.textContent ||
+        m.textContent ||
+        "";
+      const line = `${isUser ? "You" : "Story"}: ${String(t || "").trim()}`;
+      if (!line.trim()) continue;
+      raw += line.slice(0, 520) + "\n";
+    }
+    return raw.trim().slice(0, 2200);
+  } catch (_) {
+    return "";
+  }
 }
 
 function ensureCalendar(s) {
   if (!s.calendar) s.calendar = { events: {}, cursor: "" };
   if (!s.calendar.events || typeof s.calendar.events !== "object") s.calendar.events = {};
   if (typeof s.calendar.cursor !== "string") s.calendar.cursor = "";
+  if (typeof s.calendar.rpEnabled !== "boolean") s.calendar.rpEnabled = false;
+  if (typeof s.calendar.rpDate !== "string") s.calendar.rpDate = "";
 
   if (s.calendar._phoneMerged !== true && s.phone?.calendar?.events && typeof s.phone.calendar.events === "object") {
     for (const k of Object.keys(s.phone.calendar.events)) {
@@ -48,6 +76,51 @@ function ensureCalendar(s) {
     }
     s.calendar._phoneMerged = true;
   }
+}
+
+function parseYmdAny(str) {
+  const m = String(str || "").trim().match(/^(\d{1,6})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mm = Number(m[2]);
+  const dd = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mm) || !Number.isFinite(dd)) return null;
+  if (y < 1 || y > 999999) return null;
+  if (mm < 1 || mm > 12) return null;
+  if (dd < 1 || dd > 31) return null;
+  const d = new Date(y, mm - 1, dd);
+  if (d.getFullYear() !== y || d.getMonth() !== (mm - 1) || d.getDate() !== dd) return null;
+  return d;
+}
+
+function effectiveNow(s) {
+  ensureCalendar(s);
+  if (s.calendar.rpEnabled !== true) return new Date();
+  const d = parseYmdAny(s.calendar.rpDate);
+  if (d) return d;
+  const now = new Date();
+  s.calendar.rpDate = ymd(now);
+  saveSettings();
+  return now;
+}
+
+function setRpDate(s, dateObj) {
+  ensureCalendar(s);
+  const d = dateObj instanceof Date ? dateObj : null;
+  if (!d) return false;
+  s.calendar.rpEnabled = true;
+  s.calendar.rpDate = ymd(d);
+  s.calendar.cursor = monthKey(new Date(d.getFullYear(), d.getMonth(), 1));
+  saveSettings();
+  return true;
+}
+
+function advanceRpDays(s, deltaDays) {
+  ensureCalendar(s);
+  const now = effectiveNow(s);
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  d.setDate(d.getDate() + Number(deltaDays || 0));
+  return setRpDate(s, d);
 }
 
 // === EXPORT / IMPORT ===
@@ -105,7 +178,9 @@ function importCalendar(file) {
 
 async function calendarGenerateFromDescription(desc) {
   const s = getSettings();
+  try { ensureChatStateLoaded(); } catch (_) {}
   ensureCalendar(s);
+  const now = effectiveNow(s);
   const prompt = `
 Return JSON only: {"events":[{"date":"YYYY-MM-DD","time":"","title":"","notes":""}]}
 Rules:
@@ -114,6 +189,7 @@ Rules:
 - "time" is optional (examples: "morning", "14:00", "midnight")
 - Use future dates when possible; if a birthday is known, set next occurrence
 - No narration, no markdown
+Current RP date (if set): ${ymd(now)}
 User description: ${desc}
 `;
   const res = await generateContent(prompt.slice(0, 6000), "System Check");
@@ -135,7 +211,9 @@ User description: ${desc}
 
 async function calendarScanChatLog() {
   const s = getSettings();
+  try { ensureChatStateLoaded(); } catch (_) {}
   ensureCalendar(s);
+  const now = effectiveNow(s);
   const chat = getChatSnippet();
   const prompt = `
 Return JSON only: {"events":[{"date":"YYYY-MM-DD","time":"","title":"","notes":""}]}
@@ -145,6 +223,7 @@ Rules:
 - If the date is missing, infer a best-effort date relative to the current month, else skip it
 - "time" is optional (examples: "morning", "14:00", "midnight")
 - No narration, no markdown
+Current RP date (if set): ${ymd(now)}
 CHAT:
 ${chat}
 `;
@@ -229,6 +308,7 @@ function openCalModal(dateKey, anchorEl) {
 }
 
 export function renderCalendar() {
+  try { ensureChatStateLoaded(); } catch (_) {}
   const s = getSettings();
   ensureCalendar(s);
 
@@ -240,8 +320,9 @@ export function renderCalendar() {
     $("#cal-tz").text("In-world");
   }
 
+  const now = effectiveNow(s);
   let cursor = parseMonthCursor(s.calendar.cursor);
-  if (!cursor) cursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  if (!cursor) cursor = new Date(now.getFullYear(), now.getMonth(), 1);
   s.calendar.cursor = monthKey(cursor);
 
   const title = cursor.toLocaleString(undefined, { month: "long", year: "numeric" });
@@ -254,7 +335,13 @@ export function renderCalendar() {
   if (!grid.length) return;
   grid.empty();
 
-  const todayKey = ymd(new Date());
+  const todayKey = ymd(now);
+  try {
+    const cb = document.getElementById("cal-use-rp-date");
+    const inp = document.getElementById("cal-rp-date");
+    if (cb) cb.checked = s.calendar.rpEnabled === true;
+    if (inp && document.activeElement !== inp) inp.value = String(s.calendar.rpDate || (s.calendar.rpEnabled ? todayKey : "")).trim();
+  } catch (_) {}
   for (let i = 0; i < startDay; i++) {
     grid.append(`<div style="height:58px; border-radius:6px; border:1px solid rgba(255,255,255,0.05); background:rgba(255,255,255,0.02); opacity:0.3;"></div>`);
   }
@@ -293,6 +380,58 @@ export function initCalendar() {
     const s = getSettings(); ensureCalendar(s);
     const cur = parseMonthCursor(s.calendar.cursor) || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     s.calendar.cursor = monthKey(new Date(cur.getFullYear(), cur.getMonth() + 1, 1));
+    saveSettings();
+    renderCalendar();
+  });
+
+  $(document).on("change.uieCal", "#cal-use-rp-date", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings(); ensureCalendar(s);
+    s.calendar.rpEnabled = !!this.checked;
+    if (s.calendar.rpEnabled && !parseYmdAny(s.calendar.rpDate)) s.calendar.rpDate = ymd(new Date());
+    if (s.calendar.rpEnabled) {
+      const d = effectiveNow(s);
+      s.calendar.cursor = monthKey(new Date(d.getFullYear(), d.getMonth(), 1));
+    }
+    saveSettings();
+    renderCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-rp-set", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const raw = String($("#cal-rp-date").val() || "").trim();
+    const d = parseYmdAny(raw);
+    if (!d) {
+      try { window.toastr?.error?.("Invalid date. Use YYYY-MM-DD (example: 2230-01-01)."); } catch (_) {}
+      return;
+    }
+    const s = getSettings();
+    setRpDate(s, d);
+    renderCalendar();
+  });
+
+  $(document).on("click.uieCal", "#cal-rp-prev-day", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings();
+    advanceRpDays(s, -1);
+    renderCalendar();
+  });
+  $(document).on("click.uieCal", "#cal-rp-next-day", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings();
+    advanceRpDays(s, 1);
+    renderCalendar();
+  });
+  $(document).on("click.uieCal", "#cal-rp-next-week", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings();
+    advanceRpDays(s, 7);
+    renderCalendar();
+  });
+  $(document).on("click.uieCal", "#cal-rp-today", function (e) {
+    e.preventDefault(); e.stopPropagation();
+    const s = getSettings(); ensureCalendar(s);
+    s.calendar.rpEnabled = false;
     saveSettings();
     renderCalendar();
   });

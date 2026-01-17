@@ -42,6 +42,18 @@
             <div style="flex:1; min-width:0;">
                 <div id="cal-title" style="font-weight:900; letter-spacing:0.5px; color:#fff;"></div>
                 <div style="opacity:0.7; font-size:12px; color:#ddd;">Click a day to view/add events.</div>
+                <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    <label style="display:flex; gap:8px; align-items:center; font-size:12px; color:#ddd; font-weight:900;">
+                        <input id="cal-use-rp-date" type="checkbox">
+                        Use RP date
+                    </label>
+                    <input id="cal-rp-date" type="text" placeholder="YYYY-MM-DD (e.g., 2230-01-01)" style="flex:1; min-width:220px; height:34px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;">
+                    <button id="cal-rp-set" title="Set RP date" style="height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;">Set</button>
+                    <button id="cal-rp-prev-day" title="Back 1 day" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">-1</button>
+                    <button id="cal-rp-next-day" title="Forward 1 day" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">+1</button>
+                    <button id="cal-rp-next-week" title="Forward 7 days" style="height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">+7</button>
+                    <button id="cal-rp-today" title="Use real today" style="height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;">Now</button>
+                </div>
             </div>
             <button id="cal-sparkle" title="Generate" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
             <button id="cal-refresh" title="Scan chat log" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-rotate-right"></i></button>

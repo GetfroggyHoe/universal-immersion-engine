@@ -823,19 +823,40 @@ async function scanChatIntoSocial({ silent } = {}) {
     const purgeTerms = ["HP:", "MP:", "Level:", "XP:", "System:", "Objective:", "Inventory:"];
     const roleBlock = new Set(["narrator", "game master", "gm", "you", "system"]);
 
-    const rawTranscript = String(getChatTranscript(260) || "");
-    const lines = rawTranscript.split("\n").map(x => String(x || "").trim()).filter(Boolean);
-    const filteredLines = lines.filter(l => !purgeTerms.some(k => l.includes(k)));
-
+    const nodes = getChatMessageNodes(240);
+    const transcriptLines = [];
     const candidates = new Set();
-    for (const line of filteredLines) {
-        const m = line.match(/^([^:]{2,64}):\s/);
-        if (m && m[1]) candidates.add(String(m[1]).trim());
+    for (const m of nodes) {
+        const nm =
+            m.querySelector(".mes_name")?.textContent ||
+            m.querySelector(".name_text")?.textContent ||
+            m.querySelector(".name")?.textContent ||
+            m.querySelector(".ch_name")?.textContent ||
+            m.getAttribute?.("ch_name") ||
+            m.getAttribute?.("data-name") ||
+            m.dataset?.name ||
+            m.dataset?.chName ||
+            "";
+        const tx =
+            m.querySelector(".mes_text")?.textContent ||
+            m.querySelector(".mes-text")?.textContent ||
+            m.querySelector(".message")?.textContent ||
+            m.textContent ||
+            "";
+        const name = String(nm || "").trim() || "Unknown";
+        const text = String(tx || "").trim();
+        if (!text) continue;
+        const low = text.toLowerCase();
+        if (purgeTerms.some(k => text.includes(k))) continue;
+        if (low.includes("omniscient") || low.includes("character sheet") || low.includes("stat block")) continue;
+        if (/^\s*\{[\s\S]*\}\s*$/.test(text.slice(0, 800))) continue;
+        transcriptLines.push(`${name}: ${text}`.slice(0, 520));
+        if (name && name !== "Unknown") candidates.add(name);
         const reA = /<char:([^>]{2,48})>/ig;
         const reB = /<npc:([^>]{2,48})>/ig;
         let x = null;
-        while ((x = reA.exec(line)) !== null) candidates.add(String(x[1] || "").trim());
-        while ((x = reB.exec(line)) !== null) candidates.add(String(x[1] || "").trim());
+        while ((x = reA.exec(text)) !== null) candidates.add(String(x[1] || "").trim());
+        while ((x = reB.exec(text)) !== null) candidates.add(String(x[1] || "").trim());
     }
 
     let list = Array.from(candidates)
@@ -858,25 +879,30 @@ async function scanChatIntoSocial({ silent } = {}) {
         return;
     }
 
-    const contextSnippet = filteredLines.slice(-80).join("\n").slice(-8000);
+    const contextSnippet = transcriptLines.slice(-90).join("\n").slice(-9000);
     const prompt = `[UIE_LOCKED]
 Analyze these names found in the chat:
 ${JSON.stringify(list)}
 
-Based on the context, which are REAL CHARACTERS physically present in the scene?
-(Ignore names mentioned in passing, lore, or stat blocks).
+Based ONLY on the transcript below, determine:
+- whether each person was MET/INTERACTED WITH in the scene, or only MENTIONED.
+- the best relationship category for UIE Social: friends|romance|family|rivals.
+
+Do NOT use omniscient cards, stat blocks, or OOC/system metadata as evidence.
 
 Context:
 ${contextSnippet}
 
 Return ONLY valid JSON:
-{"verified":[{"name":"","role":"","affinity":50}]}
+{"verified":[{"name":"","tab":"","role":"","affinity":50,"met":true}]}
 
 Rules:
 - verified: 0-24 entries max.
 - name must be from the provided list exactly (case-insensitive ok, but do not invent new names).
-- role is a short label like friend|romance|family|rival|npc|enemy|ally.
-- affinity is an integer 0-100.`;
+- tab must be one of: friends|romance|family|rivals.
+- role is a short label like friend|romance|family|rival|npc|enemy|ally|mentioned.
+- affinity is an integer 0-100.
+- met is true ONLY if they directly interacted (spoke, was addressed, was physically present). If only mentioned, met must be false.`;
 
     let verified = [];
     try {
@@ -906,9 +932,12 @@ Rules:
         const key = nm.toLowerCase();
         if (deleted.has(key)) continue;
         if (existingLower.has(key)) continue;
-        const tab = normalizeRoleToTab(v?.role);
+        const tabRaw = String(v?.tab || "").toLowerCase().trim();
+        const tab = (tabRaw === "romance" || tabRaw === "family" || tabRaw === "rivals" || tabRaw === "friends") ? tabRaw : normalizeRoleToTab(v?.role);
         const aff = Math.max(0, Math.min(100, Math.round(Number(v?.affinity ?? 50))));
-        const p = { id: newId("person"), name: nm, affinity: aff, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: String(v?.role || "").trim().slice(0, 80), url: "", tab, memories: [], met_physically: true };
+        const met = v?.met === true;
+        const role = String(v?.role || (met ? "npc" : "mentioned")).trim().slice(0, 80);
+        const p = { id: newId("person"), name: nm, affinity: aff, thoughts: "", avatar: "", likes: "", dislikes: "", birthday: "", location: "", age: "", knownFamily: "", familyRole: "", relationshipStatus: role, url: "", tab, memories: [], met_physically: met };
         s.social[tab].push(p);
         existingLower.add(key);
         added++;
