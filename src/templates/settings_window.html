@@ -59,7 +59,10 @@
     </style>
     <div class="uie-header">
         <div class="uie-info"><h2>Game Settings</h2></div>
-        <i class="fa-solid fa-xmark uie-close-btn" id="uie-settings-close"></i>
+        <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+            <i class="fa-solid fa-circle-question" onclick="uie.phone.openBooksGuide('guide-settings')" title="Help / Guide" style="cursor:pointer; color:#cba35c; font-size:1.2em;"></i>
+            <i class="fa-solid fa-xmark uie-close-btn" id="uie-settings-close"></i>
+        </div>
     </div>
     
     <div id="uie-settings-tabs-wrap" style="border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2);">
@@ -78,6 +81,22 @@
         
         <!-- GENERAL TAB -->
         <div id="uie-sw-general">
+            <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
+                <div style="font-weight:bold; color:#ccc; margin-bottom:8px; font-size:1.1em;">Full Character State (Internal)</div>
+                <div style="display:flex; gap:10px; margin-bottom:10px;">
+                    <select class="uie-state-select" style="flex:1; height:40px; background:#111; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                        <option value="">(Select Save...)</option>
+                    </select>
+                    <button class="uie-state-load-btn" style="width:80px; height:40px; background:rgba(52,152,219,0.15); border:1px solid rgba(52,152,219,0.4); color:#3498db; border-radius:8px; cursor:pointer; font-weight:bold;">Load</button>
+                    <button class="uie-state-del-btn" style="width:50px; height:40px; background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.4); color:#e74c3c; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-trash"></i></button>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" class="uie-state-name" placeholder="Save Name..." style="flex:1; height:40px; background:#111; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                    <button class="uie-state-save-btn" style="width:80px; height:40px; background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4); color:#2ecc71; border-radius:8px; cursor:pointer; font-weight:bold;">Save</button>
+                </div>
+                <div style="font-size:0.85em; color:#888; margin-top:6px;">Saves entire state to UIE memory (Databank, Social, Inventory, etc).</div>
+            </div>
+
             <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
                 <div style="font-weight:bold; color:#f1c40f; margin-bottom:10px; font-size:1.1em;">💰 Economy Calculator</div>
                 
@@ -205,21 +224,7 @@
             </div>
         </div>
 
-        <div id="uie-sw-profiles" style="display:none;">
-            <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334;">
-                <div style="font-weight:bold; color:#cba35c; margin-bottom:10px; font-size:1.05em;">Connection Profiles</div>
-                <div style="font-size:0.85em; color:#ccc; margin-bottom:10px;">Swap Turbo + Image settings quickly (local vs cloud, etc).</div>
-                <div style="margin-bottom:10px;">
-                    <label style="font-size:0.8em; color:#888;">Profile</label>
-                    <select id="uie-profile-select" style="width:100%; background:#111; border:1px solid #444; color:#fff; padding:10px; border-radius:10px;"></select>
-                </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button id="uie-profile-apply" style="flex:1; min-width:140px; height:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Apply Profile</button>
-                    <button id="uie-profile-save" style="flex:1; min-width:140px; height:40px; border-radius:12px; border:1px solid rgba(241,196,15,0.35); background:rgba(241,196,15,0.12); color:#f1c40f; font-weight:900; cursor:pointer;">Save Current</button>
-                    <button id="uie-profile-delete" style="flex:0 0 auto; min-width:120px; height:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#f38ba8; font-weight:900; cursor:pointer;">Delete</button>
-                </div>
-            </div>
-        </div>
+
 
         <!-- RPG TAB -->
         <div id="uie-sw-rpg" style="display:none;">

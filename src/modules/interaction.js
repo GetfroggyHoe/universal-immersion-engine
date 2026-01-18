@@ -76,7 +76,219 @@ export function initChatListener() {
     chatObserver.observe(chat, { childList: true, subtree: true });
 }
 
+let ST = null;
+
+export async function getST() {
+    if (ST) return ST;
+    try {
+        const ext = await import("/scripts/extensions.js");
+        ST = {
+            ext,
+            getContext: ext.getContext ? ext.getContext : null,
+            extension_settings: ext.extension_settings ?? null,
+            saveSettingsDebounced: ext.saveSettingsDebounced ?? null,
+            eventSource: ext.eventSource ?? null,
+        };
+    } catch (e) {
+        console.warn("UIE: /scripts/extensions.js import failed", e);
+        ST = {};
+    }
+    return ST;
+}
+
+export async function execSlash(cmd) {
+    const st = await getST();
+    const ctx = st.getContext ? st.getContext() : (window.SillyTavern?.getContext?.() ?? null);
+    if (!ctx) return null;
+
+    const fn = ctx.executeSlashCommandsWithOptions || ctx.executeSlashCommands || ctx.executeSlashCommandsAsync;
+    if (!fn) return null;
+
+    try {
+        return await fn(cmd, { silent: true, noOutput: true });
+    } catch (e) {
+        try { return await fn(cmd); } catch (_) { return null; }
+    }
+}
+
+export async function getConnectionProfilesLive() {
+    // 1. Try Slash Command (Server-side source of truth)
+    const raw = await execSlash("/profile-list");
+    if (raw) {
+        const text = typeof raw === "string" ? raw : (raw?.text ?? raw?.result ?? raw?.output ?? String(raw));
+        const jsonStart = text.indexOf("[");
+        const jsonEnd = text.lastIndexOf("]");
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+            try {
+                const names = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+                if (Array.isArray(names)) {
+                    return names.map(n => ({ id: n, name: n }));
+                }
+            } catch (_) {}
+        }
+    }
+
+    // 2. Fallback: Context inspection (Client-side cache)
+    const { getContext } = await getST();
+    const ctx = getContext?.();
+    const root =
+        ctx?.settings ??
+        ctx?.SillyTavern?.settings ??
+        window.settings ??
+        window.power_user ??
+        window.SillyTavern ??
+        {};
+
+    const candidates = [
+        root.connectionProfiles,
+        root.connection_profiles,
+        root.apiProfiles,
+        root.api_profiles,
+        root.connections?.profiles,
+        root.api?.profiles,
+    ];
+
+    for (const c of candidates) {
+        if (!c) continue;
+        if (Array.isArray(c)) {
+            return c.map((p, i) => ({
+                id: p.id ?? p.key ?? String(i),
+                name: p.name ?? p.title ?? p.profile_name ?? `Profile ${i + 1}`,
+            }));
+        }
+        if (typeof c === "object") {
+            return Object.entries(c).map(([id, p]) => ({
+                id,
+                name: p?.name ?? p?.title ?? p?.profile_name ?? id,
+            }));
+        }
+    }
+    return [];
+}
+
+export function initSTPresets() {
+    // Robust "SillySim-style" finder
+    const findSTSelect = () => {
+        const candidates = Array.from(document.querySelectorAll("select"));
+        // 1. Try exact known IDs first
+        const exact = candidates.find(s => 
+            s.id === "api_preset" || 
+            s.id === "settings_preset_api" || 
+            s.id === "connection_profile" ||
+            s.id === "connection_profiles"
+        );
+        if (exact) return exact;
+
+        // 2. Heuristic search
+        return candidates.find(sel => {
+            const id = (sel.id || "").toLowerCase();
+            const cls = (sel.className || "").toLowerCase();
+            const name = (sel.name || "").toLowerCase();
+            const label = sel.labels?.[0]?.textContent?.toLowerCase() || "";
+            
+            // Check attributes
+            if (id.includes("preset") && (id.includes("api") || id.includes("conn"))) return true;
+            if (name.includes("preset") && (name.includes("api") || name.includes("conn"))) return true;
+            
+            // Check options content (look for "OpenAI", "Claude", "Kobold", etc or just "Default")
+            if (sel.options.length > 1) {
+                const optText = Array.from(sel.options).map(o => o.text.toLowerCase()).join(" ");
+                if (optText.includes("default") && (id.includes("profile") || label.includes("profile"))) return true;
+            }
+            return false;
+        });
+    };
+
+    const syncPresets = async () => {
+        const $uie = $("#uie-st-preset-select");
+        let stSel = findSTSelect();
+        
+        // Retry loop (up to 15s)
+        let tries = 0;
+        while ((!stSel || stSel.options.length < 1) && tries < 60) {
+            await new Promise(r => setTimeout(r, 250));
+            stSel = findSTSelect();
+            tries++;
+        }
+
+        if (!stSel) {
+            // Last ditch: Slash Command
+            const raw = await execSlash("/profile-list");
+            if (raw) {
+                try {
+                    const text = typeof raw === "string" ? raw : (raw?.text ?? String(raw));
+                    const jsonStart = text.indexOf("[");
+                    const jsonEnd = text.lastIndexOf("]");
+                    if (jsonStart >= 0) {
+                        const names = JSON.parse(text.slice(jsonStart, jsonEnd + 1));
+                        if (Array.isArray(names)) {
+                            $uie.empty().append('<option value="">(Select Profile)</option>');
+                            names.forEach(n => $uie.append(`<option value="${n}">${n}</option>`));
+                            return;
+                        }
+                    }
+                } catch (_) {}
+            }
+            $uie.html('<option value="">(ST Presets Not Found)</option>');
+            return;
+        }
+
+        // Mirror options
+        const $st = $(stSel);
+        const currentVal = $uie.val();
+        $uie.empty();
+        $st.find("option").each(function() {
+            $uie.append($(this).clone());
+        });
+        
+        // Sync selection
+        if ($st.val()) $uie.val($st.val());
+        else if (currentVal) $uie.val(currentVal);
+
+        // Bind observer
+        if (!window.UIE_profileObs) {
+            window.UIE_profileObs = new MutationObserver(() => syncPresets());
+            window.UIE_profileObs.observe(stSel, { childList: true, subtree: true, attributes: true });
+        }
+    };
+
+    $(document).on("click", "#uie-st-preset-refresh", function(e) {
+        e.preventDefault();
+        syncPresets();
+        notify("info", "Presets synced with SillyTavern", "UIE");
+    });
+
+    $(document).on("change", "#uie-st-preset-select", async function() {
+        const val = $(this).val();
+        if (!val) return;
+        
+        const stSel = findSTSelect();
+        if (stSel) {
+            $(stSel).val(val).trigger("change");
+            // Also dispatch native event for React/Vue listeners
+            stSel.dispatchEvent(new Event("change", { bubbles: true }));
+            notify("success", `Switched Profile: ${val}`, "UIE");
+        } else {
+            await execSlash(`/profile-load ${val}`);
+            notify("success", `Loaded Profile: ${val}`, "UIE");
+        }
+    });
+    
+    // Initial sync
+    setTimeout(syncPresets, 1000);
+    $(document).on("click", ".uie-set-tab[data-tab='profiles']", syncPresets);
+}
+
+export function updateStateLists() {
+    const s = getSettings();
+    const list = s.savedStates || {};
+    const opts = Object.keys(list).sort().map(k => `<option value="${k}">${k}</option>`).join("");
+    $(".uie-state-select").html(`<option value="">(Select Save...)</option>${opts}`);
+}
+
 export function initInteractions() {
+    updateStateLists();
+    initSTPresets();
     const s = getSettings();
     const disabled = s.enabled === false;
     if (!disabled) initChatListener();
@@ -1458,7 +1670,7 @@ export function initInteractions() {
                     s2.connections.activeProfileId = sel;
                     saveSettings();
                     refreshAll();
-                    try { window.toastr?.success?.("SillyTavern profile applied to Turbo."); } catch (_) {}
+                    try { window.toastr?.success?.("SillyTavern profile settings imported to Turbo."); } catch (_) {}
                     return;
                 }
                 const p = find(sel);
@@ -3125,6 +3337,110 @@ export function initInteractions() {
             }
         }
     });
+
+    // --- Internal State Management (No File Picker) ---
+    $(document)
+        .off("click.uieStateSave", ".uie-state-save-btn")
+        .on("click.uieStateSave", ".uie-state-save-btn", function(e) {
+            e.preventDefault(); e.stopPropagation();
+            const nameInput = $(this).siblings(".uie-state-name");
+            const name = nameInput.val().trim();
+            if (!name) return notify("error", "Enter a save name!", "UIE");
+            
+            const s = getSettings();
+            if (!s) return;
+            if (!s.savedStates) s.savedStates = {};
+            
+            // Snapshot current settings, excluding the savedStates library itself
+            const snapshot = JSON.parse(JSON.stringify(s));
+            delete snapshot.savedStates;
+            
+            s.savedStates[name] = snapshot;
+            saveSettings();
+            updateStateLists(); // Refresh dropdowns
+            notify("success", `State "${name}" saved!`, "UIE");
+            nameInput.val("");
+        });
+
+    $(document)
+        .off("click.uieStateLoad", ".uie-state-load-btn")
+        .on("click.uieStateLoad", ".uie-state-load-btn", function(e) {
+            e.preventDefault(); e.stopPropagation();
+            const row = $(this).closest("div");
+            const sel = row.find(".uie-state-select");
+            const name = sel.val();
+            if (!name) return notify("error", "Select a save to load!", "UIE");
+            
+            const s = getSettings();
+            if (!s || !s.savedStates || !s.savedStates[name]) return notify("error", "Save not found!", "UIE");
+            
+            const loaded = s.savedStates[name];
+            // Restore loaded state but keep the library
+            const library = s.savedStates;
+            Object.assign(s, loaded);
+            s.savedStates = library;
+            
+            saveSettings();
+            notify("success", "State loaded. Reloading...", "UIE");
+            setTimeout(() => location.reload(), 1000);
+        });
+
+    $(document)
+        .off("click.uieStateDel", ".uie-state-del-btn")
+        .on("click.uieStateDel", ".uie-state-del-btn", function(e) {
+            e.preventDefault(); e.stopPropagation();
+            const row = $(this).closest("div");
+            const sel = row.find(".uie-state-select");
+            const name = sel.val();
+            if (!name) return notify("error", "Select a save to delete!", "UIE");
+            
+            const s = getSettings();
+            if (s.savedStates && s.savedStates[name]) {
+                delete s.savedStates[name];
+                saveSettings();
+                updateStateLists();
+                notify("success", `Deleted "${name}"`, "UIE");
+            }
+        });
+
+    $(document)
+        .off("change.uieRpg", "#uie-rpg-enable, #uie-rpg-xpbar, #uie-rpg-equipment, #uie-rpg-skills, #uie-rpg-party")
+        .on("change.uieRpg", "#uie-rpg-enable, #uie-rpg-xpbar, #uie-rpg-equipment, #uie-rpg-skills, #uie-rpg-party", function() {
+            const s = getSettings();
+            if (!s.rpg) s.rpg = {};
+            const id = this.id;
+            const val = $(this).is(":checked");
+            if (id === "uie-rpg-enable") s.rpg.enabled = val;
+            if (id === "uie-rpg-xpbar") s.rpg.showXpBar = val;
+            if (id === "uie-rpg-equipment") s.rpg.equipment = val;
+            if (id === "uie-rpg-skills") s.rpg.skills = val;
+            if (id === "uie-rpg-party") s.rpg.party = val;
+            saveSettings();
+            updateLayout(); // Might need to hide/show UI elements
+        });
+
+    $(document)
+        .off("click.uieCustomCssApply", "#uie-custom-css-apply")
+        .on("click.uieCustomCssApply", "#uie-custom-css-apply", function(e) {
+            e.preventDefault(); e.stopPropagation();
+            const s = getSettings();
+            s.customCSS = String($("#uie-custom-css").val() || "");
+            saveSettings();
+            notify("success", "Custom CSS saved. Reload to fully apply.", "UIE");
+            // Basic apply
+            let el = document.getElementById("uie-global-custom-css");
+            if (!el) { el = document.createElement("style"); el.id = "uie-global-custom-css"; document.head.appendChild(el); }
+            el.textContent = s.customCSS;
+        });
+    
+    $(document)
+        .off("change.uieCodexAuto", "#uie-feature-codex-auto")
+        .on("change.uieCodexAuto", "#uie-feature-codex-auto", function() {
+             const s = getSettings();
+             if (!s.features) s.features = {};
+             s.features.codexAutoExtract = $(this).is(":checked");
+             saveSettings();
+        });
 
     applyMenuVisibility();
 }

@@ -4,6 +4,7 @@ import { getContext } from "../../../../../extensions.js";
 import { generateImageAPI } from "./imageGen.js";
 
 let viewDraft = { tx: 0, ty: 0, scale: 1 };
+let isGenerating = false;
 
 function ensureMap(s) {
     if (!s.map) s.map = { mode: "procedural", html: "", data: null, seed: "", scope: "local", prompt: "", location: "Unknown", marker: { x: 0.5, y: 0.5 }, grid: false };

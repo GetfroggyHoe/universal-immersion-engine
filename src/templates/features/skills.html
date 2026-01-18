@@ -1,5 +1,7 @@
-<div style="width:100%;height:100%;min-height:0;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;">
-  <div style="font-weight:900;">Skills</div>
-  <div style="color:#a6adc8;font-size:12px;">(Use ✨ to generate skills later.)</div>
-  <div id="uie-skills-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+<div style="height:100%;display:flex;flex-direction:column;padding:12px;box-sizing:border-box;overflow:auto;">
+  <div style="font-weight:900; display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+    Skills <i class="fa-solid fa-circle-question" onclick="uie.phone.openBooksGuide('guide-inventory')" style="cursor:pointer; opacity:0.6;" title="Help"></i>
+  </div>
+  <div id="uie-skills-stats" style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.1);"></div>
+  <div id="uie-skills-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;"></div>
 </div>

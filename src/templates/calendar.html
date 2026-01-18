@@ -27,25 +27,60 @@
 </style>
 <div id="uie-calendar-window" class="uie-window" style="display:none; width:min(860px, 92vw); height:min(840px, 92vh); background:rgba(0,0,0,0.78); backdrop-filter: blur(8px); flex-direction:column; border:1px solid rgba(203,163,92,0.45);">
     <div class="uie-header" style="border-bottom: 1px solid rgba(255,255,255,0.12); padding: 10px; background: linear-gradient(90deg, rgba(241,196,15,0.12), rgba(0,0,0,0.0));">
-        <div class="uie-info">
-            <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">CALENDAR</h2>
-            <div style="font-size:0.75em; color:#aaa;">Timezone: <span id="cal-tz">In-world</span></div>
-        </div>
+        <div id="cal-window-title" style="font-family:serif; color:#cba35c; letter-spacing:1px; font-size: 24px; font-weight: bold;">CALENDAR</div>
         <div class="uie-controls">
-            <button id="cal-sparkle" title="Generate" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
-            <button id="cal-refresh" title="Scan chat log" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-rotate-right"></i></button>
-            <button id="cal-rp-open" title="RP Date" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-calendar-day"></i></button>
-            <button id="cal-import" title="Import Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-import"></i></button>
-            <button id="cal-export" title="Export Calendar" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-file-export"></i></button>
-            <i class="fa-solid fa-xmark uie-close-btn"></i>
+            <button id="cal-menu-btn" title="Menu" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-sparkles"></i></button>
+            <button id="cal-close-btn" class="uie-close-btn" title="Close" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900;"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="cal-menu-dropdown" style="display:none;position:absolute;top:50px;right:12px;background:rgba(15,10,8,0.98);border:1px solid rgba(255,255,255,0.15);border-radius:12px;padding:8px;z-index:2147483650;flex-direction:column;gap:4px;width:180px;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+            <button id="cal-today-btn" class="cal-drop-item"><i class="fa-solid fa-calendar-day"></i> Today</button>
+            <button id="cal-help-btn" class="cal-drop-item" onclick="uie.phone.openBooksGuide('guide-calendar')"><i class="fa-solid fa-circle-question"></i> Help / Guide</button>
+            <button id="cal-rp-open-btn" class="cal-drop-item"><i class="fa-solid fa-clock-rotate-left"></i> RP Date Settings</button>
+            <button id="cal-refresh-btn" class="cal-drop-item"><i class="fa-solid fa-rotate-right"></i> Sync Time</button>
+            <button id="cal-add-btn" class="cal-drop-item"><i class="fa-solid fa-calendar-plus"></i> Add Event</button>
+            <button id="cal-sparkle-gen-btn" class="cal-drop-item"><i class="fa-solid fa-wand-magic-sparkles"></i> AI Generate</button>
+            <button id="cal-import-btn" class="cal-drop-item"><i class="fa-solid fa-file-import"></i> Import</button>
+            <button id="cal-export-btn" class="cal-drop-item"><i class="fa-solid fa-file-export"></i> Export</button>
         </div>
     </div>
+    <div id="cal-subtitle" style="padding:0 10px; font-size:0.75em; color:#aaa;">Timezone: <span id="cal-tz">In-world</span></div>
+
+  <style>
+    .cal-drop-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        background: transparent;
+        border: none;
+        color: #fff;
+        padding: 10px;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: left;
+        font-weight: 600;
+        font-size: 14px;
+    }
+    .cal-drop-item:hover {
+        background: rgba(255,255,255,0.1);
+    }
+    .cal-drop-item i {
+        width: 20px;
+        text-align: center;
+        opacity: 0.8;
+    }
+    @media (max-width: 700px) {
+        #cal-window-title { font-size: 18px !important; }
+        .uie-header { padding: 8px !important; }
+        #cal-month-title { font-size: 16px !important; }
+    }
+  </style>
 
     <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
         <div id="cal-toolbar" style="padding:12px; border-bottom:1px solid rgba(255,255,255,0.10);">
             <button id="cal-prev" style="height:34px; width:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;"><i class="fa-solid fa-chevron-left"></i></button>
             <div style="flex:1; min-width:0;">
-                <div id="cal-title" style="font-weight:900; letter-spacing:0.5px; color:#fff;"></div>
+                <div id="cal-month-title" style="font-weight:900; letter-spacing:0.5px; color:#fff;"></div>
                 <div style="opacity:0.7; font-size:12px; color:#ddd;">Click a day to view/add events.</div>
             </div>
             <button id="cal-next" style="height:34px; width:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900;"><i class="fa-solid fa-chevron-right"></i></button>

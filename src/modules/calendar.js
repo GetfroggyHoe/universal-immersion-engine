@@ -353,7 +353,7 @@ export function renderCalendar() {
   s.calendar.cursor = monthKey(cursor);
 
   const title = cursor.toLocaleString(undefined, { month: "long", year: "numeric" });
-  $("#cal-title").text(title);
+  $("#cal-month-title").text(title);
 
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const startDay = first.getDay();
@@ -393,6 +393,21 @@ export function renderCalendar() {
 export function initCalendar() {
   $(document).off("click.uieCal change.uieCal");
 
+  // Menu Toggle
+  $(document).on("click.uieCal", "#cal-menu-btn", function(e) {
+    e.preventDefault(); e.stopPropagation();
+    const menu = $("#cal-menu-dropdown");
+    if (menu.is(":visible")) menu.hide();
+    else menu.css("display", "flex");
+  });
+
+  // Close menu when clicking outside
+  $(document).on("click.uieCal", function(e) {
+    if (!$(e.target).closest("#cal-menu-btn, #cal-menu-dropdown").length) {
+      $("#cal-menu-dropdown").hide();
+    }
+  });
+
   $(document).on("click.uieCal", "#cal-prev", function(e){
     e.preventDefault(); e.stopPropagation();
     const s = getSettings(); ensureCalendar(s);
@@ -411,8 +426,9 @@ export function initCalendar() {
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-rp-open", function (e) {
+  $(document).on("click.uieCal", "#cal-rp-open-btn", function (e) {
     e.preventDefault(); e.stopPropagation();
+    $("#cal-menu-dropdown").hide();
     openRpModal();
   });
 
@@ -470,28 +486,40 @@ export function initCalendar() {
     advanceRpDays(s, 7);
     renderCalendar();
   });
-  $(document).on("click.uieCal", "#cal-rp-today", function (e) {
+  $(document).on("click.uieCal", "#cal-today-btn, #cal-rp-today", function (e) {
     e.preventDefault(); e.stopPropagation();
+    $("#cal-menu-dropdown").hide();
     const s = getSettings(); ensureCalendar(s);
     s.calendar.rpEnabled = false;
     saveSettings();
     renderCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-refresh", async function(e){
+  $(document).on("click.uieCal", "#cal-refresh-btn, #cal-refresh", async function(e){
     e.preventDefault(); e.stopPropagation();
-    const btn = $("#cal-refresh");
+    $("#cal-menu-dropdown").hide();
+    const btn = $("#cal-refresh-btn");
     btn.prop("disabled", true);
     try { await calendarScanChatLog(); } finally { btn.prop("disabled", false); }
   });
 
-  $(document).on("click.uieCal", "#cal-sparkle", async function(e){
+  $(document).on("click.uieCal", "#cal-sparkle-gen-btn", async function(e){
     e.preventDefault(); e.stopPropagation();
+    $("#cal-menu-dropdown").hide();
     const desc = (prompt("Describe the dates/events you want to add to the calendar:") || "").trim();
     if(!desc) return;
-    const btn = $("#cal-sparkle");
+    const btn = $("#cal-sparkle-gen-btn");
     btn.prop("disabled", true);
     try { await calendarGenerateFromDescription(desc); } finally { btn.prop("disabled", false); }
+  });
+
+  $(document).on("click.uieCal", "#cal-add-btn", function(e){
+    e.preventDefault(); e.stopPropagation();
+    $("#cal-menu-dropdown").hide();
+    const s = getSettings();
+    const now = effectiveNow(s);
+    const dateKey = ymd(now);
+    openCalModal(dateKey);
   });
 
   $(document).on("click.uieCal", "#cal-grid .cal-day", function(e){
@@ -540,13 +568,15 @@ export function initCalendar() {
   });
 
   // Export/Import UI bindings
-  $(document).on("click.uieCal", "#cal-export", function(e) {
+  $(document).on("click.uieCal", "#cal-export-btn", function(e) {
     e.preventDefault(); e.stopPropagation();
+    $("#cal-menu-dropdown").hide();
     exportCalendar();
   });
 
-  $(document).on("click.uieCal", "#cal-import", function(e) {
+  $(document).on("click.uieCal", "#cal-import-btn", function(e) {
     e.preventDefault(); e.stopPropagation();
+    $("#cal-menu-dropdown").hide();
     $("#cal-import-file").click();
   });
 

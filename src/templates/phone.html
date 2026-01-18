@@ -345,44 +345,107 @@
 
             <div id="books-view-guide" class="books-pane">
                 <div class="books-card" style="background:rgba(0,0,0,0.22);">
-                    <div style="font-weight:900; font-size:1.1em; margin-bottom:8px; color:#cba35c;">UIE Manual (Quick Start)</div>
-                    <div style="opacity:0.92; color:#e5e5e5; line-height:1.55;">
-                    <div style="font-weight:900; margin-top:12px;">How to use this Books app</div>
-                    <div>Use it for two things: a quick guide (this tab) and a pocket library of generated books (Library tab).</div>
-                    <div style="margin-top:6px;">Library flow:</div>
-                    <div>1) Tap Library.</div>
-                    <div>2) Type a request (genre + topic + tone + length).</div>
-                    <div>3) Press GO to open a simple browser page, or press the wand to generate a full book.</div>
-                    <div>4) Tap a saved book row to open it again. Close returns to the list.</div>
-                    <div style="margin-top:6px;">Good prompts:</div>
-                    <div>“Short field guide to cursed spirits, in-universe, no spoilers.”</div>
-                    <div>“A travel diary from a fantasy port city, cozy tone.”</div>
-                    <div>“A dark academic history of the local academy, neutral voice.”</div>
+                    <div style="font-weight:900; font-size:1.4em; margin-bottom:12px; color:#cba35c; text-align:center; border-bottom:1px solid rgba(225,193,122,0.3); padding-bottom:8px;">UIE User Manual</div>
+                    
+                    <div style="opacity:0.92; color:#e5e5e5; line-height:1.6; font-size:0.95em;">
+                        <p>Welcome to the Universal Immersion Engine. This manual covers all core features. Click a section below or scroll to read.</p>
+                        
+                        <div id="guide-toc" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;">
+                            <button onclick="document.getElementById('guide-inventory').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Inventory</button>
+                            <button onclick="document.getElementById('guide-warroom').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">War Room</button>
+                            <button onclick="document.getElementById('guide-party').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Party</button>
+                            <button onclick="document.getElementById('guide-social').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Social</button>
+                            <button onclick="document.getElementById('guide-map').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Map</button>
+                            <button onclick="document.getElementById('guide-calendar').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Calendar</button>
+                            <button onclick="document.getElementById('guide-journal').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Journal</button>
+                            <button onclick="document.getElementById('guide-shop').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Shop</button>
+                            <button onclick="document.getElementById('guide-crafting').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Crafting</button>
+                            <button onclick="document.getElementById('guide-phone').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Phone</button>
+                            <button onclick="document.getElementById('guide-settings').scrollIntoView({behavior:'smooth'})" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; padding:4px 8px; border-radius:6px; cursor:pointer;">Settings</button>
+                        </div>
 
-                    <div style="font-weight:900; margin-top:12px;">Inventory</div>
-                    <div>Tabs (Items/Equip/Life/Create). Pencil menu edits Name/Class/Level and toggles Edit Mode. Avatar/Portrait are local uploads.</div>
-                    <div style="font-weight:900; margin-top:12px;">Items</div>
-                    <div>Tap an item for Info + Use/Custom Use/Discard. Custom Use logs your intent even if metadata is wrong.</div>
-                    <div style="font-weight:900; margin-top:12px;">Life</div>
-                    <div>Create trackers for anything. Trash toggles delete mode for selective mass deletion.</div>
-                    <div style="font-weight:900; margin-top:12px;">Journal/Codex</div>
-                    <div>Journal sparkle opens a menu (Generate Quests / Manual Quest). Codex shows Databank memories for people who prefer not to use the phone.</div>
-                    <div style="font-weight:900; margin-top:12px;">Map</div>
-                    <div>Generate a local/world map once (scrollable). It stays cached. Move the marker; refresh only when you want.</div>
-                    <div style="font-weight:900; margin-top:12px;">Phone</div>
-                    <div>App Builder: Generate → Preview → Install.</div>
-                    <div style="font-weight:900; margin-top:12px;">Settings</div>
-                    <div>RPG tab: Name/Class/Level + persona sync. Style tab: global CSS + per-menu backgrounds.</div>
-                    <div style="margin-top:6px;">Turbo + Images:</div>
-                    <div>- Turbo API: point to a fast local/server model for quick features.</div>
-                    <div>- Image Gen supports OpenAI-style images endpoints, Stable Diffusion WebUI (/sdapi/v1/txt2img), and ComfyUI.</div>
-                    <div style="margin-top:6px;">ComfyUI setup (local):</div>
-                    <div>1) Enable Images.</div>
-                    <div>2) Endpoint: http://127.0.0.1:8188 (or /prompt).</div>
-                    <div>3) Paste a ComfyUI Workflow JSON.</div>
-                    <div>4) Use {{prompt}} (and optional {{negative_prompt}}) in the workflow, or set the Positive/Negative node IDs.</div>
-                    <div style="margin-top:6px;">Prompts:</div>
-                    <div>Prompts tab includes an Image Gen prefix (applied to image prompts unless the feature uses a locked system prompt).</div>
+                        <div id="guide-inventory" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#f1c40f; margin:0 0 8px 0; border-bottom:1px solid rgba(241,196,15,0.3); padding-bottom:4px;">Inventory & Equipment</h3>
+                            <p><strong>Tabs:</strong> Switch between Items, Skills, Assets, Equipment, Life, and Creation Station using the bottom/top tabs.</p>
+                            <p><strong>Edit Mode (Pencil):</strong> Click the pencil icon to edit your Name, Class, Level, and stats. It also allows you to delete items or change their properties.</p>
+                            <p><strong>Creation Station (Sparkle):</strong> Open the "Creation Station" menu to manually add Items, Skills, Assets, or Classes. 
+                               <br>• <em>Image Gen:</em> Check "Generate Image" to automatically create a thumbnail for your new item/skill using the description.
+                               <br>• <em>Scan Chat:</em> Use "Scan Chat Log" to have the AI find loot/items from the recent story.</p>
+                            <p><strong>Mobile View:</strong> On mobile, the Equipment tab focuses purely on your grid. Portrait and stats are hidden to give you more room.</p>
+                        </div>
+
+                        <div id="guide-warroom" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#e74c3c; margin:0 0 8px 0; border-bottom:1px solid rgba(231,76,60,0.3); padding-bottom:4px;">War Room</h3>
+                            <p><strong>Scanning:</strong> Click "Scan Chat" to analyze the recent roleplay for combatants. The AI will populate enemies, allies, and their HP/Status.</p>
+                            <p><strong>Turn Order:</strong> Drag and drop combatants to reorder them.</p>
+                            <p><strong>Dice Rolling:</strong> Enable dice in settings to have rolls injected into the chat for the AI to see.</p>
+                        </div>
+
+                        <div id="guide-party" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#3498db; margin:0 0 8px 0; border-bottom:1px solid rgba(52,152,219,0.3); padding-bottom:4px;">Party Management</h3>
+                            <p><strong>Roster:</strong> View all members. Import users or scan chat for characters.</p>
+                            <p><strong>Member Sheet:</strong> Edit stats, bio, and visuals for each member. Assign a portrait!</p>
+                            <p><strong>Gear:</strong> Equip your party members with items from the shared party stash.</p>
+                            <p><strong>Tactics:</strong> Set AI behavior (Aggressive, Healer, etc.) for auto-battles.</p>
+                            <p><strong>Formation:</strong> Arrange your front, mid, and back lines to optimize defense.</p>
+                        </div>
+
+                        <div id="guide-social" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#9b59b6; margin:0 0 8px 0; border-bottom:1px solid rgba(155,89,182,0.3); padding-bottom:4px;">Social & Contacts</h3>
+                            <p><strong>Scanning:</strong> Use "Scan Chat Log" in the Social tab to find characters you've met. They will be added to your relationship list.</p>
+                            <p><strong>Contacts:</strong> People in your Social list are automatically added to your Phone Contacts if they have a number generated.</p>
+                            <p><strong>Manual Add:</strong> You can manually add friends or rivals using the + button.</p>
+                        </div>
+
+                        <div id="guide-map" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#2ecc71; margin:0 0 8px 0; border-bottom:1px solid rgba(46,204,113,0.3); padding-bottom:4px;">Map System</h3>
+                            <p><strong>Generation:</strong> Click "Generate" to create a new map based on your current location/story. The map is persistent.</p>
+                            <p><strong>Markers:</strong> Drag the player marker to track your position.</p>
+                        </div>
+
+                        <div id="guide-calendar" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#e67e22; margin:0 0 8px 0; border-bottom:1px solid rgba(230,126,34,0.3); padding-bottom:4px;">Calendar</h3>
+                            <p><strong>Sync:</strong> Synchronize game time with real time or use "AI Generate" to set the date based on chat context.</p>
+                            <p><strong>Events:</strong> Add reminders and quest deadlines. Events will persist in your save data.</p>
+                        </div>
+
+                        <div id="guide-journal" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#f39c12; margin:0 0 8px 0; border-bottom:1px solid rgba(243,156,18,0.3); padding-bottom:4px;">Journal & Databank</h3>
+                            <p><strong>Journal:</strong> Write daily entries or auto-generate them from chat using the "Generate Entry" button.</p>
+                            <p><strong>Quests:</strong> Track active, pending, and completed missions. Use the AI helper to organize your quest log.</p>
+                            <p><strong>Databank:</strong> Store lore, facts, and important memories. Useful for keeping track of complex world details.</p>
+                        </div>
+
+                        <div id="guide-shop" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#f1c40f; margin:0 0 8px 0; border-bottom:1px solid rgba(241,196,15,0.3); padding-bottom:4px;">Shop</h3>
+                            <p><strong>Stock:</strong> View available items. Use "Generate Stock" to populate the shop based on the current location/merchant.</p>
+                            <p><strong>Trade:</strong> Buy items with gold or sell your loot. Prices may vary based on your CHA stat.</p>
+                        </div>
+
+                        <div id="guide-crafting" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#9b59b6; margin:0 0 8px 0; border-bottom:1px solid rgba(155,89,182,0.3); padding-bottom:4px;">Crafting</h3>
+                            <p><strong>Alchemy:</strong> Mix reagents to brew potions and poisons. Discover recipes by experimenting.</p>
+                            <p><strong>Forge:</strong> Smith weapons and armor from raw materials. Higher quality materials yield better stats.</p>
+                            <p><strong>Enchant:</strong> Imbue items with magical properties using runes. Requires mana and specific components.</p>
+                        </div>
+
+                        <div id="guide-phone" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#3498db; margin:0 0 8px 0; border-bottom:1px solid rgba(52,152,219,0.3); padding-bottom:4px;">Phone & Apps</h3>
+                            <p><strong>Messages:</strong> Text characters in the RPG. The AI replies in-character. Use the "+" to text a new number.</p>
+                            <p><strong>Browser:</strong> A simulated web browser. AI generates the webpages based on your search.</p>
+                            <p><strong>App Builder:</strong> Create your own mini-apps! Describe what you want (e.g. "A stock market tracker" or "A spellbook"), preview it, and install it to your home screen.</p>
+                            <p><strong>Books:</strong> You are here! Use the Library tab to generate and read books about the lore of your world.</p>
+                        </div>
+
+                        <div id="guide-settings" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
+                            <h3 style="color:#95a5a6; margin:0 0 8px 0; border-bottom:1px solid rgba(149,165,166,0.3); padding-bottom:4px;">Settings & AI</h3>
+                            <p><strong>Turbo API:</strong> For best performance, enable the Turbo API setting and point it to a fast model (like Gemini Flash or Haiku). This powers the background scans (Map, Loot, Phone replies) without slowing down your main chat.</p>
+                            <p><strong>Image Generation:</strong> UIE supports Stable Diffusion (WebUI/ComfyUI) and OpenAI-compatible image endpoints. Configure this in the main extension settings to enable image generation for Items, Skills, and Messages.</p>
+                        </div>
+                        
+                        <div style="text-align:center; margin-top:20px; font-style:italic; opacity:0.6;">
+                            Universal Immersion Engine v2.0
+                        </div>
                     </div>
                 </div>
             </div>

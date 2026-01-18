@@ -1295,9 +1295,14 @@ ${chat}`.slice(0, 6000);
         } else {
             combined.forEach(p => {
                 const num = String(p.number || "—");
+                const av = String(p.avatar || "").trim();
+                const avatarHtml = av 
+                    ? `<img src="${esc(av)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">` 
+                    : `${String(p.name || "?").charAt(0)}`;
+                
                 l.append(`
                     <div class="contact-row" data-name="${esc(p.name)}" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee; cursor:pointer;">
-                        <div class="contact-avatar" style="width:40px; height:40px; background:#ddd; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:15px; font-weight:bold; color:#555;">${String(p.name || "?").charAt(0)}</div>
+                        <div class="contact-avatar" style="width:40px; height:40px; background:#ddd; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:15px; font-weight:bold; color:#555; overflow:hidden;">${avatarHtml}</div>
                         <div style="flex:1; min-width:0;">
                             <div style="font-weight:bold; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
                             <div style="font-size:0.78em; opacity:0.65; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(num)}</div>
@@ -1596,8 +1601,8 @@ ${chat}`.slice(0, 6000), "System Check");
     const handleCallReply = async (t, n, greeting=false) => {
         const s = getSettings();
         if (s?.ai && s.ai.phoneCalls === false) return;
-        const mainCtx = getMainChatContext(10);
-        const chat = callChatContext || getChatSnippet(12);
+        const mainCtx = getMainChatContext(50);
+        const chat = callChatContext || getChatSnippet(50);
         const lore = (() => { try { const ctx = getContext?.(); const maybe = ctx?.world_info || ctx?.lorebook || ctx?.lore || ctx?.worldInfo; const keys=[]; if(Array.isArray(maybe)){ for(const it of maybe){ const k=it?.key||it?.name||it?.title; if(k) keys.push(String(k)); } } return Array.from(new Set(keys)).slice(0, 60).join(", "); } catch(_) { return ""; } })();
         const character = (() => { try { const ctx = getContext?.(); return JSON.stringify({ user: ctx?.name1, character: ctx?.name2, chatId: ctx?.chatId, characterId: ctx?.characterId, groupId: ctx?.groupId }); } catch(_) { return "{}"; } })();
         const card = getCharacterCardBlock(2600);
@@ -2445,7 +2450,7 @@ Requirements:
     });
 }
 
-export function openBooksGuide() {
+export function openBooksGuide(sectionId) {
     $("#uie-phone-window").show().css("display", "flex");
     $("#uie-phone-lockscreen").hide();
     $("#uie-phone-homescreen").hide();
@@ -2456,6 +2461,18 @@ export function openBooksGuide() {
     $("#books-view-library").hide();
     $("#books-tab-guide").addClass("active");
     $("#books-tab-library").removeClass("active");
+
+    if (sectionId) {
+        setTimeout(() => {
+            const target = document.getElementById(sectionId);
+            if (target) {
+                target.scrollIntoView({ behavior: "smooth", block: "start" });
+                // Flash the section to draw attention
+                $(target).css("transition", "background 0.5s").css("background", "rgba(241, 196, 15, 0.2)");
+                setTimeout(() => $(target).css("background", ""), 1500);
+            }
+        }, 300);
+    }
 }
 
 function renderBooks() {

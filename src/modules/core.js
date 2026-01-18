@@ -80,7 +80,7 @@ export const SETTINGS_DEFAULT = {
     codex: { entries: [] },
     calendar: { events: {}, cursor: "" },
     battle: { auto: false, state: { active: false, enemies: [], turnOrder: [], log: [] } },
-    character: { name: "", className: "Sanguine Shinobi", level: 1, avatar: "", portrait: "", syncPersona: true, classLibrary: ["Sanguine Shinobi"], stats: { str:10,dex:10,con:10,int:10,wis:10,cha:10,per:10,luk:10,agi:10,vit:10,end:10,spi:10 }, statusEffects: [] },
+    character: { name: "", className: "Sanguine Shinobi", level: 1, avatar: "", portrait: "", syncPersona: true, reborn: false, activeMedallion: null, classLibrary: ["Sanguine Shinobi"], stats: { str:10,dex:10,con:10,int:10,wis:10,cha:10,per:10,luk:10,agi:10,vit:10,end:10,spi:10 }, statusEffects: [] },
     ui: { 
         showPopups: true,
         notifications: {

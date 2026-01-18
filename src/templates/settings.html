@@ -4,16 +4,31 @@
             <b>Universal Immersion Engine</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
-        <div class="inline-drawer-content uie-settings-drawer">
+        <div class="inline-drawer-content uie-settings-drawer" style="max-height:70vh; overflow-y:auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;">
             <div style="display:flex; gap:6px; border-bottom:1px solid #444; margin-bottom:10px; overflow-x:auto; overflow-y:hidden; white-space:nowrap;">
                 <div class="uie-set-tab active" data-tab="general" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; font-weight:bold; color:#fff; border-bottom:2px solid #cba35c; white-space:nowrap;">General</div>
                 <div class="uie-set-tab" data-tab="turbo" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Turbo API</div>
                 <div class="uie-set-tab" data-tab="automation" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Automation</div>
-                <div class="uie-set-tab" data-tab="profiles" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Profiles</div>
+                <div class="uie-set-tab" data-tab="profiles" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Presets</div>
                 <div class="uie-set-tab" data-tab="prompts" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Prompts</div>
                 <div class="uie-set-tab" data-tab="popups" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Popups</div>
             </div>
             <div id="uie-set-general">
+                <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; margin-bottom:10px;">
+                    <div style="font-weight:bold; color:#ccc; margin-bottom:8px; font-size:0.9em;">Full Character State (Internal)</div>
+                    <div style="display:flex; gap:8px; margin-bottom:8px;">
+                        <select class="uie-state-select" style="flex:1; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                            <option value="">(Select Save...)</option>
+                        </select>
+                        <button class="uie-state-load-btn" style="width:60px; height:36px; background:rgba(52,152,219,0.15); border:1px solid rgba(52,152,219,0.4); color:#3498db; border-radius:8px; cursor:pointer; font-weight:bold;">Load</button>
+                        <button class="uie-state-del-btn" style="width:40px; height:36px; background:rgba(231,76,60,0.15); border:1px solid rgba(231,76,60,0.4); color:#e74c3c; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" class="uie-state-name" placeholder="Save Name..." style="flex:1; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                        <button class="uie-state-save-btn" style="width:60px; height:36px; background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4); color:#2ecc71; border-radius:8px; cursor:pointer; font-weight:bold;">Save</button>
+                    </div>
+                    <div style="font-size:0.75em; color:#888; margin-top:4px;">Saves entire state to UIE memory (Databank, Social, Inventory, etc).</div>
+                </div>
                 <div class="uie-control-group" style="display:flex; align-items:center; margin-bottom:10px;">
                     <label style="flex:1;">Kill Switch (Disable UIE Overlay)</label>
                     <input type="checkbox" id="uie-setting-enable">
@@ -281,23 +296,42 @@
                 </div>
                 <hr style="border-color:#333; margin:10px 0;">
                 <div class="uie-control-group"><label style="font-size:0.85em;">Enable Codex (Lore Encyclopedia)</label><input type="checkbox" id="uie-feature-codex"></div>
+                <div class="uie-control-group"><label style="font-size:0.85em;">Auto-Extract Codex from Chat</label><input type="checkbox" id="uie-feature-codex-auto"></div>
             </div>
 
             <div id="uie-set-profiles" style="display:none;">
                 <div style="font-size:0.85em; color:#ccc; margin-bottom:10px;">
-                    Connection profiles let you quickly swap Turbo + Image settings (local vs cloud, etc).
+                    SillyTavern Connection Presets (Main API)
                 </div>
+                <div style="display:flex; gap:6px;">
+                    <select id="uie-st-preset-select" style="flex:1; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                        <option value="">(Loading...)</option>
+                    </select>
+                    <button id="uie-st-preset-refresh" title="Refresh Presets" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">↻</button>
+                </div>
+                <div style="margin-top:10px; font-size:0.8em; color:#888;">
+                    Select a preset to instantly switch SillyTavern's main connection settings.
+                </div>
+                <!-- Hidden fallback selector if needed for logic, though we use the main one directly now -->
+            </div>
 
-                <div class="uie-control-group">
-                    <label style="font-size:0.8em;">Profile</label>
-                    <select id="uie-profile-select" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:10px;"></select>
+            <div id="uie-set-rpg" style="display:none;">
+                <div style="font-size:0.85em; color:#ccc; margin-bottom:10px;">
+                    RPG Mechanics & Display Settings
                 </div>
+                <div class="uie-control-group"><label style="font-size:0.85em;">Enable RPG Mechanics (XP/Levels)</label><input type="checkbox" id="uie-rpg-enable"></div>
+                <div class="uie-control-group"><label style="font-size:0.85em;">Show XP Bar in Menu</label><input type="checkbox" id="uie-rpg-xpbar"></div>
+                <div class="uie-control-group"><label style="font-size:0.85em;">Enable Equipment System</label><input type="checkbox" id="uie-rpg-equipment"></div>
+                <div class="uie-control-group"><label style="font-size:0.85em;">Enable Skills System</label><input type="checkbox" id="uie-rpg-skills"></div>
+                <div class="uie-control-group"><label style="font-size:0.85em;">Enable Party System</label><input type="checkbox" id="uie-rpg-party"></div>
+            </div>
 
-                <div style="display:flex; gap:8px; margin-top:10px;">
-                    <button id="uie-profile-apply" style="flex:1; background:rgba(255,255,255,0.06); border:1px solid #555; color:#fff; cursor:pointer; height:38px; border-radius:12px;">Apply Profile</button>
-                    <button id="uie-profile-save" style="flex:1; background:rgba(241,196,15,0.10); border:1px solid rgba(241,196,15,0.35); color:#f1c40f; cursor:pointer; height:38px; border-radius:12px;">Save Current</button>
-                    <button id="uie-profile-delete" style="flex:0 0 auto; width:120px; background:rgba(255,255,255,0.06); border:1px solid #555; color:#f38ba8; cursor:pointer; height:38px; border-radius:12px;">Delete</button>
+            <div id="uie-set-css" style="display:none;">
+                <div style="font-size:0.85em; color:#ccc; margin-bottom:10px;">
+                    Global Custom CSS (Applied to UIE overlay)
                 </div>
+                <textarea id="uie-custom-css" placeholder=".uie-window { background: black !important; }" style="width:100%; min-height:300px; background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:8px; resize:vertical; font-family:monospace;"></textarea>
+                <button id="uie-custom-css-apply" style="margin-top:8px; width:100%; background:#333; border:1px solid #555; color:#fff; cursor:pointer;">Apply CSS</button>
             </div>
 
             <div id="uie-set-prompts" style="display:none;">

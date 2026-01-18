@@ -4,6 +4,8 @@ import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
 
+import { getST } from "./interaction.js";
+
 /**
  * Ensures the state tracking object exists.
  */
@@ -117,12 +119,12 @@ export async function scanEverything() {
             let raw = "";
             const $txt = $(".chat-msg-txt");
             if ($txt.length) {
-                $txt.slice(-1 * Math.max(1, Number(max || 10))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
-                return stripCssBlocks(raw).trim().slice(0, 7000);
+                $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
+                return stripCssBlocks(raw).trim().slice(0, 30000);
             }
             const chatEl = document.getElementById("chat");
             if (!chatEl) return "";
-            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 10)));
+            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
             for (const m of msgs) {
                 const isUser =
                     m.classList?.contains("is_user") ||
@@ -142,13 +144,13 @@ export async function scanEverything() {
                 if (!t) continue;
                 raw += `${isUser ? "You" : "Story"}: ${t}\n`;
             }
-            return stripCssBlocks(raw).trim().slice(0, 7000);
+            return stripCssBlocks(raw).trim().slice(0, 30000);
         } catch (_) {
             return "";
         }
     };
 
-    const chatSnippet = readChatSnippet(28);
+    const chatSnippet = readChatSnippet(50);
 
     if (!chatSnippet) return;
 

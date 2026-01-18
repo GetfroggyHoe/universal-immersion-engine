@@ -1,6 +1,9 @@
 import { getSettings, saveSettings } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { generateContent } from "./apiClient.js";
+import { notify } from "./notifications.js";
+import { MEDALLIONS } from "./inventory.js";
 
 let selectedId = null;
 let tab = "roster";
@@ -152,7 +155,7 @@ function defaultMember(name) {
         images: { portrait: "" },
         stats: { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10, per: 10, luk: 10 },
         vitals: { hp: 100, maxHp: 100, mp: 50, maxMp: 50, ap: 10, maxAp: 10, stamina: 100, maxStamina: 100 },
-        progression: { level: 1, xp: 0, skillPoints: 0, perkPoints: 0 },
+        progression: { level: 1, xp: 0, skillPoints: 0, perkPoints: 0, reborn: false, activeMedallion: null },
         equipment: {},
         partyRole: "DPS",
         roles: [],
@@ -311,7 +314,8 @@ function renderRoster(s) {
     `).join("");
 
     $("#uie-party-body").html(`
-        <div style="display:flex; gap:10px; margin-bottom:15px; justify-content:center;">
+        <div style="display:flex; gap:10px; margin-bottom:15px; justify-content:center; flex-wrap:wrap;">
+            <button id="party-scan-chat" style="padding:8px 12px; border-radius:6px; border:1px solid rgba(241,196,15,0.4); background:rgba(241,196,15,0.15); color:#f1c40f; cursor:pointer; font-weight:900; width:100%;">Scan Roster from Chat</button>
             <button id="party-add" style="padding:8px 12px; border-radius:6px; border:1px solid #444; background:#222; color:#ccc; cursor:pointer; font-weight:900;">+ Empty</button>
             <button id="party-import-user" style="padding:8px 12px; border-radius:6px; border:1px solid #2ecc71; background:rgba(46,204,113,0.1); color:#2ecc71; cursor:pointer; font-weight:900;">Import User</button>
             <button id="party-import-char" style="padding:8px 12px; border-radius:6px; border:1px solid #3498db; background:rgba(52,152,219,0.1); color:#3498db; cursor:pointer; font-weight:900;">Import Character</button>
@@ -661,6 +665,102 @@ function importChatChar(s) {
     } catch(e) { console.error(e); }
 }
 
+async function scanPartyFromChat() {
+    const s = getSettings();
+    ensureParty(s);
+    
+    // Gather Chat Context
+    let raw = "";
+    $(".chat-msg-txt").slice(-25).each(function() { raw += $(this).text() + "\n"; });
+    if (!raw.trim()) {
+        notify("warning", "Not enough chat history to scan.", "Party", "scan");
+        return;
+    }
+
+    const currentMembers = s.party.members.map(m => m.identity.name).join(", ");
+    const prompt = `[UIE_LOCKED]
+Analyze the chat log to determine the ACTIVE PARTY MEMBERS (allies currently traveling/fighting with the User).
+Exclude the User (You).
+Exclude enemies or random NPCs unless they have clearly joined the group.
+
+Current Roster: ${currentMembers || "None"}
+
+Chat Log:
+${raw.slice(0, 3000)}
+
+Return JSON ONLY:
+{
+  "active": [
+    { "name": "Exact Name", "class": "Class/Archetype", "role": "Tank|Healer|DPS|Support", "level": 1, "isNew": true/false }
+  ],
+  "left": ["Name of anyone who explicitly LEFT the party"]
+}
+`;
+
+    const res = await generateContent(prompt, "Party Scan");
+    if (!res) return;
+
+    let data;
+    try { data = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch(_) { return; }
+
+    if (!data || typeof data !== "object") return;
+
+    let changes = 0;
+
+    // Handle Leavers
+    if (Array.isArray(data.left)) {
+        for (const name of data.left) {
+            const idx = s.party.members.findIndex(m => m.identity.name.toLowerCase() === name.toLowerCase());
+            if (idx !== -1) {
+                // We don't delete, just mark inactive or remove? User asked for "leave or join".
+                // Safest is to remove from roster if explicitly left.
+                // Or just set active=false?
+                // Let's remove to keep roster clean as per "people can always leave or join".
+                s.party.members.splice(idx, 1);
+                changes++;
+                notify("info", `${name} left the party.`, "Party", "scan");
+            }
+        }
+    }
+
+    // Handle Joiners / Updates
+    if (Array.isArray(data.active)) {
+        for (const char of data.active) {
+            const name = String(char.name || "").trim();
+            if (!name) continue;
+            
+            let m = s.party.members.find(x => x.identity.name.toLowerCase() === name.toLowerCase());
+            if (!m) {
+                // New Member
+                m = defaultMember(name);
+                m.roles.push("Character");
+                s.party.members.push(m);
+                changes++;
+                notify("success", `${name} joined the party!`, "Party", "scan");
+            }
+            
+            // Update Info
+            if (char.class) m.identity.class = char.class;
+            if (char.role) m.partyRole = char.role;
+            if (char.level && Number(char.level) > (m.progression.level || 0)) m.progression.level = Number(char.level);
+            
+            // Try to auto-link portrait if friend exists
+            if (!m.images.portrait) {
+                const friend = s.social?.friends?.find(f => f.name.toLowerCase() === name.toLowerCase());
+                if (friend && friend.img) m.images.portrait = friend.img;
+            }
+        }
+    }
+
+    if (changes > 0) {
+        saveSettings();
+        render();
+        notify("success", "Party Roster Updated.", "Party", "scan");
+    } else {
+        notify("info", "No roster changes detected.", "Party", "scan");
+    }
+}
+
 function renderMemberModal(s, m) {
     ensureMember(m);
     $("#uie-party-member-title").text(`${m.identity?.name || "Member"}`);
@@ -830,9 +930,27 @@ function renderMemberModal(s, m) {
         </div>
     `).join("");
 
+    const medalOpts = Object.values(MEDALLIONS).map(md => `<option value="${md.id}" ${m.progression.activeMedallion === md.id ? "selected" : ""}>${md.name}</option>`).join("");
+    
+    const rebirthSection = (m.progression.level >= 150 || m.progression.reborn || memberEdit) ? `
+        <div style="border-top:1px solid rgba(255,255,255,0.10); padding-top:12px;">
+            <div style="font-weight:900; margin-bottom:8px; color:#9b59b6;">Rebirth & Medallions</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <label style="display:flex; gap:8px; align-items:center; font-weight:bold;">
+                    <input type="checkbox" id="party-mm-reborn" ${m.progression.reborn ? "checked" : ""} ${dis}> Is Reborn
+                </label>
+                <select id="party-mm-medallion" ${dis} style="flex:1; height:34px; border-radius:10px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#fff; padding:0 10px;">
+                    <option value="">(No Medallion)</option>
+                    ${medalOpts}
+                </select>
+            </div>
+        </div>
+    ` : "";
+
     const skillsPane = `
         <div style="padding:12px;">
-            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+            ${rebirthSection}
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; margin-top:15px;">
                 <div style="font-weight:900;">Skills</div>
                 ${memberEdit ? `<button id="party-mm-add-skill" style="margin-left:auto; height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(241,196,15,0.30); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Add</button>` : ``}
             </div>

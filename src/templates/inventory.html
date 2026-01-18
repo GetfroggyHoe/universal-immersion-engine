@@ -891,6 +891,29 @@
   #uie-inv-sparkle-menu .uie-create-quick .qbox{ width:100%; }
   #uie-inv-sparkle-menu .uie-create-quick button{ min-width:72px; }
 }
+
+@media (max-width: 700px), (pointer: coarse) {
+  #uie-inventory-window[data-active-tab="equipment"] #paper-doll,
+  #uie-inventory-window[data-active-tab="equipment"] #bottom-stats,
+  #uie-inventory-window[data-active-tab="equipment"] #uie-inv-mobile-ident,
+  #uie-inventory-window[data-active-tab="equipment"] #uie-inv-status-strip {
+    display: none !important;
+  }
+  #uie-inventory-window[data-active-tab="equipment"] .uie-inv-body {
+    grid-template-rows: 1fr;
+    grid-template-areas: "pane";
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  #uie-inventory-window[data-active-tab="equipment"] #pane {
+    border-radius: 0;
+    border: none;
+    background: transparent;
+  }
+  #uie-inventory-window[data-active-tab="equipment"] #uie-view-equip {
+    padding: 4px;
+  }
+}
 </style>
 
 <div id="uie-inventory-window" class="uie-window" data-fullscreen="true" style="display:none;">
@@ -912,15 +935,22 @@
             <div id="uie-create-close" class="uie-create-close">×</div>
           </div>
 
-          <div class="uie-create-row">
-            <select id="uie-create-kind" class="uie-create-select">
+          <div class="uie-create-row" style="margin-bottom:6px;">
+            <select id="uie-create-kind" class="uie-create-select" style="flex:2;">
               <option value="item">Item</option>
               <option value="class">Create Class</option>
               <option value="skill">Skill</option>
               <option value="asset">Asset</option>
               <option value="status">Status Effects</option>
             </select>
-            <button id="uie-create-run" class="uie-create-btn">Create</button>
+            <input id="uie-create-qty" type="number" min="1" max="5" value="1" placeholder="#" title="Quantity" style="width:46px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 5px; font-weight:900; text-align:center;">
+            <button id="uie-create-run" class="uie-create-btn" style="flex:1;">Create</button>
+          </div>
+          
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-left:4px;">
+             <label style="display:flex; align-items:center; gap:6px; font-size:0.85em; opacity:0.9; cursor:pointer;">
+                 <input type="checkbox" id="uie-create-gen-img"> Generate Image
+             </label>
           </div>
 
           <textarea id="uie-create-desc" class="uie-create-desc" placeholder="Describe what you’re creating (optional)…"></textarea>
@@ -937,12 +967,15 @@
           </div>
 
           <div style="margin-top:10px; display:flex; gap:10px;">
-            <button id="uie-create-scan-loot" class="uie-create-btn" style="flex:1;">Scan Chat for Loot</button>
+            <button id="uie-create-scan-loot" class="uie-create-btn" style="flex:1;">Scan Chat Log</button>
             <button id="uie-create-scan-warroom" class="uie-create-btn" style="flex:1;">Scan War Room</button>
           </div>
+          
+          <div id="uie-create-staging" style="display:none; flex-direction:column; gap:10px; margin-top:15px; border-top:1px solid rgba(255,255,255,0.15); padding-top:10px;"></div>
         </div>
         <div class="uie-inv-icon" id="uie-inv-gear" title="Inventory Settings"><i class="fa-solid fa-gear"></i></div>
         <div id="uie-inv-gear-menu" style="display:none; position:absolute; top:70px; right:124px; width:280px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(10,6,5,0.92); backdrop-filter: blur(6px); padding:10px; z-index:2147483646;">
+          <div style="padding:8px; border-radius:10px; background:rgba(255,255,255,0.08); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:900; color:#cba35c;" onclick="uie.phone.openBooksGuide('guide-inventory');"><i class="fa-solid fa-circle-question"></i> Help / Guide</div>
           <div style="font-weight:900; color:#fff; margin-bottom:8px;">Inventory Tabs</div>
           <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-items"> Items</label>
           <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-skills"> Skills</label>
@@ -959,6 +992,10 @@
           <div style="font-weight:900; color:#fff; margin:10px 0 8px;">Progression</div>
           <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-leveling"> Leveling (XP → Level)</label>
           <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-ui-bars"> Show Bars / Level / Stats</label>
+          
+          <div id="uie-inv-rebirth-opt" style="margin-top:10px; display:none; border-top:1px solid rgba(255,255,255,0.15); padding-top:10px;">
+             <button id="uie-inv-trigger-rebirth" style="width:100%; height:36px; border-radius:10px; background:linear-gradient(90deg, #8e44ad, #9b59b6); border:none; color:#fff; font-weight:900; cursor:pointer;">Initiate Rebirth</button>
+          </div>
         </div>
         <div class="uie-inv-icon" id="uie-inv-fullscreen-toggle" title="Toggle Fullscreen"><i class="fa-solid fa-expand"></i></div>
         <div class="uie-inv-close" id="uie-inv-close">X</div>

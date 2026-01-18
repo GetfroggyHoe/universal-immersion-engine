@@ -15,7 +15,7 @@
 
         .uie-social-grid{
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
             gap: 12px;
         }
         .uie-social-card{
@@ -27,12 +27,12 @@
             padding: 0;
             border-radius: 8px;
             border: 1px solid rgba(255,255,255,0.10);
-            background: rgba(0,0,0,0.4);
+            background: rgba(0,0,0,0.1);
             color: #fff;
             cursor: pointer;
             user-select: none;
             overflow: hidden;
-            aspect-ratio: 3/4;
+            aspect-ratio: 1 / 1;
             position: relative;
         }
         .uie-social-card:hover{ border-color: rgba(225,193,122,0.6); }
@@ -41,11 +41,13 @@
             box-shadow: 0 0 0 3px rgba(231,76,60,0.4);
         }
         .uie-s-avatar{
+            position: absolute;
+            inset: 0;
             width: 100%;
             height: 100%;
-            flex: 1;
             display: block;
             background: rgba(0,0,0,0.2);
+            z-index: 0;
         }
         .uie-s-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
         .uie-s-name{
@@ -53,9 +55,8 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(0,0,0,0.75);
-            backdrop-filter: blur(4px);
-            padding: 6px 4px;
+            background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%);
+            padding: 20px 4px 6px 4px;
             font-weight: 700;
             font-size: 11px;
             text-align: center;
@@ -63,6 +64,7 @@
             overflow: hidden;
             text-overflow: ellipsis;
             z-index: 2;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.9);
         }
 
         #uie-delete-controls{
@@ -179,6 +181,7 @@
         <div id="uie-social-close"><i class="fa-solid fa-xmark"></i></div>
         
         <div class="uie-dropdown" id="uie-social-menu" style="position:absolute; top:44px; right:44px; background:#111; border:1px solid rgba(203,163,92,0.5); border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px;">
+            <div class="uie-dd-item" onclick="uie.phone.openBooksGuide('guide-social')"><i class="fa-solid fa-circle-question" style="color:#cba35c;"></i> Help / Guide</div>
             <div class="uie-dd-item" id="uie-act-scan"><i class="fa-solid fa-users-viewfinder"></i> Scan Chat Log</div>
             <div class="uie-dd-item" id="uie-act-toggle-auto"><i class="fa-solid fa-robot"></i> Auto Scan: <span id="uie-auto-scan-state">OFF</span></div>
             <div class="uie-dd-item" id="uie-act-add"><i class="fa-solid fa-plus"></i> Manual Add</div>

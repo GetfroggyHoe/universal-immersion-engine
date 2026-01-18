@@ -181,7 +181,7 @@ function unforgetDeletedName(s, name) {
 function getChatTranscript(maxMessages) {
     const out = [];
     try {
-        const nodes = getChatMessageNodes(maxMessages || 80);
+        const nodes = getChatMessageNodes(maxMessages || 5000);
         for (const m of nodes) {
             const name =
                 m.querySelector?.(".mes_name")?.textContent ||
@@ -205,11 +205,11 @@ function getChatTranscript(maxMessages) {
             out.push(`${nm}: ${tx}`);
         }
     } catch (_) {}
-    return out.join("\n").slice(-14000);
+    return out.join("\n").slice(-150000);
 }
 
 function getChatMessageNodes(maxMessages) {
-    const max = Math.max(20, Number(maxMessages || 120));
+    const max = Math.max(20, Number(maxMessages || 5000));
     try {
         const sels = [
             "#chat .mes",
@@ -1260,26 +1260,8 @@ export function initSocial() {
         if (s.socialMeta && typeof s.socialMeta.autoScan === "boolean") $("#uie-auto-scan-state").text(s.socialMeta.autoScan ? "ON" : "OFF");
     } catch (_) {}
 
-    const chatObserver = new MutationObserver(() => {
-        try {
-            const s = getSettings();
-            if (!s?.socialMeta?.autoScan) return;
-            if (autoScanTimer) clearTimeout(autoScanTimer);
-            autoScanTimer = setTimeout(async () => {
-                const now = Date.now();
-                const min = Math.max(2000, Number(s?.generation?.systemCheckMinIntervalMs ?? 20000));
-                if (autoScanInFlight) return;
-                if (now - autoScanLastAt < min) return;
-                if (s?.generation?.scanOnlyOnGenerateButtons === true) return;
-                autoScanInFlight = true;
-                autoScanLastAt = now;
-                try {
-                    const mod = await import("./stateTracker.js");
-                    if (mod?.scanEverything) await mod.scanEverything();
-                } finally { autoScanInFlight = false; }
-            }, 4000);
-        } catch (_) {}
+    // Init auto-scanner hooks (Event-based instead of DOM observer)
+    import("./stateTracker.js").then(mod => {
+        if (typeof mod.initAutoScanning === "function") mod.initAutoScanning();
     });
-    const chatEl = document.querySelector('#chat');
-    if(chatEl) chatObserver.observe(chatEl, { childList: true, subtree: true });
 }

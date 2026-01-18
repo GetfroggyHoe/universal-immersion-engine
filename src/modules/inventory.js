@@ -5,6 +5,50 @@ import { getContext } from "../../../../../extensions.js";
 import { generateContent, cleanOutput } from "./apiClient.js";
 import { notify, notifyLowHpIfNeeded } from "./notifications.js";
 import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeMods, computeStatusTotals, applyStatusTickToVitals, parseDurationToMs } from "./statusFx.js";
+import { generateImageAPI } from "./imageGen.js";
+
+export const MEDALLIONS = {
+    "medallion_water": {
+        id: "medallion_water",
+        name: "Medallion of the Coiled Tide",
+        type: "medallion",
+        desc: "Best for: Speed, Evasion, Mana/Stamina regen.\n[Rank: Rebirth Artifact]\n[Status Effect: Flow State]\n- Infinite Stamina: Never tire.\n- Fluid Motion: Move like liquid, evasion up.\n- Environmental Buff: Speed doubles near water.",
+        img: "https://user.uploads.dev/file/644e59a3cff1ce40adec12bf35844d0e.png",
+        statusEffects: ["Flow State"]
+    },
+    "medallion_earth": {
+        id: "medallion_earth",
+        name: "Sigil of the Bedrock",
+        type: "medallion",
+        desc: "Best for: Tanking, Invulnerability, Brute Force.\n[Rank: Rebirth Artifact]\n[Status Effect: Mountain's Heart]\n- Natural Armor: Diamond density skin.\n- Immovable: Cannot be knocked back.\n- Threat Aura: Crushing weight presence.",
+        img: "https://user.uploads.dev/file/f2fb37a01abb09790e7936951d2acdbf.png",
+        statusEffects: ["Mountain's Heart"]
+    },
+    "medallion_air": {
+        id: "medallion_air",
+        name: "Crest of the Gale",
+        type: "medallion",
+        desc: "Best for: Critical Hits, Speed, Vertical Movement.\n[Rank: Rebirth Artifact]\n[Status Effect: Sky Walker]\n- Weightless: No fall damage, run up walls.\n- Precision Strikes: Auto-crit weak points.\n- Acceleration: Speed increases over time.",
+        img: "https://user.uploads.dev/file/2fbfff08474c64ae7fd2c83b44be381c.png",
+        statusEffects: ["Sky Walker"]
+    },
+    "medallion_fire": {
+        id: "medallion_fire",
+        name: "The Warlord’s Brand",
+        type: "medallion",
+        desc: "Best for: High Damage, Intimidation, High Risk.\n[Rank: Rebirth Artifact]\n[Status Effect: Burning Soul]\n- Cauterize: Wounds burn, no bleed.\n- Glass Cannon: Massive damage, reckless defense.\n- Heat Haze: Passive ignition aura.",
+        img: "https://user.uploads.dev/file/87ab6c663ec4bd5bffed62d8790bd6f0.png",
+        statusEffects: ["Burning Soul"]
+    },
+    "medallion_rebel": {
+        id: "medallion_rebel",
+        name: "Mark of the Usurper",
+        type: "medallion",
+        desc: "Best for: Chaos, Minions, Unrestricted Gear.\n[Rank: Rebirth Artifact]\n[Status Effect: Rule Breaker]\n- Master of All: Wield any weapon/magic.\n- Charismatic Chaos: Minions defect to you.\n- Boss Slayer: Bonus dmg vs Authority.",
+        img: "https://user.uploads.dev/file/77fa500b1551e8d07a2b1f3bc8cb4471.png",
+        statusEffects: ["Rule Breaker"]
+    }
+};
 
 let editorItemIndex = null;
 let pendingImageTarget = null;
@@ -242,77 +286,392 @@ function bindStatusManagerHandlers() {
     });
 }
 
-// --- AUTOMATED LOOT & STATUS SCANNER ---
-export async function scanLootAndStatus() {
+const renderRebirthModal = () => {
+    const el = document.createElement("div");
+    el.id = "uie-rebirth-modal";
+    el.style.cssText = "position:fixed;inset:0;z-index:2147483660;background:rgba(0,0,0,0.85);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;";
+    
+    let grid = "";
+    for(const [key, m] of Object.entries(MEDALLIONS)) {
+        grid += `
+          <div class="uie-medal-card" data-id="${key}" style="border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);border-radius:12px;padding:10px;cursor:pointer;transition:0.2s;">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+                  <img src="${m.img}" style="width:40px;height:40px;border-radius:50%;border:2px solid #f1c40f;">
+                  <div style="font-weight:900;color:#f1c40f;font-size:1.1em;">${m.name}</div>
+              </div>
+              <div style="font-size:0.85em;opacity:0.8;white-space:pre-wrap;line-height:1.4;">${m.desc}</div>
+          </div>
+        `;
+    }
+
+    el.innerHTML = `
+      <div style="width:min(800px, 95vw);max-height:90vh;overflow:auto;background:radial-gradient(circle at center, #1a1a1a, #000);border:2px solid #f1c40f;border-radius:20px;padding:20px;color:#fff;box-shadow:0 0 50px rgba(241,196,15,0.2);">
+          <h1 style="text-align:center;color:#f1c40f;text-transform:uppercase;letter-spacing:2px;margin-bottom:10px;">Ascension Available</h1>
+          <p style="text-align:center;opacity:0.8;margin-bottom:20px;">You have reached the pinnacle of mortal power. Choose a path to be reborn as a legend.<br>Your Level will reset to 1, but you will gain a permanent God Medallion.</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));gap:15px;margin-bottom:20px;">
+              ${grid}
+          </div>
+          <div style="display:flex;justify-content:center;gap:20px;">
+              <button id="uie-rebirth-cancel" style="padding:10px 20px;border-radius:10px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;cursor:pointer;">Cancel</button>
+          </div>
+      </div>
+    `;
+    document.body.appendChild(el);
+    
+    $(el).on("click", ".uie-medal-card", function() {
+        const id = $(this).data("id");
+        if(confirm("Are you sure you want to choose this path? This cannot be undone.")) {
+            performRebirth(id);
+            el.remove();
+        }
+    });
+    
+    $(el).on("click", "#uie-rebirth-cancel", function() {
+        el.remove();
+    });
+};
+
+const performRebirth = (medalId) => {
     const s = getSettings();
-    if (s?.ai && s.ai.loot === false) return; // Allow disabling
+    ensureModel(s);
+    
+    // Reset Level
+    s.character.level = 1;
+    s.xp = 0;
+    s.maxXp = 1000;
+    s.character.reborn = true;
+    s.character.activeMedallion = medalId;
+    
+    // Add Medallion Item
+    const def = MEDALLIONS[medalId];
+    if (def) {
+        s.inventory.items.push({
+            kind: "item",
+            name: def.name,
+            type: "Key Item",
+            description: def.desc,
+            qty: 1,
+            rarity: "legendary",
+            img: def.img,
+            statusEffects: def.statusEffects || [],
+            mods: {}
+        });
+    }
+    
+    saveSettings();
+    updateVitals();
+    applyInventoryUi(); // Update Rebirth button visibility
+    notify("success", "REBIRTH COMPLETE! You are now a Legend.", "System", "levelUp");
+};
+
+// --- AUTOMATED LOOT & STATUS SCANNER ---
+export async function scanLootAndStatus(force = false) {
+    const s = getSettings();
+    // If automated (not forced), check if disabled
+    if (!force && s?.ai?.loot === false) return;
 
     const chatEl = document.querySelector("#chat");
     if (!chatEl) return;
-    const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
-    if (!last) return;
 
-    // Only scan AI messages for loot/damage results
-    const isUser =
-        last.classList?.contains("is_user") ||
-        last.getAttribute("is_user") === "true" ||
-        last.getAttribute("data-is-user") === "true";
-    if (isUser) return;
+    // Automated: Check last message ID and User vs Story
+    if (!force) {
+        const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
+        if (!last) return;
 
-    const id = last.getAttribute("mesid") || last.getAttribute("data-id") || last.textContent.substring(0, 20);
-    if (id === lastLootMesId) return;
-    lastLootMesId = id;
+        // Only scan Story messages automatically
+        const isUser =
+            last.classList?.contains("is_user") ||
+            last.getAttribute("is_user") === "true" ||
+            last.getAttribute("data-is-user") === "true";
+        if (isUser) return;
 
-    const text = last.textContent || "";
-    
-    // SMART CURRENCY (Regex - Instant & Free)
-    // Supports: found 50 gold, lost 10 coins, etc.
-    const currencyGain = text.match(/(?:found|received|gained|picked up|looted|loot|earned|rewarded|added)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
-    const currencyLoss = text.match(/(?:lost|paid|spent|gave|removed|pay|subtracted)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
-    
-    if (currencyGain || currencyLoss) {
-        ensureModel(s);
-        let changed = false;
-        if (currencyGain) {
-            const amt = parseInt(currencyGain[1]);
-            const cur = Math.max(0, Number(s.currency || 0) + amt);
-            s.currency = cur;
-            const sym = String(s.currencySymbol || "G");
-            let curItem = s.inventory.items.find(it => String(it?.type || "").toLowerCase() === "currency" && String(it?.symbol || "") === sym);
-            if (!curItem) {
-                curItem = { kind: "item", name: `${sym} Currency`, type: "currency", symbol: sym, description: `Currency item for ${sym}.`, rarity: "common", qty: cur, mods: {}, statusEffects: [] };
-                s.inventory.items.push(curItem);
-            } else {
-                curItem.qty = cur;
-            }
-            notify("success", `+ ${amt} ${sym}`, "Currency", "currency");
-            changed = true;
-        }
-        if (currencyLoss) {
-            const amt = parseInt(currencyLoss[1]);
-            const cur = Math.max(0, Number(s.currency || 0) - amt);
-            s.currency = cur;
-            const sym = String(s.currencySymbol || "G");
-            const curItem = s.inventory.items.find(it => String(it?.type || "").toLowerCase() === "currency" && String(it?.symbol || "") === sym);
-            if (curItem) curItem.qty = cur;
-            notify("warning", `- ${amt} ${sym}`, "Currency", "currency");
-            changed = true;
-        }
-        if (changed) {
-            saveSettings();
-            updateLayout();
-        }
+        const id = last.getAttribute("mesid") || last.getAttribute("data-id") || last.textContent.substring(0, 20);
+        if (id === lastLootMesId) return;
+        lastLootMesId = id;
     }
-    
-    // Quick Keyword Filter to save API calls
-    const keywords = [
-        "found", "picked up", "received", "gave you", "obtained", "looted", // Loot
-        "lost", "paid", "gave", "dropped", "removed", // Loss
-        // Currency handled by Regex
-        "damage", "hit", "hurt", "bleeding", "healed", "recovered", "hp", "health" // Status
-    ];
-    if (!keywords.some(k => text.toLowerCase().includes(k))) return;
-    return;
+
+    if (force) notify("info", "Scanning chat log...", "Inventory", "api");
+
+    // Gather Context
+    let ctx = {};
+    try { ctx = getContext?.() || {}; } catch (_) {}
+
+    const charName = String(s.character?.name || ctx.name1 || "You").trim();
+    const charPersona = String(ctx.persona1 || "").trim();
+
+    let partyContext = "";
+    if (Array.isArray(ctx.characters)) {
+        partyContext = ctx.characters
+            .map(c => `[Character: ${c.name}]\n${c.description || c.persona || "N/A"}`)
+            .join("\n\n");
+    }
+
+    // Transcript (Last 60 messages)
+    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-60);
+    let transcript = "";
+    for (const m of msgs) {
+        const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
+        const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
+        const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
+        transcript += `${name}: ${String(t || "").trim()}\n`;
+    }
+
+    if (!transcript.trim()) {
+        if (force) notify("warning", "No chat content.", "Inventory", "scan");
+        return;
+    }
+
+    const prompt = `[UIE_LOCKED]
+Analyze the chat log and extract NEW progression elements.
+User: ${charName}
+Persona: ${charPersona}
+Party/Cards:
+${partyContext}
+
+Transcript:
+${transcript}
+
+Task: Return JSON with NEW Items, Skills, Assets, Life/Status Updates, and Equipment Changes.
+1. **Items**: New loot, currency, or unequipped items found/bought.
+2. **Skills**: New skills learned or revealed (for User or Party).
+3. **Assets**: New abstract resources (deeds, titles, knowledge).
+4. **Life**: Updates to life trackers (HP, MP, Stress, etc.). "delta" for changes.
+5. **Equipment**: Clothes/Gear the user is *currently wearing* or *changed into*. Generate detailed descriptions.
+   - If user changes clothes, the old outfit is unequipped (moved to inventory) and the new one is equipped.
+
+Return ONLY JSON:
+{
+  "items": [{"name":"", "type":"item|weapon|currency", "qty":1, "desc":""}],
+  "skills": [{"name":"", "desc":"", "type":"active|passive"}],
+  "assets": [{"name":"", "desc":"", "category":""}],
+  "life": [{"name":"TrackerName", "delta":0, "set":null, "max":null}],
+  "equipped": [{"slotId":"Head|Body|MainHand|OffHand|Accessory", "name":"", "desc":"", "type":"armor|weapon"}]
+}
+`;
+
+    try {
+        const res = await generateContent(prompt, "Full Scan");
+        if (!res) {
+            if (force) notify("warning", "No results from AI.", "Inventory", "scan");
+            return;
+        }
+
+        let obj = null;
+        try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) {}
+        if (!obj || typeof obj !== "object") {
+            if (force) notify("error", "Invalid AI response.", "Inventory", "error");
+            return;
+        }
+
+        let changes = 0;
+        ensureModel(s);
+
+        // Process Equipment (First, to handle swaps)
+        if (Array.isArray(obj.equipped)) {
+            if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
+            for (const eq of obj.equipped) {
+                if (!eq.name || !eq.slotId) continue;
+                
+                // Find existing item in this slot
+                const existingIdx = s.inventory.equipped.findIndex(x => x.slotId.toLowerCase() === eq.slotId.toLowerCase());
+                if (existingIdx >= 0) {
+                    // Unequip old item to inventory
+                    const old = s.inventory.equipped[existingIdx];
+                    s.inventory.items.push({
+                        kind: "item",
+                        name: old.name,
+                        type: old.type || "equipment",
+                        description: old.description || old.desc || "",
+                        qty: 1,
+                        rarity: old.rarity || "common",
+                        mods: old.mods || {},
+                        statusEffects: old.statusEffects || []
+                    });
+                    // Remove from equipped
+                    s.inventory.equipped.splice(existingIdx, 1);
+                }
+
+                // Equip new item
+                s.inventory.equipped.push({
+                    slotId: eq.slotId,
+                    name: eq.name,
+                    description: eq.desc || "",
+                    type: eq.type || "equipment",
+                    rarity: "common",
+                    statusEffects: [],
+                    img: ""
+                });
+                changes++;
+            }
+        }
+
+        // Process Items
+        if (Array.isArray(obj.items)) {
+            for (const it of obj.items) {
+                if (!it.name) continue;
+                const exist = s.inventory.items.find(x => x.name === it.name);
+                if (exist) {
+                    exist.qty = (exist.qty || 1) + (it.qty || 1);
+                } else {
+                    s.inventory.items.push({
+                        kind: "item",
+                        name: it.name,
+                        type: it.type || "item",
+                        description: it.desc || "Found item.",
+                        qty: it.qty || 1,
+                        rarity: "common",
+                        mods: {},
+                        statusEffects: []
+                    });
+                }
+                changes++;
+            }
+        }
+
+        // Process Skills
+        if (Array.isArray(obj.skills)) {
+            if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
+            for (const sk of obj.skills) {
+                if (!sk.name) continue;
+                if (s.inventory.skills.some(x => x.name === sk.name)) continue;
+                s.inventory.skills.push({
+                    kind: "skill",
+                    name: sk.name,
+                    description: sk.desc || "",
+                    type: sk.type || "active"
+                });
+                changes++;
+            }
+        }
+
+        // Process Assets
+        if (Array.isArray(obj.assets)) {
+            if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
+            for (const a of obj.assets) {
+                if (!a.name) continue;
+                if (s.inventory.assets.some(x => x.name === a.name)) continue;
+                s.inventory.assets.push({
+                    kind: "asset",
+                    name: a.name,
+                    description: a.desc || "",
+                    category: a.category || ""
+                });
+                changes++;
+            }
+        }
+
+        // Process Life
+        if (Array.isArray(obj.life)) {
+            if (!s.life) s.life = {};
+            if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
+            for (const up of obj.life) {
+                const t = s.life.trackers.find(x => x.name.toLowerCase() === up.name.toLowerCase());
+                if (t) {
+                    if (Number.isFinite(up.set)) t.current = up.set;
+                    else if (Number.isFinite(up.delta)) t.current = (t.current || 0) + up.delta;
+                    if (Number.isFinite(up.max)) t.max = up.max;
+                    changes++;
+                } else {
+                     // Create new if name is valid and it seems like a tracker
+                     if (up.name && (Number.isFinite(up.set) || Number.isFinite(up.delta))) {
+                         s.life.trackers.push({
+                             name: up.name,
+                             current: Number.isFinite(up.set) ? up.set : (up.delta || 10),
+                             max: up.max || 100,
+                             color: "#89b4fa",
+                             notes: "Auto-scanned"
+                         });
+                         changes++;
+                     }
+                }
+            }
+        }
+
+        // Process Equipment
+        if (Array.isArray(obj.equipment)) {
+             if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
+             for (const eq of obj.equipment) {
+                 const slot = String(eq.slot || "").trim().toLowerCase();
+                 const itemName = String(eq.item || "").trim();
+                 if (!slot) continue;
+                 
+                 // Find existing equipped item in this slot
+                 const existingIdx = s.inventory.equipped.findIndex(x => String(x.slotId || "").toLowerCase() === slot);
+                 
+                 // If unequip or equipping new, move existing to inventory
+                 if (existingIdx >= 0) {
+                     const oldItem = s.inventory.equipped[existingIdx];
+                     // Move to inventory
+                     s.inventory.items.push({
+                         kind: "item",
+                         name: oldItem.name,
+                         type: oldItem.type || "equip",
+                         description: oldItem.desc || oldItem.description || "",
+                         qty: 1,
+                         rarity: oldItem.rarity || "common",
+                         mods: oldItem.mods || {},
+                         statusEffects: oldItem.statusEffects || [],
+                         img: oldItem.img || ""
+                     });
+                     s.inventory.equipped.splice(existingIdx, 1);
+                     changes++;
+                 }
+
+                 if (eq.action === "equip" && itemName) {
+                     // Find item in inventory to move to equipped
+                     const invIdx = s.inventory.items.findIndex(x => x.name === itemName);
+                     let itemToEquip = null;
+                     
+                     if (invIdx >= 0) {
+                         itemToEquip = s.inventory.items[invIdx];
+                         if (itemToEquip.qty > 1) itemToEquip.qty--;
+                         else s.inventory.items.splice(invIdx, 1);
+                     } else {
+                         // Create new if not found (AI said we equipped it, so we must have it)
+                         itemToEquip = {
+                             kind: "item",
+                             name: itemName,
+                             type: "equip",
+                             description: "Auto-equipped.",
+                             qty: 1,
+                             rarity: "common"
+                         };
+                     }
+                     
+                     // Add to equipped
+                     s.inventory.equipped.push({
+                         slotId: slot,
+                         name: itemToEquip.name,
+                         type: itemToEquip.type,
+                         rarity: itemToEquip.rarity,
+                         description: itemToEquip.description || itemToEquip.desc || "",
+                         mods: itemToEquip.mods || {},
+                         statusEffects: itemToEquip.statusEffects || [],
+                         img: itemToEquip.img || ""
+                     });
+                     changes++;
+                 }
+             }
+        }
+
+        if (changes > 0) {
+            saveSettings();
+            updateLayout(); // Refreshes currency/stats
+            notify("success", `Scan updated ${changes} element(s).`, "Inventory", "scan");
+            
+            // Reload modules
+            try { (await import("./features/items.js")).render?.(); } catch (_) {}
+            try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+            try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+            try { (await import("./features/life.js")).init?.(); } catch (_) {}
+        } else if (force) {
+            notify("info", "No new changes found.", "Inventory", "scan");
+        }
+
+    } catch (e) {
+        console.warn("Scan Error", e);
+        if (force) notify("error", "Scan failed to process.", "Inventory", "error");
+    }
 }
 
 function clamp01(n) {
@@ -413,10 +772,12 @@ function applyLevelingProgress(s) {
       s.maxAp = Math.round((Number(s.maxAp) || 10) + 1);
 
       const keys = ["str","dex","con","int","wis","cha","per","luk","agi","vit","end","spi"];
-      const pick = keys[Math.floor(Math.random() * keys.length)];
-      s.character.stats[pick] = Math.max(0, Number(s.character.stats[pick] || 10) + 1);
+      // const pick = keys[Math.floor(Math.random() * keys.length)];
+      // s.character.stats[pick] = Math.max(0, Number(s.character.stats[pick] || 10) + 1);
+      const ptsGain = 5 + Math.floor(Number(s.character.level) / 5);
+      s.character.statPoints = (Number(s.character.statPoints) || 0) + ptsGain;
       leveled = true;
-      notify("success", `Level Up → Lv ${s.character.level}`, "Progress", "levelUp");
+      notify("success", `Level Up → Lv ${s.character.level} (+${ptsGain} Stat Points)`, "Progress", "levelUp");
     }
     if (leveled) {
       s.hp = Math.min(Number(s.hp || s.maxHp), Number(s.maxHp));
@@ -510,6 +871,12 @@ function applyInventoryUi() {
   if (cbSlot) cbSlot.checked = ui.slotTypesEnabled !== false;
   if (cbLvl) cbLvl.checked = ui.levelingEnabled !== false;
   if (cbBars) cbBars.checked = ui.showBars !== false;
+  
+  // Rebirth Option Visibility
+  const s2 = getSettings();
+  const canRebirth = (s2?.character?.level >= 150 && !s2?.character?.reborn);
+  const rbBtn = document.getElementById("uie-inv-rebirth-opt");
+  if (rbBtn) rbBtn.style.display = canRebirth ? "block" : "none";
 
   const showBars = ui.showBars !== false;
   const bottom = root.querySelector("#bottom-stats");
@@ -867,88 +1234,7 @@ export function initInventory() {
       e.preventDefault();
       e.stopPropagation();
       closeCreateStation();
-      
-      const s = getSettings();
-      ensureModel(s);
-      
-      const transcript = (() => {
-        try {
-          let raw = "";
-          const chatEl = document.querySelector("#chat");
-          if (!chatEl) return "";
-          const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-60);
-          for (const m of msgs) {
-            const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
-            const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
-            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-          }
-          return raw.trim().slice(0, 8000);
-        } catch (_) { return ""; }
-      })();
-
-      if (!transcript) {
-        notify("info", "No chat found to scan.", "Inventory", "loot");
-        return;
-      }
-
-      notify("info", "Scanning chat for loot...", "Inventory", "api");
-
-      const prompt = `[UIE_LOCKED]
-Analyze the chat transcript to find new ITEMS, WEAPONS, or CURRENCY acquired by the user/character.
-Transcript:
-${transcript}
-
-Task: Return a JSON object with a list of "items" added.
-Rules:
-- Include items found, bought, looted, gifted, or crafted.
-- Ignore items already in possession or just mentioned.
-- Ignore currency if it's just a number (handled by regex), but include "Credit Chip" or "Gold Bar" items.
-- Return ONLY JSON: {"items":[{"name":"","type":"item|weapon|armor","qty":1,"desc":"..."}]}
-`;
-
-      try {
-        const res = await generateContent(prompt, "Loot Scan");
-        if (!res) { notify("warning", "No loot found (AI silent).", "Inventory", "loot"); return; }
-        
-        const obj = JSON.parse(String(res).replace(/```json|```/g, "").trim());
-        const items = Array.isArray(obj?.items) ? obj.items : [];
-        
-        if (!items.length) {
-            notify("info", "No new loot detected.", "Inventory", "loot");
-            return;
-        }
-
-        let addedCount = 0;
-        for (const it of items) {
-            if (!it.name) continue;
-            const exist = s.inventory.items.find(x => x.name === it.name);
-            if (exist) {
-                exist.qty = (exist.qty || 1) + (it.qty || 1);
-            } else {
-                s.inventory.items.push({
-                    kind: "item",
-                    name: it.name,
-                    type: it.type || "item",
-                    description: it.desc || "Found item.",
-                    qty: it.qty || 1,
-                    rarity: "common",
-                    mods: {},
-                    statusEffects: []
-                });
-            }
-            addedCount++;
-        }
-        
-        if (addedCount > 0) {
-            saveSettings();
-            notify("success", `Added ${addedCount} item(s) to inventory.`, "Inventory", "loot");
-            try { (await import("./features/items.js")).render?.(); } catch (_) {}
-        }
-
-      } catch (e) {
-        console.warn("Loot Scan Error", e);
-        notify("error", "Failed to process loot scan.", "Inventory", "api");
-      }
+      await scanLootAndStatus(true);
     });
 
   $(document)
@@ -1252,6 +1538,9 @@ Rules:
 
       const kind = String($("#uie-create-kind").val() || "item");
       const desc = String($("#uie-create-desc").val() || "").trim().slice(0, 600);
+      const qty = Math.max(1, Math.min(5, Number($("#uie-create-qty").val() || 1)));
+      const genImg = $("#uie-create-gen-img").is(":checked");
+      
       const st = document.getElementById("uie-create-status");
       if (kind === "currency" || kind === "xp") {
         if (st) st.textContent = "Use +Money / +XP below";
@@ -1288,19 +1577,31 @@ Rules:
       })();
 
       const persona = (() => { try { const ctx = getContext?.(); return String(ctx?.name1 || "You").trim() || "You"; } catch (_) { return "You"; } })();
-      const sym = String(s2.currencySymbol || "G");
       const base = desc ? `User request: ${desc}\n\n` : "";
+      
+      // Determine if we use Staging Area
+      const useStaging = ["item", "skill", "asset"].includes(kind);
+      const isArrayReq = useStaging && qty > 1;
 
-      const prompt =
-        kind === "class"
-          ? `${base}Return ONLY JSON: {"className":"","level":1,"stats":{"str":10,"dex":10,"con":10,"int":10,"wis":10,"cha":10,"per":10,"luk":10,"agi":10,"vit":10,"end":10,"spi":10},"skills":[{"name":"","description":""}],"assets":[{"name":"","description":""}],"items":[{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}],"equipment":[{"slotId":"","name":"","type":"","rarity":"","statusEffects":[""],"img":""}],"statusEffects":[""]}\nRules:\n- If user requested a specific level, set it.\n- If not requested, use Current level.\n- Keep arrays short (<= 10 each)\nCurrent level: ${Number(s2.character?.level || 1)}\nPersona:${persona}\nContext:\n${chat}`
-          : kind === "skill"
-          ? `${base}Return ONLY JSON: {"name":"","description":"","skillType":"active|passive","statusEffects":[""],"mods":{"str":0,"dex":0,"int":0}}\nPersona:${persona}\nContext:\n${chat}`
-          : kind === "asset"
-            ? `${base}Return ONLY JSON: {"name":"","description":"","category":"","location":"","statusEffects":[""]}\nPersona:${persona}\nContext:\n${chat}`
-            : kind === "status"
-              ? `${base}Return ONLY JSON: {"statusEffects":[""]}\nRules:\n- 0-6 short strings\nPersona:${persona}\nContext:\n${chat}`
-              : `${base}Return ONLY JSON: {"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}\nPersona:${persona}\nContext:\n${chat}`;
+      let prompt = "";
+      if (kind === "class") {
+          prompt = `${base}Return ONLY JSON: {"className":"","level":1,"stats":{"str":10,"dex":10,"con":10,"int":10,"wis":10,"cha":10,"per":10,"luk":10,"agi":10,"vit":10,"end":10,"spi":10},"skills":[{"name":"","description":""}],"assets":[{"name":"","description":""}],"items":[{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}],"equipment":[{"slotId":"","name":"","type":"","rarity":"","statusEffects":[""],"img":""}],"statusEffects":[""]}\nRules:\n- If user requested a specific level, set it.\n- If not requested, use Current level.\n- Keep arrays short (<= 10 each)\nCurrent level: ${Number(s2.character?.level || 1)}\nPersona:${persona}\nContext:\n${chat}`;
+      } else if (kind === "status") {
+          prompt = `${base}Return ONLY JSON: {"statusEffects":[""]}\nRules:\n- 0-6 short strings\nPersona:${persona}\nContext:\n${chat}`;
+      } else {
+          // Item / Skill / Asset
+          const schema = kind === "skill" 
+            ? `{"name":"","description":"","skillType":"active|passive","statusEffects":[""],"mods":{"str":0,"dex":0,"int":0}}`
+            : kind === "asset"
+              ? `{"name":"","description":"","category":"","location":"","statusEffects":[""]}`
+              : `{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}`;
+          
+          if (isArrayReq) {
+              prompt = `${base}Return ONLY JSON Array of ${qty} items: [${schema}, ...]\nPersona:${persona}\nContext:\n${chat}`;
+          } else {
+              prompt = `${base}Return ONLY JSON: ${schema}\nPersona:${persona}\nContext:\n${chat}`;
+          }
+      }
 
       try {
         const res = await generateContent(prompt.slice(0, 6000), "System Check");
@@ -1309,122 +1610,238 @@ Rules:
         try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
         if (!obj || typeof obj !== "object") return;
 
-        if (kind === "class") {
-          if (!s2.character) s2.character = {};
-          if (!s2.character.stats || typeof s2.character.stats !== "object") s2.character.stats = {};
-          if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
-          if (!Array.isArray(s2.inventory.skills)) s2.inventory.skills = [];
-          if (!Array.isArray(s2.inventory.assets)) s2.inventory.assets = [];
-          if (!Array.isArray(s2.inventory.items)) s2.inventory.items = [];
-          if (!Array.isArray(s2.inventory.equipped)) s2.inventory.equipped = [];
+        // --- DIRECT APPLY (Class / Status) ---
+        if (kind === "class" || kind === "status") {
+             // ... [Existing Logic for Class/Status - abbreviated for clarity but fully preserved functionality] ...
+             if (kind === "class") {
+                  if (!s2.character) s2.character = {};
+                  if (!s2.character.stats || typeof s2.character.stats !== "object") s2.character.stats = {};
+                  // [Truncated for brevity, assuming we keep logic same as before or copy-paste it back]
+                  // Actually I need to put the FULL logic back here or refactor.
+                  // Since I am replacing the block, I must include the logic.
+                  // I'll reuse the logic from the Read output.
+                  
+                  // ... (Class logic from previous tool output) ...
+                  if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
+                  if (!Array.isArray(s2.inventory.skills)) s2.inventory.skills = [];
+                  if (!Array.isArray(s2.inventory.assets)) s2.inventory.assets = [];
+                  if (!Array.isArray(s2.inventory.items)) s2.inventory.items = [];
+                  if (!Array.isArray(s2.inventory.equipped)) s2.inventory.equipped = [];
 
-          const cn = String(obj?.className || obj?.class || obj?.name || "").trim();
-          if (cn) s2.character.className = cn.slice(0, 60);
-          const lvl = Number(obj?.level);
-          if (Number.isFinite(lvl) && lvl >= 1) s2.character.level = Math.max(1, Math.floor(lvl));
+                  const cn = String(obj?.className || obj?.class || obj?.name || "").trim();
+                  if (cn) s2.character.className = cn.slice(0, 60);
+                  const lvl = Number(obj?.level);
+                  if (Number.isFinite(lvl) && lvl >= 1) s2.character.level = Math.max(1, Math.floor(lvl));
 
-          const st = obj?.stats && typeof obj.stats === "object" ? obj.stats : null;
-          if (st) {
-            for (const k of Object.keys(st)) {
-              const v = Number(st[k]);
-              if (Number.isFinite(v)) s2.character.stats[k] = v;
-            }
-          }
+                  const st = obj?.stats && typeof obj.stats === "object" ? obj.stats : null;
+                  if (st) {
+                    for (const k of Object.keys(st)) {
+                      const v = Number(st[k]);
+                      if (Number.isFinite(v)) s2.character.stats[k] = v;
+                    }
+                  }
 
-          const fxArr = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
-          const mergedFx = [...s2.character.statusEffects];
-          for (const it of fxArr) {
-            const v = String(it || "").trim();
-            if (!v) continue;
-            if (!mergedFx.includes(v)) mergedFx.push(v);
-          }
-          s2.character.statusEffects = mergedFx.slice(0, 25);
+                  const fxArr = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
+                  const mergedFx = [...s2.character.statusEffects];
+                  for (const it of fxArr) {
+                    const v = String(it || "").trim();
+                    if (!v) continue;
+                    if (!mergedFx.includes(v)) mergedFx.push(v);
+                  }
+                  s2.character.statusEffects = mergedFx.slice(0, 25);
+                  
+                  // Helper
+                  const dedupeByName = (arr) => {
+                    const seen = new Set();
+                    const out = [];
+                    for (const it of arr) {
+                      const nm = String(it?.name || it?.title || it || "").trim();
+                      const k = nm.toLowerCase();
+                      if (!nm || seen.has(k)) continue;
+                      seen.add(k);
+                      out.push(it);
+                    }
+                    return out;
+                  };
 
-          const dedupeByName = (arr) => {
-            const seen = new Set();
-            const out = [];
-            for (const it of arr) {
-              const nm = String(it?.name || it?.title || it || "").trim();
-              const k = nm.toLowerCase();
-              if (!nm || seen.has(k)) continue;
-              seen.add(k);
-              out.push(it);
-            }
-            return out;
-          };
+                  const newSkills = Array.isArray(obj?.skills) ? obj.skills : [];
+                  s2.inventory.skills = dedupeByName([...s2.inventory.skills, ...newSkills.map(x => (typeof x === "string" ? { kind: "skill", name: x, description: "" } : { kind: "skill", ...x }))]).slice(0, 120);
 
-          const newSkills = Array.isArray(obj?.skills) ? obj.skills : [];
-          const skMerged = dedupeByName([
-            ...s2.inventory.skills,
-            ...newSkills.map(x => (typeof x === "string" ? { kind: "skill", name: x, description: "" } : { kind: "skill", ...x }))
-          ]);
-          s2.inventory.skills = skMerged.slice(0, 120);
+                  const newAssets = Array.isArray(obj?.assets) ? obj.assets : [];
+                  s2.inventory.assets = dedupeByName([...s2.inventory.assets, ...newAssets.map(x => (typeof x === "string" ? { kind: "asset", name: x, description: "" } : { kind: "asset", ...x }))]).slice(0, 160);
 
-          const newAssets = Array.isArray(obj?.assets) ? obj.assets : [];
-          const asMerged = dedupeByName([
-            ...s2.inventory.assets,
-            ...newAssets.map(x => (typeof x === "string" ? { kind: "asset", name: x, description: "" } : { kind: "asset", ...x }))
-          ]);
-          s2.inventory.assets = asMerged.slice(0, 160);
+                  const newItems = Array.isArray(obj?.items) ? obj.items : [];
+                  s2.inventory.items = dedupeByName([...s2.inventory.items, ...newItems.map(x => (typeof x === "string" ? { kind: "item", name: x, description: "" } : { kind: "item", ...x }))]).slice(0, 400);
 
-          const newItems = Array.isArray(obj?.items) ? obj.items : [];
-          const itMerged = dedupeByName([
-            ...s2.inventory.items,
-            ...newItems.map(x => (typeof x === "string" ? { kind: "item", name: x, description: "" } : { kind: "item", ...x }))
-          ]);
-          s2.inventory.items = itMerged.slice(0, 400);
+                  const eq = Array.isArray(obj?.equipment) ? obj.equipment : [];
+                  for (const x of eq) {
+                    const slotId = String(x?.slotId || "").trim();
+                    if (!slotId) continue;
+                    const item = {
+                      slotId,
+                      name: String(x?.name || "").trim().slice(0, 80) || slotId.toUpperCase(),
+                      type: String(x?.type || "equip").trim().slice(0, 40),
+                      rarity: String(x?.rarity || "common").trim().slice(0, 24),
+                      statusEffects: Array.isArray(x?.statusEffects) ? x.statusEffects.map(v => String(v || "").trim()).filter(Boolean).slice(0, 10) : [],
+                      img: String(x?.img || "").trim()
+                    };
+                    const idx = s2.inventory.equipped.findIndex(e => String(e?.slotId || "") === slotId);
+                    if (idx >= 0) s2.inventory.equipped[idx] = { ...s2.inventory.equipped[idx], ...item };
+                    else s2.inventory.equipped.push(item);
+                  }
 
-          const eq = Array.isArray(obj?.equipment) ? obj.equipment : [];
-          for (const x of eq) {
-            const slotId = String(x?.slotId || "").trim();
-            if (!slotId) continue;
-            const item = {
-              slotId,
-              name: String(x?.name || "").trim().slice(0, 80) || slotId.toUpperCase(),
-              type: String(x?.type || "equip").trim().slice(0, 40),
-              rarity: String(x?.rarity || "common").trim().slice(0, 24),
-              statusEffects: Array.isArray(x?.statusEffects) ? x.statusEffects.map(v => String(v || "").trim()).filter(Boolean).slice(0, 10) : [],
-              img: String(x?.img || "").trim()
-            };
-            const idx = s2.inventory.equipped.findIndex(e => String(e?.slotId || "") === slotId);
-            if (idx >= 0) s2.inventory.equipped[idx] = { ...s2.inventory.equipped[idx], ...item };
-            else s2.inventory.equipped.push(item);
-          }
-
-          saveSettings();
-          updateVitals();
-          try { const mod = await import("./features/equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-          try { (await import("./features/items.js")).render?.(); } catch (_) {}
-          try { (await import("./features/skills.js")).init?.(); } catch (_) {}
-          try { (await import("./features/assets.js")).init?.(); } catch (_) {}
-        } else if (kind === "status") {
-          const newFx = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
-          if (!s2.character) s2.character = {};
-          if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
-          const merged = [...s2.character.statusEffects];
-          for (const it of newFx) {
-            const v = String(it || "").trim();
-            if (!v) continue;
-            if (!merged.includes(v)) merged.push(v);
-          }
-          s2.character.statusEffects = merged.slice(0, 20);
-          saveSettings();
-          try { const mod = await import("./features/equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-        } else if (kind === "skill") {
-          s2.inventory.skills.push({ ...obj, kind: "skill" });
-          saveSettings();
-        } else if (kind === "asset") {
-          s2.inventory.assets.push({ ...obj, kind: "asset" });
-          saveSettings();
-        } else {
-          s2.inventory.items.push({ ...obj, kind: "item" });
-          saveSettings();
+                  saveSettings();
+                  updateVitals();
+                  try { const mod = await import("./features/equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
+                  try { (await import("./features/items.js")).render?.(); } catch (_) {}
+                  try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+                  try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+             } else {
+                  // Status
+                  const newFx = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
+                  if (!s2.character) s2.character = {};
+                  if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
+                  const merged = [...s2.character.statusEffects];
+                  for (const it of newFx) {
+                    const v = String(it || "").trim();
+                    if (!v) continue;
+                    if (!merged.includes(v)) merged.push(v);
+                  }
+                  s2.character.statusEffects = merged.slice(0, 20);
+                  saveSettings();
+                  try { const mod = await import("./features/equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
+             }
+             if (st) st.textContent = "Done!";
+             return;
         }
-        try { (await import("./features/items.js")).render?.(); } catch (_) {}
+
+        // --- STAGING AREA (Item / Skill / Asset) ---
+        if (useStaging) {
+            const results = Array.isArray(obj) ? obj : [obj];
+            const $stage = $("#uie-create-staging");
+            $stage.show().empty();
+            
+            for (let i = 0; i < results.length; i++) {
+                const item = results[i];
+                item.kind = kind;
+                const uid = Date.now() + Math.random().toString(36).substr(2, 9);
+                
+                // Render Card
+                const card = $(`
+                    <div class="uie-stage-card" id="stage-${uid}" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px; display:flex; gap:10px;">
+                        <div style="width:80px; display:flex; flex-direction:column; gap:6px; align-items:center;">
+                            <div class="uie-stage-img-box" style="width:80px; height:80px; background:#000; border:1px solid #444; border-radius:8px; overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;">
+                                ${item.img ? `<img src="${item.img}" style="width:100%;height:100%;object-fit:cover;">` : `<i class="fa-solid fa-image" style="color:#333;font-size:24px;"></i>`}
+                            </div>
+                            ${genImg ? `<button class="uie-stage-regen" data-uid="${uid}" style="font-size:10px; padding:4px; width:100%; background:#222; border:1px solid #444; color:#ccc; border-radius:4px; cursor:pointer;">Regen Img</button>` : ""}
+                        </div>
+                        <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+                            <input class="uie-stage-name" value="${item.name || ""}" placeholder="Name" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:6px; border-radius:6px; font-weight:bold;">
+                            <textarea class="uie-stage-desc" placeholder="Description" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); color:#aaa; padding:6px; border-radius:6px; height:50px; resize:vertical;">${item.description || ""}</textarea>
+                            <div style="display:flex; gap:6px;">
+                                <button class="uie-stage-save" data-uid="${uid}" style="flex:1; background:rgba(46, 204, 113, 0.2); border:1px solid rgba(46, 204, 113, 0.4); color:#2ecc71; border-radius:6px; cursor:pointer; font-weight:bold; padding:6px;">Save & Add</button>
+                                <button class="uie-stage-discard" data-uid="${uid}" style="width:30px; background:rgba(231, 76, 60, 0.2); border:1px solid rgba(231, 76, 60, 0.4); color:#e74c3c; border-radius:6px; cursor:pointer;">×</button>
+                            </div>
+                        </div>
+                    </div>
+                `);
+                
+                // Store data on element
+                card.data("item", item);
+                $stage.append(card);
+                
+                // Trigger Image Gen if requested
+                if (genImg) {
+                    const imgBox = card.find(".uie-stage-img-box");
+                    imgBox.html('<i class="fa-solid fa-spinner fa-spin" style="color:#f1c40f;"></i>');
+                    generateImageAPI(`[UIE_LOCKED] Fantasy RPG icon/illustration for ${kind}: ${item.name}. ${item.description}`).then(url => {
+                        if (url) {
+                            item.img = url;
+                            imgBox.html(`<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`);
+                        } else {
+                            imgBox.html('<i class="fa-solid fa-triangle-exclamation" style="color:#e74c3c;" title="Gen Failed"></i>');
+                        }
+                    });
+                }
+            }
+            if (st) st.textContent = `Drafted ${results.length} item(s). Review below.`;
+        }
+
       } finally {
-        if (st) st.textContent = "";
+        if (st && st.textContent === "Creating…") st.textContent = "";
       }
     });
+
+  // --- STAGING HANDLERS ---
+  $(document).off("click.stageSave", ".uie-stage-save").on("click.stageSave", ".uie-stage-save", function(e) {
+      e.preventDefault();
+      const uid = $(this).data("uid");
+      const card = $(`#stage-${uid}`);
+      const item = card.data("item");
+      if (!item) return;
+      
+      // Update from inputs
+      item.name = card.find(".uie-stage-name").val();
+      item.description = card.find(".uie-stage-desc").val();
+      
+      const s = getSettings();
+      ensureModel(s);
+      
+      if (item.kind === "skill") {
+          if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
+          s.inventory.skills.push(item);
+      } else if (item.kind === "asset") {
+          if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
+          s.inventory.assets.push(item);
+      } else {
+          if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+          s.inventory.items.push(item);
+      }
+      
+      saveSettings();
+      notify("success", `Added: ${item.name}`, "Creation");
+      
+      card.fadeOut(200, function() { 
+          $(this).remove(); 
+          if ($("#uie-create-staging").children().length === 0) $("#uie-create-staging").hide();
+      });
+      
+      try { (async () => {
+         if (item.kind === "item") (await import("./features/items.js")).render?.();
+         if (item.kind === "skill") (await import("./features/skills.js")).init?.();
+         if (item.kind === "asset") (await import("./features/assets.js")).init?.();
+      })(); } catch(_) {}
+  });
+
+  $(document).off("click.stageDiscard", ".uie-stage-discard").on("click.stageDiscard", ".uie-stage-discard", function(e) {
+      e.preventDefault();
+      const uid = $(this).data("uid");
+      $(`#stage-${uid}`).fadeOut(200, function() { 
+          $(this).remove();
+          if ($("#uie-create-staging").children().length === 0) $("#uie-create-staging").hide();
+      });
+  });
+
+  $(document).off("click.stageRegen", ".uie-stage-regen").on("click.stageRegen", ".uie-stage-regen", function(e) {
+      e.preventDefault();
+      const uid = $(this).data("uid");
+      const card = $(`#stage-${uid}`);
+      const item = card.data("item");
+      const imgBox = card.find(".uie-stage-img-box");
+      
+      item.name = card.find(".uie-stage-name").val();
+      item.description = card.find(".uie-stage-desc").val();
+      
+      imgBox.html('<i class="fa-solid fa-spinner fa-spin" style="color:#f1c40f;"></i>');
+      generateImageAPI(`[UIE_LOCKED] Fantasy RPG icon/illustration for ${item.kind}: ${item.name}. ${item.description}`).then(url => {
+            if (url) {
+                item.img = url;
+                imgBox.html(`<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`);
+            } else {
+                imgBox.html('<i class="fa-solid fa-triangle-exclamation" style="color:#e74c3c;" title="Gen Failed"></i>');
+            }
+      });
+  });
 
   $(document)
     .off("click.uieCreateQuickAdd", "#uie-create-add-currency, #uie-create-add-xp")
@@ -1562,6 +1979,7 @@ Rules:
 
   const initial = root.querySelector("#tabs [data-tab].active");
   const initialTab = initial ? String(initial.dataset.tab || "items") : "items";
+  root.setAttribute("data-active-tab", initialTab);
   showView(routes[initialTab]?.view || "#uie-view-items");
   ensureRouteLoaded(routes[initialTab] || routes.items);
   applyInventoryUi();
@@ -1569,6 +1987,16 @@ Rules:
     const pane = document.querySelector("#uie-view-items");
     if (pane && pane.children.length === 0) renderFallbackItemsGrid();
   }, 250);
+
+  // Auto-Scan Observer
+  const chat = document.querySelector("#chat");
+  if (chat && !window.UIE_lootObserver) {
+      window.UIE_lootObserver = new MutationObserver(() => {
+          if (window.UIE_scanDebounce) clearTimeout(window.UIE_scanDebounce);
+          window.UIE_scanDebounce = setTimeout(() => scanLootAndStatus(), 2500);
+      });
+      window.UIE_lootObserver.observe(chat, { childList: true, subtree: true });
+  }
 }
 
 function fxIconClass(raw) {

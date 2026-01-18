@@ -8,6 +8,8 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 
 ### Phone System (Modern Immersion)
 - Apps: Dial Pad, Contacts, Messages, Browser, Books, Calculator, Cookies
+- **Guidebook (Books App)**: Comprehensive user manual with direct links from every feature window (look for the <i class="fa-solid fa-circle-question"></i> icon).
+- **Library (Books App)**: Generate and read in-world lore books.
 - Dial Pad is the default Phone dock action (Contacts stays as its own app)
 - Contacts: auto-injected from Social (Friends/Relationships/Family/Rivals) while phone-added contacts persist in Phone
 - Messages: block/unblock contacts, text any number, send images, import sticker packs, delete texts (single + mass delete)
@@ -18,7 +20,11 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Fullscreen inventory shell (mobile-first) with window controls
 - Items tab uses a tight lined RPG grid (no bubble cards) with real slot icons + large item art
 - Edit pencil for character + inventory customization (including per-tab backgrounds)
-- Creation Station (immersive, in-menu “create” dropdown + description box; no dev JSON UI)
+- **Scan Chat Log**: One-click analysis of the chat to find new Items, Skills, Assets, Life Tracker updates, and Equipment changes.
+- **Smart Equipment**: Automatically detects when you change clothes/gear in the story and swaps your equipped items (with AI-generated descriptions).
+- **Mobile Optimized**: Equipment tab automatically switches to a focused grid view on mobile, hiding stats/portrait for better usability.
+- **Leveling**: Earn XP and gain Stat Points to manually distribute (STR, DEX, etc.) in the Skills tab.
+- **Creation Station**: Immersive in-menu builder for Items, Skills, Assets, and Classes. Includes **AI Image Generation** for visual flair.
 - Gear menu toggles: disable tabs/functions, slot type categorization, leveling, and UI bars/stats
 - Status effects render as icons (no emojis) with smart, on-screen info popovers
 
@@ -46,6 +52,12 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Friends / Relationships / Family / Rivals, with profiles and richer relationship fields (family role + relationship status)
 - Can auto-pull avatars from chat/character context when missing
 - Social profiles include a Message action that opens a UIE Messaging thread
+- **Scan Chat Log**: Uses deep analysis to find characters mentioned in the story and add them to your contacts.
+
+### Calendar
+- Full event tracking with fantasy/RP date support
+- **Menu Dropdown**: Clean UI with options to Sync Time, Add Events, and Import/Export calendars.
+- Mobile-optimized header and controls.
 
 ### Map (Instant World Generator)
 - Instant map mode: generates a terrain canvas in under a second (math/noise-based)

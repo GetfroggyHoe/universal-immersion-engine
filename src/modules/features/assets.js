@@ -10,7 +10,15 @@ export async function init(){
   }
   for (const a of list){
     const name = (a && (a.name||a.title)) ? (a.name||a.title) : "Asset";
-    $l.append(`<div style="padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);font-weight:800;">${escapeHtml(name)}</div>`);
+    const imgHtml = a.img ? `<div style="width:100%;aspect-ratio:1;border-radius:12px;background:#000;margin-bottom:8px;overflow:hidden;border:1px solid #444;"><img src="${a.img}" style="width:100%;height:100%;object-fit:cover;"></div>` : "";
+    
+    $l.append(`
+        <div style="padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);display:flex;flex-direction:column;">
+            ${imgHtml}
+            <div style="font-weight:800;color:#eee;">${escapeHtml(name)}</div>
+            ${a.description ? `<div style="font-size:11px;opacity:0.7;margin-top:4px;white-space:pre-wrap;">${escapeHtml(a.description)}</div>` : ""}
+        </div>
+    `);
   }
 }
 function escapeHtml(s){

@@ -107,8 +107,141 @@ function startChatIngest() {
         if (h === lastSeenHash) return;
         lastSeenHash = h;
         ingestQuestsFromChatText(txt);
+        const s = getSettings();
+        
+        // Auto-Codex
+            if (s?.features?.codexAutoExtract === true) {
+                 if (Math.random() < 0.1) extractCodexFromChat();
+            }
+            
+            // Auto-Quests
+            if (!window.UIE_questDebounce) {
+                 window.UIE_questDebounce = setTimeout(() => {
+                     autoUpdateQuests();
+                     window.UIE_questDebounce = null;
+                 }, 20000); 
+            }
     });
     chatObserver.observe(chatEl, { childList: true, subtree: true });
+}
+
+async function autoUpdateQuests() {
+    const s = getSettings();
+    if (s?.ai?.journalQuestGen === false) return;
+    if (!s.journal) s.journal = { active: [], pending: [], abandoned: [], completed: [], codex: [] };
+
+    // Debounce check (global)
+    if (window.UIE_questAutoRunning) return;
+    window.UIE_questAutoRunning = true;
+    
+    try {
+        let raw = "";
+        $(".chat-msg-txt").slice(-15).each(function() { raw += $(this).text() + "\n"; });
+        if (!raw.trim()) return;
+
+        const active = (s.journal.active || []).map(q => String(q.title).slice(0,50));
+        const pending = (s.journal.pending || []).map(q => String(q.title).slice(0,50));
+        
+        // Only run if we have quests to update OR randomly for new quests (to save tokens)
+        // Run more aggressively if we have active quests.
+        if (active.length === 0 && pending.length === 0 && Math.random() > 0.3) return;
+
+        const prompt = `
+Context: RPG/Story.
+Recent Chat:
+${raw.slice(0, 2500)}
+
+Active Quests:
+${active.map(x => "- " + x).join("\n") || "(none)"}
+
+Pending Quests:
+${pending.map(x => "- " + x).join("\n") || "(none)"}
+
+Task: Check for quest completion, failure, acceptance, or NEW quests.
+Return JSON ONLY:
+{
+  "completed": ["exact title from Active list"],
+  "failed": ["exact title from Active list"],
+  "accepted": ["exact title from Pending list"],
+  "new": [{"title":"Short Title","desc":"Objective"}]
+}
+`;
+        const res = await generateContent(prompt, "Quest Update");
+        if (!res) return;
+
+        let data;
+        try { data = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch(_) { return; }
+
+        let changed = false;
+        
+        // Accepted
+        if (Array.isArray(data.accepted)) {
+            for (const t of data.accepted) {
+                const idx = s.journal.pending.findIndex(q => q.title.includes(t) || t.includes(q.title));
+                if (idx !== -1) {
+                    const q = s.journal.pending[idx];
+                    s.journal.pending.splice(idx, 1);
+                    s.journal.active.push(q);
+                    notify("success", `Quest Accepted: ${q.title}`, "Journal");
+                    changed = true;
+                }
+            }
+        }
+
+        // Completed
+        if (Array.isArray(data.completed)) {
+            for (const t of data.completed) {
+                const idx = s.journal.active.findIndex(q => q.title.includes(t) || t.includes(q.title));
+                if (idx !== -1) {
+                    const q = s.journal.active[idx];
+                    s.journal.active.splice(idx, 1);
+                    s.journal.completed.push(q);
+                    s.xp = (s.xp || 0) + 50;
+                    notify("success", `Quest Completed: ${q.title} (+50 XP)`, "Journal");
+                    changed = true;
+                }
+            }
+        }
+
+        // Failed
+        if (Array.isArray(data.failed)) {
+            for (const t of data.failed) {
+                const idx = s.journal.active.findIndex(q => q.title.includes(t) || t.includes(q.title));
+                if (idx !== -1) {
+                    const q = s.journal.active[idx];
+                    s.journal.active.splice(idx, 1);
+                    s.journal.abandoned.push({ ...q, failed: true });
+                    notify("error", `Quest Failed: ${q.title}`, "Journal");
+                    changed = true;
+                }
+            }
+        }
+
+        // New
+        if (Array.isArray(data.new)) {
+            for (const n of data.new) {
+                const title = String(n.title || "").trim();
+                if (!title) continue;
+                // Check duplicates
+                const all = [].concat(s.journal.active, s.journal.pending, s.journal.completed, s.journal.abandoned);
+                if (all.some(q => q.title === title)) continue;
+                
+                s.journal.pending.push({ title, desc: n.desc || "...", source: "auto", ts: Date.now() });
+                notify("info", `New Quest: ${title}`, "Journal");
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            saveSettings();
+            renderJournal();
+        }
+
+    } catch(e) {
+        console.error("AutoQuest Error:", e);
+    } finally {
+        window.UIE_questAutoRunning = false;
+    }
 }
 
 export function renderJournal() {
@@ -145,11 +278,17 @@ export function renderJournal() {
         if (!s.codex) s.codex = { entries: [] };
         if (!Array.isArray(s.codex.entries)) s.codex.entries = [];
 
+        const autoActive = s.features?.codexAutoExtract === true;
+        const autoColor = autoActive ? "#2ecc71" : "rgba(255,255,255,0.14)";
+        const autoText = autoActive ? "Auto: ON" : "Auto: OFF";
+        const autoBg = autoActive ? "rgba(46,204,113,0.2)" : "rgba(0,0,0,0.25)";
+
         container.append(`
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
-                <button id="uie-codex-add" style="height:38px; padding:0 14px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer;">New Entry</button>
-                <button id="uie-codex-extract-desc" style="height:38px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Generate From Description</button>
-                <button id="uie-codex-extract-chat" style="height:38px; padding:0 14px; border-radius:14px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Extract Lore From Chat</button>
+                <button id="uie-codex-add" style="height:30px; padding:0 10px; border-radius:10px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer; font-size:0.85em;">New Entry</button>
+                <button id="uie-codex-extract-desc" style="height:30px; padding:0 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; font-size:0.85em;">Generate From Description</button>
+                <button id="uie-codex-extract-chat" style="height:30px; padding:0 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; font-size:0.85em;">Extract Lore From Chat</button>
+                <button id="uie-codex-toggle-auto" style="height:30px; padding:0 10px; border-radius:10px; border:1px solid ${autoColor}; background:${autoBg}; color:#fff; font-weight:900; cursor:pointer; font-size:0.85em;">${autoText}</button>
             </div>
         `);
 
@@ -219,8 +358,8 @@ export function renderJournal() {
         if(currentTab === "active") {
             actions = `
                 <div style="margin-top:10px; display:flex; gap:10px;">
-                    <button class="uie-btn-complete" data-idx="${idx}" style="background:#3498db; border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:900;">Complete</button>
-                    <button class="uie-btn-fail" data-idx="${idx}" style="background:#e74c3c; border:none; color:white; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:900;">Fail</button>
+                    <button class="uie-btn-complete" data-idx="${idx}" style="background:#3498db; border:none; color:white; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:900; font-size:0.8em;">Complete</button>
+                    <button class="uie-btn-fail" data-idx="${idx}" style="background:#e74c3c; border:none; color:white; padding:5px 10px; border-radius:8px; cursor:pointer; font-weight:900; font-size:0.8em;">Fail</button>
                 </div>
             `;
         }
@@ -278,6 +417,16 @@ export function initJournal() {
         btn.prop("disabled", true);
         try { await extractCodexFromChat(); } finally { btn.prop("disabled", false); }
         renderJournal();
+    });
+    $(document).on("click.uieCodex pointerup.uieCodex", "#uie-codex-toggle-auto", function(e) {
+        if (!touchOk(e)) return;
+        e.preventDefault(); e.stopPropagation();
+        const s = getSettings();
+        if (!s.features) s.features = {};
+        s.features.codexAutoExtract = !s.features.codexAutoExtract;
+        saveSettings();
+        renderJournal();
+        notify("info", `Codex Auto-Extract: ${s.features.codexAutoExtract ? "ON" : "OFF"}`, "Journal");
     });
     $(document).on("click.uieCodex pointerup.uieCodex", ".uie-codex-entry", function(e) {
         if (!touchOk(e)) return;

@@ -167,6 +167,22 @@ export function buildSystemPrompt() {
   if (hp === 0) lines.push("State: UNCONSCIOUS/DEFEATED.");
   else if (Number.isFinite(hp) && hp < 20) lines.push("State: CRITICAL CONDITION. Character is severely injured.");
 
+  // Medallion Injection (Rebirth System)
+  const medal = s?.character?.activeMedallion;
+  if (medal) {
+      if (medal === "medallion_water") {
+          lines.push("[System Note: User has 'Flow State'. Physics/friction apply loosely. Attacks phase through User like water. User has infinite stamina.]");
+      } else if (medal === "medallion_earth") {
+          lines.push("[System Note: User has 'Mountain Heart'. Skin is diamond-hard. User cannot be knocked back. User weighs immensely heavy.]");
+      } else if (medal === "medallion_air") {
+          lines.push("[System Note: User has 'Sky Walker'. User ignores gravity/fall damage. Movement is silent. Attacks are critical hits.]");
+      } else if (medal === "medallion_fire") {
+          lines.push("[System Note: User has 'Burning Soul'. User radiates intense heat. Wounds cauterize instantly. If User dies, trigger 'Phoenix Resurrection'.]");
+      } else if (medal === "medallion_rebel") {
+          lines.push("[System Note: User has 'Rule Breaker'. Ignore all class restrictions for items. Low-level NPCs are compelled to serve User.]");
+      }
+  }
+
   const statuses = listStatuses(s);
   if (statuses.length) lines.push(`Active Effects: ${statuses.map(x => `[${x}]`).join(" ")}`);
 
