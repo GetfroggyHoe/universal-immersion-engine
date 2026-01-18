@@ -1,4 +1,5 @@
 import { getSettings, saveSettings, updateLayout } from "./core.js";
+import { getContext } from "../../../../../extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
@@ -203,6 +204,10 @@ export async function scanEverything() {
     // Only proceed if AI features are enabled
     if (s.enabled === false) return; 
 
+    const ctx = getContext ? getContext() : {};
+    const userName = String(ctx.name1 || "User").trim();
+    const charName = String(ctx.name2 || "Character").trim();
+
     const prompt = `[UIE_LOCKED]
 Analyze the chat history to update the RPG State.
 Current World: ${JSON.stringify(s.worldState)}
@@ -215,23 +220,25 @@ Deleted Social Names: ${JSON.stringify((() => { try { ensureSocial(s); return (s
 
 Task: Return a SINGLE JSON object with these keys:
 1. "world": Update location, threat, status, time, weather.
-2. "inventory": Lists of "added" (items found) and "removed" (items lost/used). Ignore currency.
+2. "inventory": Lists of "added" (items found/acquired/created) and "removed" (items lost/used/given). Ignore currency.
 3. "stats": Integer deltas for "hp" and "mp" (e.g. -10, +5).
 4. "quests": List of new quest objects { "title": "...", "desc": "...", "type": "main|side" } if a NEW quest is explicitly given.
 5. "lore": List of new lore objects { "key": "Term", "entry": "Description" } if NEW important lore is revealed.
 6. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
 7. "life": (optional) { "lifeUpdates":[{"name":"","delta":0,"set":null,"max":null}], "newTrackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}] }
 8. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
-9. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for characters that are present or directly interacting.
+9. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for ANY character present in the scene.
 
 Rules:
-- Only report EXPLICIT changes.
-- "added": [{ "name": "Sword", "type": "weapon", "qty": 1, "desc": "Iron sword" }]
-- "removed": ["Sword", "Potion"]
+- "inventory": CHECK AGGRESSIVELY. If the user picks up, buys, is given, or creates an item, ADD IT. Even if implied.
+- "added": [{ "name": "Item Name", "type": "item|weapon|armor", "qty": 1, "desc": "Description" }]
+- "removed": ["Item Name"]
+- "social": Scan for ANY character names in the chat who are not in 'Existing Social Names'. If a character speaks or is described, ADD THEM.
+- "social.add": [{ "name": "Name", "role": "friend|rival|romance|family", "affinity": 50 }]
+- EXCLUDE from social: "${userName}", "System", "Narrator", "Game", "Omniscient", or any metadata card names.
 - "world": Keep values short.
 - If no change, omit the key or leave empty.
-- Status effects should be short labels like "Tired", "Poisoned", "Smells like smoke", "Base: Crumbling", "Grades: Failing". No emojis.
-- For social.add: only include names that appear in the Chat snippet; do not invent.
+- Status effects should be short labels like "Tired", "Poisoned", "Smells like smoke". No emojis.
 
 Chat:
 ${chatSnippet}

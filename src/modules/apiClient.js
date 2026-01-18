@@ -110,6 +110,89 @@ function userCheck() {
     }
 }
 
+function personaCheck() {
+    try {
+        const ctx = getContext?.() || {};
+        const user = String(ctx?.name1 || ctx?.user || "User").trim() || "User";
+        const name =
+            String(
+                ctx?.persona?.name ||
+                ctx?.userPersona?.name ||
+                ctx?.user_persona?.name ||
+                ctx?.personaName ||
+                ctx?.userPersonaName ||
+                ctx?.user_persona_name ||
+                ""
+            ).trim();
+        const desc =
+            String(
+                ctx?.persona?.description ||
+                ctx?.userPersona?.description ||
+                ctx?.user_persona?.description ||
+                ctx?.persona_description ||
+                ctx?.userPersonaDescription ||
+                ctx?.user_persona_description ||
+                ""
+            ).trim();
+        const combined = [name && `Name: ${name}`, desc && `Description: ${desc}`].filter(Boolean).join("\n").trim();
+        if (!combined) return "";
+        return `[USER PERSONA]\nUser: ${user}\n${combined}`.slice(0, 1800);
+    } catch (_) {
+        return "";
+    }
+}
+
+function characterCardCheck() {
+    try {
+        const ctx = getContext?.() || {};
+        const ch =
+            ctx?.character ||
+            ctx?.char ||
+            (ctx?.characters && typeof ctx.characters === "object" ? (ctx.characters[ctx?.characterId] || ctx.characters[ctx?.charId]) : null) ||
+            null;
+        const name = String(ctx?.name2 || ch?.name || ch?.char_name || "").trim();
+        const desc = String(ch?.description || ch?.desc || ch?.persona || "").trim();
+        const personality = String(ch?.personality || ch?.personality_summary || "").trim();
+        const scenario = String(ch?.scenario || ch?.world_scenario || "").trim();
+        const first = String(ch?.first_mes || ch?.first_message || "").trim();
+        const ex = String(ch?.mes_example || ch?.example_dialogue || "").trim();
+        const lines = [];
+        if (name) lines.push(`Name: ${name}`);
+        if (desc) lines.push(`Description: ${desc}`);
+        if (personality) lines.push(`Personality: ${personality}`);
+        if (scenario) lines.push(`Scenario: ${scenario}`);
+        if (first) lines.push(`First_Message: ${first}`);
+        if (ex) lines.push(`Example_Dialogue: ${ex}`);
+        const out = lines.join("\n").trim();
+        if (!out) return "";
+        return `[CHARACTER CARD]\n${out}`.slice(0, 2200);
+    } catch (_) {
+        return "";
+    }
+}
+
+function worldInfoDetailsCheck() {
+    try {
+        const ctx = getContext?.() || {};
+        const raw = ctx?.world_info || ctx?.worldInfo || ctx?.lorebook || ctx?.lore || [];
+        const arr = Array.isArray(raw) ? raw : (raw && typeof raw === "object" ? Object.values(raw) : []);
+        const items = [];
+        for (const it of arr) {
+            if (!it) continue;
+            const key = String(it?.key || it?.name || it?.title || it?.keys?.[0] || "").trim();
+            const val = String(it?.content || it?.text || it?.entry || it?.value || it?.desc || "").trim();
+            if (!key && !val) continue;
+            items.push({ key, val });
+        }
+        const picked = items.slice(0, 6);
+        if (!picked.length) return "";
+        const lines = picked.map(x => `- ${x.key || "Entry"}: ${String(x.val || "").replace(/\s+/g, " ").trim().slice(0, 220)}`).join("\n");
+        return `[WORLD INFO]\n${lines}`.slice(0, 1800);
+    } catch (_) {
+        return "";
+    }
+}
+
 function inventoryAudit() {
     try {
         const s = getSettings();
@@ -292,8 +375,11 @@ function socialContextCheck() {
 function rootProtocolBlock(seedText) {
     const chat = chatLogCheck();
     const lore = loreCheck();
+    const worldInfo = worldInfoDetailsCheck();
     const who = userCheck();
     const char = characterCheck();
+    const card = characterCardCheck();
+    const persona = personaCheck();
     const inv = inventoryAudit();
     const digital = digitalStateCheck();
     const temporal = temporalAnchor();
@@ -336,9 +422,14 @@ ${temporal}
 5) LOREBOOK INDEX (Names Only)
 [Lore_Keys = ${lore}]
 
+5B) WORLD INFO (Selected)
+${worldInfo || "[WORLD INFO = None]"}
+
 6) IDENTITIES (Hard Facts)
 [User = ${who}]
 [Character_Context = ${char}]
+${persona ? `\n${persona}` : ""}
+${card ? `\n${card}` : ""}
 
 7) ARCHIVE RETRIEVAL
 Integrate any injected memories as absolute facts.
@@ -991,10 +1082,12 @@ export async function generateContent(prompt, type) {
     if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML for an immersive/interactive UI. No markdown, no code fences. Avoid <script> unless absolutely necessary. Prefer CSS-only interaction.";
     if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, one short line.";
     system = [customSystem, logicSystem, system].filter(Boolean).join("\n\n");
-    if (type === "System Check" || type === "Unified State Scan" || type === "Shop") {
+    if (type === "System Check" || type === "Unified State Scan" || type === "Shop" || type === "Journal Quests") {
         const strict = [
             "STRICT MODE:",
-            "- Output ONLY a single valid JSON object (no markdown, no code fences).",
+            type === "Journal Quests"
+                ? "- Output ONLY valid JSON (an array of quest objects). No markdown, no code fences."
+                : "- Output ONLY a single valid JSON object (no markdown, no code fences).",
             "- Do NOT write any story, narration, dialogue, roleplay, or continuation.",
             "- Do NOT address the user or the characters.",
             "- If unsure, output the most conservative JSON that follows the schema."
@@ -1009,7 +1102,7 @@ export async function generateContent(prompt, type) {
     const rawBase = String(prompt || "").trim();
     const lockedPrompt = /^\[UIE_LOCKED\]/i.test(rawBase);
     const base = rawBase.replace(/^\[UIE_LOCKED\]\s*/i, "").trim();
-    const wantsJson = (type === "System Check" || type === "Unified State Scan");
+    const wantsJson = (type === "System Check" || type === "Unified State Scan" || type === "Journal Quests");
     const prefixes = (() => {
         try {
             const typeKey = String(type || "").trim();
@@ -1158,7 +1251,11 @@ export async function generateContent(prompt, type) {
         const fixed = normalizeJsonOut(out);
         if (fixed) out = fixed;
         else {
-            const correction = `${finalPrompt}\n\n[CORRECTION]\nYour previous output was invalid. Output ONLY a single valid JSON object. No markdown, no extra text.`;
+            const correctionRule =
+                type === "Journal Quests"
+                    ? "Your previous output was invalid. Output ONLY valid JSON: an array like [{\"title\":\"...\",\"desc\":\"...\"}]. No markdown, no extra text."
+                    : "Your previous output was invalid. Output ONLY a single valid JSON object. No markdown, no extra text.";
+            const correction = `${finalPrompt}\n\n[CORRECTION]\n${correctionRule}`;
             try {
                 if (useTurbo) out = await generateTurbo(correction, system);
                 else out = await generateRaw({ prompt: `${system}\n\n${correction}`, quietToLoud: false, skip_w_info: true });
@@ -1172,10 +1269,10 @@ export async function generateContent(prompt, type) {
         const issues = Array.isArray(vr?.issues) ? vr.issues : [];
         if (issues.length) console.warn("[UIE] LogicEnforcer issues:", issues);
         const baseOut = String(vr?.text ?? out);
-        if (type !== "Webpage") return stripHtmlAndCss(baseOut);
+        if (type !== "Webpage" && !wantsJson) return stripHtmlAndCss(baseOut);
         return baseOut;
     } catch (_) {
-        if (type !== "Webpage") return stripHtmlAndCss(out);
+        if (type !== "Webpage" && !wantsJson) return stripHtmlAndCss(out);
         return out;
     }
     } finally {

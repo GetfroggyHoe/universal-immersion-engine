@@ -369,39 +369,75 @@ export function initJournal() {
         btn.addClass("fa-spin");
         notify("info", "Analyzing timeline for opportunities...", "Journal", "api");
 
-        // Get chat context
         let rawLog = "";
-        $(".chat-msg-txt").slice(-30).each(function() { rawLog += $(this).text() + "\n"; });
-        
-        if(rawLog.length < 50) { 
-            alert("Not enough context to generate quests."); 
-            btn.removeClass("fa-spin"); 
-            return; 
-        }
+        try {
+            const $txt = $(".chat-msg-txt");
+            if ($txt.length) {
+                $txt.slice(-30).each(function () { rawLog += $(this).text() + "\n"; });
+            } else {
+                const chatEl = document.querySelector("#chat");
+                if (chatEl) {
+                    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
+                    for (const m of msgs) {
+                        const isUser =
+                            m.classList?.contains("is_user") ||
+                            m.getAttribute("is_user") === "true" ||
+                            m.getAttribute("data-is-user") === "true" ||
+                            m.dataset?.isUser === "true";
+                        const t =
+                            m.querySelector(".mes_text")?.textContent ||
+                            m.querySelector(".mes-text")?.textContent ||
+                            m.textContent ||
+                            "";
+                        rawLog += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+                    }
+                }
+            }
+        } catch (_) {}
+        rawLog = String(rawLog || "").trim();
 
-        const prompt = `Analyze this roleplay text and identify 1-2 potential quests or objectives for the player.
-        Input: ${rawLog.substring(0, 3000)}
-        Output JSON Array: [ { "title": "Quest Title", "desc": "Short description of the objective." } ]
-        If no clear quests, return empty array [].`;
+        const prompt = [
+            "Generate 1-2 quests/objectives for the player based on the available context.",
+            "You must work even if there is only 1 message of chat; if context is thin, create a safe, generic quest that matches the current setting, character card, lorebooks/world info, and persona.",
+            "",
+            rawLog ? `CHAT (recent):\n${rawLog.slice(0, 2200)}` : "CHAT (recent): [none]",
+            "",
+            "Output ONLY JSON array (no markdown):",
+            `[{"title":"Quest Title","desc":"Short objective description (1-2 sentences)."}]`
+        ].join("\n");
 
         try {
-            const res = await generateContent(prompt, "System Check");
-            // Basic JSON cleanup
-            const jsonStr = res.replace(/```json|```/g, "").trim();
-            const quests = JSON.parse(jsonStr);
+            const res = await generateContent(prompt, "Journal Quests");
+            if (!res) throw new Error("No AI response");
+            const quests = JSON.parse(String(res || "").trim());
 
-            if(Array.isArray(quests) && quests.length > 0) {
+            if (Array.isArray(quests) && quests.length > 0) {
                 const s = getSettings();
-                if(!s.journal.pending) s.journal.pending = [];
-                
-                quests.forEach(q => s.journal.pending.push(q));
+                if (!s.journal) s.journal = { active: [], pending: [], abandoned: [], completed: [], codex: [] };
+                if (!Array.isArray(s.journal.pending)) s.journal.pending = [];
+                const all = []
+                    .concat(Array.isArray(s.journal.pending) ? s.journal.pending : [])
+                    .concat(Array.isArray(s.journal.active) ? s.journal.active : [])
+                    .concat(Array.isArray(s.journal.completed) ? s.journal.completed : [])
+                    .concat(Array.isArray(s.journal.abandoned) ? s.journal.abandoned : []);
+                const seen = new Set(all.map(q => `${String(q?.title || "").toLowerCase().trim()}::${String(q?.desc || "").toLowerCase().trim()}`));
+                let added = 0;
+                for (const q of quests.slice(0, 4)) {
+                    const title = String(q?.title || q?.name || "").trim().slice(0, 80);
+                    const desc = String(q?.desc || q?.objective || q?.summary || "").trim().slice(0, 700);
+                    if (!title && !desc) continue;
+                    const sig = `${title.toLowerCase()}::${desc.toLowerCase()}`;
+                    if (seen.has(sig)) continue;
+                    seen.add(sig);
+                    s.journal.pending.push({ title: title || "Quest", desc, source: "ai", ts: Date.now() });
+                    added++;
+                }
                 saveSettings();
-                
-                // Switch to pending tab
                 $(".uie-journal-sidebar .uie-tab[data-tab='pending']").click();
-                notify("success", `Found ${quests.length} new potential quests!`, "Journal", "questsAccepted");
+                if (added) notify("success", `Found ${added} new potential quest(s)!`, "Journal", "questsAccepted");
+                else notify("info", "No new quests (already tracked).", "Journal", "questsAccepted");
             } else {
-                notify("warning", "No new quests found in recent context.", "Journal", "questsAccepted");
+                notify("warning", "No quests returned.", "Journal", "questsAccepted");
             }
 
         } catch(e) {

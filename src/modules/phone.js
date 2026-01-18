@@ -894,11 +894,12 @@ export function initPhone() {
         const card = getCharacterCardBlock(2600);
         const mem = getSocialMemoryBlockForName(targetName, 8);
         const prompt = `
-${mainCtx ? `${mainCtx}\n\n` : ""}The user is texting you based on this recent context. React naturally.
+${mainCtx ? `${mainCtx}\n\n` : ""}The user is texting you.
 
 Phone Text Rules:
 - You are ${targetName} replying by text to ${persona}.
-- Stay strictly in-character and consistent with the chat context; do not invent sudden personality changes.
+- This is a ROLEPLAY response. Treat the provided Chat Log as the story so far.
+- IMPORTANT: You only know what you have personally witnessed or been told in the Chat Log. You are NOT omniscient.
 - Reply MUST be a realistic text message (short).
 - ABSOLUTE RULE: no narration, no scene description, no roleplay formatting, no quotes.
 - Do NOT include: asterisks (*like this*), brackets [like this], parentheses (like this), or prefixes like "${targetName}:".
@@ -911,7 +912,7 @@ Return ONLY JSON:
   "hasPhone": true,
   "willReply": true,
   "reply": "short realistic text reply (no narration)",
-  "reason": "why they did/didn't reply (busy/kidnapped/no phone/etc)",
+  "reason": "why they did/didn't reply",
   "arrivalInTurns": 0,
   "arrivalReason": ""
 }
@@ -924,7 +925,7 @@ ${threadTail}
 ${card}
 </character_card>
 ${mem}
-CONTEXT (recent chat, trimmed):
+CONTEXT (recent chat log - USE THIS):
 ${chat}`.slice(0, 6000);
 
         try {
