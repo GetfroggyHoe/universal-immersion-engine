@@ -1,7 +1,7 @@
 import { getSettings, saveSettings } from "./core.js";
 import { scanEverything } from "./stateTracker.js";
 import { notify } from "./notifications.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 
 let reBound = false;
 let reObserver = null;

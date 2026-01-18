@@ -1,6 +1,6 @@
 import { getSettings, saveSettings, getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js"; 
+const getContext = window.getContext; 
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
@@ -358,14 +358,14 @@ export function renderSocial() {
             }
 
             const avatarHtml = avatar
-                ? `<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover; border-radius: 50%;">`
+                ? `<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`
                 : `<i class="fa-solid fa-user" style="font-size: 2em; opacity: 0.5;"></i>`;
 
             const tag = (person?.met_physically === true) ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
             const tagHtml = tag ? `<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>` : "";
             const card = $(`
                 <div class="uie-social-card ${isSel ? 'delete-selected' : ''}" data-idx="${index}">
-                    <div class="uie-s-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.2); border-radius: 50%; aspect-ratio: 1/1;">${avatarHtml}</div>
+                    <div class="uie-s-avatar" style="overflow:hidden; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.2); width:100%; height:100%;">${avatarHtml}</div>
                     <div class="uie-s-name">${esc(person.name)}</div>
                     ${tagHtml}
                 </div>

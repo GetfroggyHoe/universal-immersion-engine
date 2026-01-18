@@ -1,6 +1,6 @@
 import { getSettings, saveSettings, getRecentChat } from "./core.js";
 import { generateContent, chatLogCheck } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js"; 
+const getContext = window.getContext; 
 import { injectRpEvent } from "./features/rp_log.js";
 import { notify } from "./notifications.js";
 import { checkAndGenerateImage } from "./imageGen.js";
@@ -128,6 +128,10 @@ function shouldLogPhoneToChat() {
 
 function sanitizePhoneLine(text, maxLen = 600) {
     let t = String(text || "");
+    // Aggressive JSON stripping
+    if (t.trim().startsWith("{") || t.includes('"effect":') || t.includes('"narration":')) {
+        return "[Data Corrupted]";
+    }
     t = t.replace(/^```[a-z]*\s*/i, "").replace(/```$/g, "");
     t = t.replace(/^[\s"'“”‘’]+|[\s"'“”‘’]+$/g, "");
     t = t.replace(/\*[^*]{0,400}\*/g, " ");
@@ -243,6 +247,7 @@ export function initPhone() {
     setInterval(updateClock, 15000);
 
     const getChatSnippet = (n = 20) => {
+        // Enforce safe limit
         return chatLogCheck();
     };
 

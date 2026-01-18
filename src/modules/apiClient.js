@@ -1,6 +1,6 @@
-import { generateRaw } from "../../../../../../script.js";
+const generateRaw = window.generateRaw;
 import { getSettings, getRecentChat } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 import { buildSystemPrompt, consumePendingSystemEvents, validateResponse } from "./logicEnforcer.js";
 import { notify } from "./notifications.js";
 
@@ -45,8 +45,9 @@ export function chatLogCheck() {
     const mode = String(g.chatLogMode || "lastN"); // "lastN" | "full" | "off"
     if (mode === "off") return "";
 
-    const limit = mode === "full" ? 2000 : Number(g.chatLogLimit || 50);
-    return getRecentChat(Number.isFinite(limit) ? limit : 50);
+    // Force cap even on "full" to prevent timeouts
+    const limit = mode === "full" ? 100 : Number(g.chatLogLimit || 50);
+    return getRecentChat(Number.isFinite(limit) ? Math.min(limit, 100) : 50);
 }
 
 function loreCheck() {

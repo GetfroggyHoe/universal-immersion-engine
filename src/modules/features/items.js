@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from "../core.js";
 import { generateContent } from "../apiClient.js";
-import { getContext } from "../../../../../../extensions.js";
+const getContext = window.getContext;
 import { SLOT_TYPES_CORE } from "../slot_types_core.js";
 import { inferItemType } from "../slot_types_infer.js";
 import { injectRpEvent } from "./rp_log.js";

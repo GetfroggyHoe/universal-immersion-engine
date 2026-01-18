@@ -1,0 +1,24 @@
+<div id="uie-stats-window" class="uie-window" style="display:none; top:15%; left:15%; width:400px; height:auto; min-height:300px;">
+    <div class="uie-win-header">
+        <div class="uie-win-title"><i class="fa-solid fa-chart-bar"></i> Character Stats</div>
+        <div class="uie-win-ctrls">
+            <button class="uie-win-close" onclick="$('#uie-stats-window').hide();"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+    <div class="uie-win-content" style="padding:15px; overflow-y:auto;">
+        <div style="margin-bottom:15px; text-align:center;">
+            <h3 id="uie-stats-name" style="margin:0; color:#e2c08d;">Character Name</h3>
+            <div id="uie-stats-class" style="font-size:0.9em; opacity:0.7;">Class</div>
+        </div>
+        
+        <div class="uie-section-title">Attributes</div>
+        <div id="uie-stats-list" style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
+            <!-- Rendered by JS -->
+        </div>
+
+        <div class="uie-section-title">Vitals</div>
+        <div id="uie-stats-vitals" style="display:flex; flex-direction:column; gap:8px;">
+            <!-- Rendered by JS -->
+        </div>
+    </div>
+</div>

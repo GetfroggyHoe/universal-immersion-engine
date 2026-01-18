@@ -1,7 +1,7 @@
 import { getSettings, saveSettings, ensureChatStateLoaded, getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getWorldState, scanEverything } from "./stateTracker.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 import { injectRpEvent } from "./features/rp_log.js";
 import { parseJsonLoose, normalizeDatabankArrayInPlace, toDatabankDisplayEntries } from "./databankModel.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";

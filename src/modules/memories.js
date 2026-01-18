@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 
 function getChatArray() {
     if (typeof window !== "undefined" && Array.isArray(window.chat) && window.chat.length > 0) return window.chat;

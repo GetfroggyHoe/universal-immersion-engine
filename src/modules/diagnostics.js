@@ -1,5 +1,5 @@
 import { getSettings } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 
 const MAX_ENTRIES = 250;
 const buffer = [];

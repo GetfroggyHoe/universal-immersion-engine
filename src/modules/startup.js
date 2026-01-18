@@ -48,7 +48,7 @@ export async function loadTemplates() {
         $("body").append(html);
     }
 
-    const optional = ['phone', 'calendar', 'debug', 'journal', 'social', 'diary', 'settings_window', 'shop', 'world', 'map', 'party', 'databank', 'battle', 'chatbox', 'launcher_options', 'sprites'];
+    const optional = ['phone', 'calendar', 'debug', 'journal', 'social', 'diary', 'settings_window', 'shop', 'world', 'map', 'party', 'databank', 'battle', 'chatbox', 'launcher_options', 'sprites', 'stats', 'activities'];
     Promise.allSettled(
         optional.map(async (f) => {
             const url = `${baseUrl}src/templates/${f}.html`;

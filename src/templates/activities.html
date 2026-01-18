@@ -1,0 +1,38 @@
+<div id="uie-activities-window" class="uie-window" style="display:none; top:20%; left:20%; width:500px; height:600px;">
+    <div class="uie-win-header">
+        <div class="uie-win-title"><i class="fa-solid fa-person-running"></i> Activities</div>
+        <div class="uie-win-ctrls">
+            <button class="uie-win-close" onclick="$('#uie-activities-window').hide();"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+    <div class="uie-win-content" style="padding:15px; display:flex; flex-direction:column; gap:15px; overflow-y:auto;">
+        
+        <div id="uie-activities-active" style="padding:15px; background:rgba(255,255,255,0.05); border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
+            <div style="font-weight:bold; margin-bottom:5px; color:#a2d2ff;"><i class="fa-solid fa-rotate"></i> Current Activity Loop</div>
+            <div id="uie-activity-current-display" style="font-size:1.1em; margin-bottom:8px;">Idle</div>
+            <div class="uie-bar-wrap" style="height:6px; background:rgba(0,0,0,0.5);">
+                <div id="uie-activity-progress" class="uie-bar-fill" style="width:0%; background:#a2d2ff;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:10px;">
+                <span id="uie-activity-timer" style="font-size:0.85em; opacity:0.7;">--:--</span>
+                <button id="uie-activity-stop" class="uie-btn-sm" style="background:#ff6b6b; color:#111; display:none;">Stop</button>
+            </div>
+        </div>
+
+        <div>
+            <div class="uie-section-title">Available Activities</div>
+            <div id="uie-activities-list" style="display:flex; flex-direction:column; gap:8px;">
+                <!-- Rendered by JS -->
+            </div>
+        </div>
+        
+        <div style="margin-top:auto; padding-top:15px; border-top:1px solid rgba(255,255,255,0.1);">
+            <div class="uie-section-title">Create Custom Activity</div>
+            <div style="display:grid; grid-template-columns: 1fr auto; gap:8px;">
+                <input type="text" id="uie-activity-new-name" placeholder="Activity Name (e.g. Training)" class="uie-input" />
+                <button id="uie-activity-create" class="uie-btn">Create</button>
+            </div>
+        </div>
+
+    </div>
+</div>

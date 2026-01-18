@@ -1,5 +1,5 @@
 import { getSettings, saveSettings } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 
 const PENDING_KEY = "__uiePendingSystemEvents";
 
@@ -90,7 +90,15 @@ function extractNsfwSystemRules(ctx) {
     hit.push(key);
   };
 
-  const looksRelevantKey = (k) => /(system|prompt|nsfw|rules)/i.test(String(k || ""));
+  const looksRelevantKey = (k) => {
+    const s = String(k || "").toLowerCase();
+    if (/(system|prompt|nsfw|rules)/i.test(s)) {
+        // Blacklist pipeline junk
+        if (s.includes("sd_") || s.includes("diffusion") || s.includes("processing") || s.includes("pipeline")) return false;
+        return true;
+    }
+    return false;
+  };
   const looksNsfw = (v) => /\bnsfw\b/i.test(String(v || ""));
 
   try {

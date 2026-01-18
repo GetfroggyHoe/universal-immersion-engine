@@ -1,11 +1,25 @@
 import { getSettings, saveSettings, updateLayout, getRecentChat } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 import { getST } from "./interaction.js";
+
+function cleanOutput(text) {
+    if (!text) return "";
+    let clean = text.trim();
+    // Remove markdown code blocks
+    clean = clean.replace(/^```[a-z]*\s*/i, "").replace(/```$/g, "");
+    // Extract JSON object if embedded
+    const start = clean.indexOf("{");
+    const end = clean.lastIndexOf("}");
+    if (start > -1 && end > start) {
+        clean = clean.substring(start, end + 1);
+    }
+    return clean;
+}
 
 /**
  * Ensures the state tracking object exists.
@@ -25,6 +39,9 @@ function ensureState(s) {
     if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
     if (!s.character) s.character = {};
     if (!Array.isArray(s.character.statusEffects)) s.character.statusEffects = [];
+    if (!s.battle) s.battle = { state: { active: false, enemies: [], turnOrder: [], log: [] }, dice: { enabled: false } };
+    if (!s.phone) s.phone = { smsThreads: {}, numberBook: [], callHistory: [] };
+    if (!s.inventory.skills) s.inventory.skills = [];
 }
 
 function clamp(n, min, max) {
@@ -169,7 +186,7 @@ export async function scanEverything() {
     if (!res) return;
 
     try {
-        const raw = String(res).replace(/```json|```/g, "").trim();
+        const raw = cleanOutput(String(res));
         const jsonText = (() => {
             const a = raw.indexOf("{");
             const b = raw.lastIndexOf("}");
@@ -229,15 +246,37 @@ export async function scanEverything() {
         // 3. Stats
         if (data.stats) {
             if (!s.stats) s.stats = { hp: 100, maxHp: 100, mp: 50, maxMp: 50, xp: 0, level: 1 };
-            if (data.stats.hp) {
-                s.stats.hp = Math.min(s.stats.maxHp, Math.max(0, s.stats.hp + data.stats.hp));
+            
+            if (Number.isFinite(data.stats.hp)) {
+                s.hp = Math.min(s.maxHp || 100, Math.max(0, (s.hp || 0) + data.stats.hp));
                 if (data.stats.hp < 0) notify("warning", `${data.stats.hp} HP`, "Damage", "combat");
-                else notify("success", `+${data.stats.hp} HP`, "Healed", "combat");
+                else if (data.stats.hp > 0) notify("success", `+${data.stats.hp} HP`, "Healed", "combat");
                 needsSave = true;
             }
-            if (data.stats.mp) {
-                s.stats.mp = Math.min(s.stats.maxMp, Math.max(0, s.stats.mp + data.stats.mp));
+            
+            if (Number.isFinite(data.stats.mp)) {
+                s.mp = Math.min(s.maxMp || 50, Math.max(0, (s.mp || 0) + data.stats.mp));
                 needsSave = true;
+            }
+
+            if (Number.isFinite(data.stats.xp)) {
+                 s.xp = Math.max(0, (s.xp || 0) + data.stats.xp);
+                 if (data.stats.xp > 0) notify("success", `+${data.stats.xp} XP`, "Experience", "xp");
+                 needsSave = true;
+            }
+
+            if (data.stats.attributes && typeof data.stats.attributes === "object") {
+                if (!s.character.stats) s.character.stats = { str:10,dex:10,con:10,int:10,wis:10,cha:10,per:10,luk:10,agi:10,vit:10,end:10,spi:10 };
+                for (const [k, v] of Object.entries(data.stats.attributes)) {
+                    if (Number.isFinite(v) && v !== 0) {
+                        const cur = s.character.stats[k];
+                        if (cur !== undefined) {
+                            s.character.stats[k] = cur + v;
+                            notify("info", `${v > 0 ? "+" : ""}${v} ${k.toUpperCase()}`, "Attribute", "levelUp");
+                            needsSave = true;
+                        }
+                    }
+                }
             }
         }
 
@@ -409,6 +448,82 @@ export async function scanEverything() {
                 added++;
             }
             if (added) needsSave = true;
+        }
+
+        // 9. Battle
+        if (data.battle && typeof data.battle === "object") {
+            try {
+                if (!s.battle) s.battle = {};
+                if (!s.battle.state) s.battle.state = { active: false, enemies: [], turnOrder: [], log: [] };
+                
+                const st = s.battle.state;
+                st.active = !!data.battle.active;
+                
+                if (Array.isArray(data.battle.enemies)) {
+                    // Simple merge/replace logic
+                    st.enemies = data.battle.enemies.map(e => ({
+                        name: String(e.name || "Enemy").trim(),
+                        hp: Number(e.hp || 0),
+                        maxHp: Number(e.maxHp || e.hp || 0),
+                        statusEffects: Array.isArray(e.statusEffects) ? e.statusEffects : [],
+                        boss: !!e.boss,
+                        level: Number(e.level || 1)
+                    }));
+                }
+                
+                if (Array.isArray(data.battle.turnOrder)) {
+                    st.turnOrder = data.battle.turnOrder.map(x => String(x || "").trim()).filter(Boolean);
+                }
+                
+                const battleMod = await import("./battle.js");
+                if (battleMod && battleMod.renderBattle) battleMod.renderBattle();
+                needsSave = true;
+            } catch (_) {}
+        }
+
+        // 9.5 Skills
+        if (Array.isArray(data.skills)) {
+            if (!s.inventory.skills) s.inventory.skills = [];
+            data.skills.forEach(sk => {
+                if (!sk.name) return;
+                // Check dupes
+                if (s.inventory.skills.some(x => x.name === sk.name)) return;
+                s.inventory.skills.push({
+                    name: sk.name,
+                    type: sk.type || "active",
+                    desc: sk.desc || "",
+                    level: 1,
+                    obtained: Date.now()
+                });
+                notify("success", `Learned Skill: ${sk.name}`, "Skills", "xp");
+                needsSave = true;
+            });
+        }
+
+        // 10. Contacts
+        if (Array.isArray(data.contacts)) {
+            if (!s.phone) s.phone = {};
+            if (!s.phone.smsThreads) s.phone.smsThreads = {};
+            if (!Array.isArray(s.phone.numberBook)) s.phone.numberBook = [];
+            
+            data.contacts.forEach(c => {
+                const name = String(c.name || c.number || "").trim();
+                if (!name) return;
+                
+                // Add to threads
+                if (!s.phone.smsThreads[name]) {
+                    s.phone.smsThreads[name] = []; 
+                }
+                
+                // Add to NumberBook if not exists
+                const num = String(c.number || "").trim();
+                const exists = s.phone.numberBook.some(nb => nb.name.toLowerCase() === name.toLowerCase());
+                if (!exists) {
+                     s.phone.numberBook.push({ name: name.slice(0, 60), number: num.slice(0, 20), ts: Date.now() });
+                     notify("success", `New Contact: ${name}`, "Phone", "phoneCalls");
+                     needsSave = true;
+                }
+            });
         }
 
         if (needsSave) {

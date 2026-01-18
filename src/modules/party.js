@@ -1,5 +1,5 @@
 import { getSettings, saveSettings, getRecentChat } from "./core.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 import { injectRpEvent } from "./features/rp_log.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";

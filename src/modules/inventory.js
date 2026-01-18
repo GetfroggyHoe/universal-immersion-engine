@@ -1,7 +1,7 @@
 
 import { getSettings, saveSettings, updateLayout, getRecentChat } from "./core.js";
 import { loadFeatureTemplate } from "./featureLoader.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 import { generateContent, cleanOutput } from "./apiClient.js";
 import { notify, notifyLowHpIfNeeded } from "./notifications.js";
 import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeMods, computeStatusTotals, applyStatusTickToVitals, parseDurationToMs } from "./statusFx.js";

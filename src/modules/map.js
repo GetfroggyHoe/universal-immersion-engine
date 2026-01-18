@@ -1,6 +1,6 @@
 import { getSettings, saveSettings, getRecentChat } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 import { generateImageAPI } from "./imageGen.js";
 
 let viewDraft = { tx: 0, ty: 0, scale: 1 };

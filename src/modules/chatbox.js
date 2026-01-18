@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { notify } from "./notifications.js";
-import { getContext } from "../../../../../extensions.js";
+const getContext = window.getContext;
 
 let bound = false;
 let observer = null;

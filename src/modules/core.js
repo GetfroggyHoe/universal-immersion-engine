@@ -1,5 +1,7 @@
-import { extension_settings, getContext } from "../../../../../extensions.js";
-import { saveSettingsDebounced, chat } from "../../../../../../script.js";
+const extension_settings = window.extension_settings;
+const getContext = window.getContext;
+const saveSettingsDebounced = window.saveSettingsDebounced;
+const chat = window.chat;
 
 export const EXT_ID = "universal-immersion-engine";
 
@@ -19,7 +21,7 @@ export const SETTINGS_DEFAULT = {
     hearts: 5,
     maxHearts: 5,
     map: { mode: "procedural", html: "", data: null, seed: "", scope: "local", prompt: "", location: "Unknown", marker: { x: 0.5, y: 0.5 } },
-    menuHidden: { inventory:false, shop:false, journal:false, diary:false, social:false, party:false, battle:false, phone:false, map:false, calendar:false, databank:false, settings:false, debug:false, world:false, help:false },
+    menuHidden: { inventory:false, shop:false, journal:false, diary:false, social:false, party:false, battle:false, phone:false, map:false, calendar:false, databank:false, settings:false, debug:false, world:false, help:false, stats:false, activities:false },
     features: { codexEnabled: false, phoneEnabled: true },
     ai: {
         phoneBrowser: true,
@@ -31,7 +33,9 @@ export const SETTINGS_DEFAULT = {
         databankScan: true,
         map: true,
         shop: true,
-        loot: true
+        loot: true,
+        stats: true,
+        activities: true
     },
     generation: { 
         requireConfirm: false, 
@@ -153,7 +157,9 @@ const CHAT_SCOPED_KEYS = [
     "social",
     "socialMeta",
     "quests",
-    "life"
+    "life",
+    "shop",
+    "activities"
 ];
 
 function deepClone(v) {
@@ -219,6 +225,7 @@ function applyChatState(s, state) {
         if (k === "databank") s[k] = [];
         else if (k === "quests") s[k] = [];
         else if (k === "life") s[k] = { trackers: [] };
+        else if (k === "activities") s[k] = { active: [], loops: [] };
         else if (k === "socialMeta") s[k] = { autoScan: false, deletedNames: [] };
         else s[k] = undefined;
     }
