@@ -6,6 +6,7 @@ import { generateContent, cleanOutput } from "./apiClient.js";
 import { notify, notifyLowHpIfNeeded } from "./notifications.js";
 import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeMods, computeStatusTotals, applyStatusTickToVitals, parseDurationToMs } from "./statusFx.js";
 import { generateImageAPI } from "./imageGen.js";
+import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 export const MEDALLIONS = {
     "medallion_water": {
@@ -1111,6 +1112,8 @@ export function initInventory() {
 
       $("#uie-inventory-window #tabs [data-tab]").removeClass("active");
       $(this).addClass("active");
+
+      getRoot().setAttribute("data-active-tab", tab);
 
       showView(routes[tab].view);
 

@@ -236,23 +236,7 @@ async function scanBattle() {
   const chat = readChatTail(20);
   if (!chat) return;
 
-  const prompt = `
-You are a combat parser.
-Return ONLY JSON:
-{
-  "active": true,
-  "enemies":[{"name":"","hp":0,"maxHp":0,"level":0,"boss":false,"statusEffects":[""]}],
-  "turnOrder":[""],
-  "log":["short combat log lines (newest last)"]
-}
-Rules:
-- If no combat is happening, return {"active":false,"enemies":[],"turnOrder":[],"log":[]}
-- Use conservative numbers; if unknown, keep previous values by omitting or setting null.
-- statusEffects are short labels.
-
-CHAT (last 20 messages):
-${chat}
-`;
+  const prompt = SCAN_TEMPLATES.warroom.battle(chat);
 
   const res = await generateContent(prompt.slice(0, 6000), "System Check");
   if (!res) return;

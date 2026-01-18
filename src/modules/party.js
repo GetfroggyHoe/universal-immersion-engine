@@ -678,24 +678,7 @@ async function scanPartyFromChat() {
     }
 
     const currentMembers = s.party.members.map(m => m.identity.name).join(", ");
-    const prompt = `[UIE_LOCKED]
-Analyze the chat log to determine the ACTIVE PARTY MEMBERS (allies currently traveling/fighting with the User).
-Exclude the User (You).
-Exclude enemies or random NPCs unless they have clearly joined the group.
-
-Current Roster: ${currentMembers || "None"}
-
-Chat Log:
-${raw.slice(0, 3000)}
-
-Return JSON ONLY:
-{
-  "active": [
-    { "name": "Exact Name", "class": "Class/Archetype", "role": "Tank|Healer|DPS|Support", "level": 1, "isNew": true/false }
-  ],
-  "left": ["Name of anyone who explicitly LEFT the party"]
-}
-`;
+    const prompt = SCAN_TEMPLATES.party.roster(currentMembers, raw.slice(0, 3000));
 
     const res = await generateContent(prompt, "Party Scan");
     if (!res) return;

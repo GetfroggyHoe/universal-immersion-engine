@@ -979,24 +979,7 @@ export async function updateRelationshipScore(name, text, source) {
     const prevRole = String(person?.relationshipStatus || "").trim();
     const prevMet = person?.met_physically === true;
 
-    const prompt = `[UIE_LOCKED]
-Analyze this interaction and update relationship info.
-
-Character: ${nm}
-Source: ${src}
-Message:
-${tx.slice(0, 1200)}
-
-Current:
-{"affinity":${prevAff},"role":"${prevRole}","met_physically":${prevMet}}
-
-Return ONLY valid JSON:
-{"delta":0,"role":"","notes":""}
-
-Rules:
-- delta is integer -10..10 representing affinity change due to this message tone.
-- role is a short updated role/status label (can be empty to keep).
-- notes is optional (short).`;
+    const prompt = SCAN_TEMPLATES.social.relationship(nm, src, tx.slice(0, 1200), prevAff, prevRole, prevMet);
 
     let delta = 0;
     let role = "";
