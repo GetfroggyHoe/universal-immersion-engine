@@ -4,15 +4,6 @@ import { injectRpEvent } from "./rp_log.js";
 
 let selectedIds = new Set();
 
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 function ensureIds(s) {
   if (!s.inventory) s.inventory = { items: [] };
   if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
@@ -165,7 +156,7 @@ async function brew() {
 
   selectedIds = new Set();
   addLog(`Brewed: ${name} using ${used.map(x => x.name).join(", ")}`);
-  await injectRpEvent(`Brewed ${name} using ${used.map(x => x.name).join(", ")}.`, { uie: { type: "alchemy", item: name } });
+  await UnifiedSpine.handleAlchemy("brew", { item: name, reagents: used.map(x => x.name).join(", ") });
 }
 
 export function init() {

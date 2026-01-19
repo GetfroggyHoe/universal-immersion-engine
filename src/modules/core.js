@@ -19,7 +19,7 @@ export const SETTINGS_DEFAULT = {
     hearts: 5,
     maxHearts: 5,
     map: { mode: "procedural", html: "", data: null, seed: "", scope: "local", prompt: "", location: "Unknown", marker: { x: 0.5, y: 0.5 } },
-    shop: { catalog: [], keywords: "" },
+    shop: { catalog: [], keywords: [] },
     activities: { active: [], loops: [] },
     menuHidden: { inventory:false, shop:false, journal:false, diary:false, social:false, party:false, battle:false, activities:false, stats:false, phone:false, map:false, calendar:false, databank:false, settings:false, debug:false, world:false, help:false },
     features: { codexEnabled: false, phoneEnabled: true },
@@ -118,46 +118,10 @@ export const SETTINGS_DEFAULT = {
     chatState: { activeKey: "", states: {} }
 };
 
-function getSettingsStore() {
-    try {
-        if (extension_settings && typeof extension_settings === "object") return extension_settings;
-    } catch (_) {}
-    try {
-        const w = typeof window !== "undefined" ? window : globalThis;
-        if (!w.extension_settings || typeof w.extension_settings !== "object") w.extension_settings = {};
-        return w.extension_settings;
-    } catch (_) {
-        return {};
-    }
-}
-
-export function getSettings() {
-    const store = getSettingsStore();
-    if (!store[EXT_ID]) store[EXT_ID] = deepClone(SETTINGS_DEFAULT);
-    return store[EXT_ID];
-}
-
-export function saveSettings() {
-    try { if (typeof saveSettingsDebounced === "function") saveSettingsDebounced(); } catch (_) {}
-}
+export function getSettings() { return extension_settings[EXT_ID]; }
+export function saveSettings() { saveSettingsDebounced(); }
 export function emitStateUpdated() {
     try { $(document).trigger("uie:stateUpdated"); } catch (_) {}
-}
-
-export function commitStateUpdate(opts = {}) {
-    const save = opts?.save !== false;
-    const layout = opts?.layout !== false;
-    const emit = opts?.emit !== false;
-    if (save) saveSettings();
-    if (layout) updateLayout();
-    if (emit) emitStateUpdated();
-}
-
-export function withSettings(mutator, opts = {}) {
-    const s = getSettings();
-    try { if (typeof mutator === "function") mutator(s); } catch (_) {}
-    commitStateUpdate(opts);
-    return s;
 }
 
 const CHAT_SCOPED_KEYS = [
@@ -256,8 +220,7 @@ function applyChatState(s, state) {
 }
 
 export function ensureChatStateLoaded() {
-    const store = getSettingsStore();
-    const s = store?.[EXT_ID];
+    const s = extension_settings[EXT_ID];
     if (!s) return;
     if (!s.chatState || typeof s.chatState !== "object") s.chatState = { activeKey: "", states: {} };
     if (typeof s.chatState.activeKey !== "string") s.chatState.activeKey = "";
@@ -307,9 +270,8 @@ export function isMobileUI() {
 }
 
 export function sanitizeSettings() {
-    const store = getSettingsStore();
-    if (!store[EXT_ID]) store[EXT_ID] = deepClone(SETTINGS_DEFAULT);
-    const s = store[EXT_ID];
+    if (!extension_settings[EXT_ID]) extension_settings[EXT_ID] = deepClone(SETTINGS_DEFAULT);
+    const s = extension_settings[EXT_ID];
     for(const k in SETTINGS_DEFAULT) if(s[k] === undefined) s[k] = deepClone(SETTINGS_DEFAULT[k]);
     
     if (isNaN(parseFloat(s.uiScale))) s.uiScale = 1.0;
@@ -408,7 +370,6 @@ export function sanitizeSettings() {
     if (!s.image.comfy || typeof s.image.comfy !== "object") s.image.comfy = { ...SETTINGS_DEFAULT.image.comfy };
     if (typeof s.image.comfy.workflow !== "string") s.image.comfy.workflow = String(s.image.comfy.workflow || "");
     if (typeof s.image.comfy.checkpoint !== "string") s.image.comfy.checkpoint = String(s.image.comfy.checkpoint || "");
-    if (String(s.image.comfy.checkpoint || "").trim() === "[object Object]") s.image.comfy.checkpoint = "";
     if (typeof s.image.comfy.quality !== "string") s.image.comfy.quality = String(s.image.comfy.quality || "balanced");
     if (typeof s.image.comfy.positiveNodeId !== "string") s.image.comfy.positiveNodeId = String(s.image.comfy.positiveNodeId || "");
     if (typeof s.image.comfy.negativeNodeId !== "string") s.image.comfy.negativeNodeId = String(s.image.comfy.negativeNodeId || "");
@@ -483,7 +444,7 @@ export function sanitizeSettings() {
 
     if (!s.shop || typeof s.shop !== "object") s.shop = { ...SETTINGS_DEFAULT.shop };
     if (!Array.isArray(s.shop.catalog)) s.shop.catalog = [];
-    if (typeof s.shop.keywords !== "string") s.shop.keywords = String(s.shop.keywords || "");
+    if (!Array.isArray(s.shop.keywords)) s.shop.keywords = [];
 
     if (!s.activities || typeof s.activities !== "object") s.activities = { ...SETTINGS_DEFAULT.activities };
     if (!Array.isArray(s.activities.active)) s.activities.active = [];

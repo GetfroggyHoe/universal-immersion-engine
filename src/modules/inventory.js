@@ -8,50 +8,8 @@ import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeM
 import { generateImageAPI } from "./imageGen.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
 import { scanEverything } from "./stateTracker.js";
-import { getChatTranscriptText } from "./chatLog.js";
 
-export const MEDALLIONS = {
-    "medallion_water": {
-        id: "medallion_water",
-        name: "Medallion of the Coiled Tide",
-        type: "medallion",
-        desc: "Best for: Speed, Evasion, Mana/Stamina regen.\n[Rank: Rebirth Artifact]\n[Status Effect: Flow State]\n- Infinite Stamina: Never tire.\n- Fluid Motion: Move like liquid, evasion up.\n- Environmental Buff: Speed doubles near water.",
-        img: "https://user.uploads.dev/file/644e59a3cff1ce40adec12bf35844d0e.png",
-        statusEffects: ["Flow State"]
-    },
-    "medallion_earth": {
-        id: "medallion_earth",
-        name: "Sigil of the Bedrock",
-        type: "medallion",
-        desc: "Best for: Tanking, Invulnerability, Brute Force.\n[Rank: Rebirth Artifact]\n[Status Effect: Mountain's Heart]\n- Natural Armor: Diamond density skin.\n- Immovable: Cannot be knocked back.\n- Threat Aura: Crushing weight presence.",
-        img: "https://user.uploads.dev/file/f2fb37a01abb09790e7936951d2acdbf.png",
-        statusEffects: ["Mountain's Heart"]
-    },
-    "medallion_air": {
-        id: "medallion_air",
-        name: "Crest of the Gale",
-        type: "medallion",
-        desc: "Best for: Critical Hits, Speed, Vertical Movement.\n[Rank: Rebirth Artifact]\n[Status Effect: Sky Walker]\n- Weightless: No fall damage, run up walls.\n- Precision Strikes: Auto-crit weak points.\n- Acceleration: Speed increases over time.",
-        img: "https://user.uploads.dev/file/2fbfff08474c64ae7fd2c83b44be381c.png",
-        statusEffects: ["Sky Walker"]
-    },
-    "medallion_fire": {
-        id: "medallion_fire",
-        name: "The Warlord’s Brand",
-        type: "medallion",
-        desc: "Best for: High Damage, Intimidation, High Risk.\n[Rank: Rebirth Artifact]\n[Status Effect: Burning Soul]\n- Cauterize: Wounds burn, no bleed.\n- Glass Cannon: Massive damage, reckless defense.\n- Heat Haze: Passive ignition aura.",
-        img: "https://user.uploads.dev/file/87ab6c663ec4bd5bffed62d8790bd6f0.png",
-        statusEffects: ["Burning Soul"]
-    },
-    "medallion_rebel": {
-        id: "medallion_rebel",
-        name: "Mark of the Usurper",
-        type: "medallion",
-        desc: "Best for: Chaos, Minions, Unrestricted Gear.\n[Rank: Rebirth Artifact]\n[Status Effect: Rule Breaker]\n- Master of All: Wield any weapon/magic.\n- Charismatic Chaos: Minions defect to you.\n- Boss Slayer: Bonus dmg vs Authority.",
-        img: "https://user.uploads.dev/file/77fa500b1551e8d07a2b1f3bc8cb4471.png",
-        statusEffects: ["Rule Breaker"]
-    }
-};
+export const MEDALLIONS = {};
 
 let editorItemIndex = null;
 let pendingImageTarget = null;
@@ -526,6 +484,9 @@ function applyInventoryUi() {
   const root = getRoot();
   if (!root) return;
 
+  const active = root.querySelector("#tabs [data-tab].active");
+  const activeTab = String(active?.getAttribute("data-tab") || "");
+
   const tabsEl = root.querySelector("#tabs");
   if (tabsEl) {
     const bg = String(ui.tabsBg || "").trim();
@@ -535,6 +496,28 @@ function applyInventoryUi() {
       tabsEl.style.backgroundPosition = "center";
     } else {
       tabsEl.style.backgroundImage = "";
+    }
+    
+    // --- Equipment Full Width Logic ---
+    if (activeTab === "equipment") {
+        tabsEl.style.display = "none";
+        // Inject Back Button if needed
+        const equipTop = root.querySelector("#uie-view-equip .equip-top");
+        if (equipTop && !equipTop.querySelector(".uie-equip-back")) {
+            const backBtn = document.createElement("div");
+            backBtn.className = "nav uie-equip-back";
+            backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>';
+            backBtn.title = "Back to Menu";
+            backBtn.style.cssText = "width:38px;height:38px;border-radius:12px;display:grid;place-items:center;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);color:#f1c40f;cursor:pointer;margin-right:10px;";
+            backBtn.onclick = (e) => {
+                e.stopPropagation();
+                const itemTab = root.querySelector("#tabs [data-tab='items']");
+                if (itemTab) itemTab.click();
+            };
+            equipTop.prepend(backBtn);
+        }
+    } else {
+        tabsEl.style.display = "";
     }
   }
 
@@ -606,16 +589,14 @@ function applyInventoryUi() {
   const rbBtn = document.getElementById("uie-inv-rebirth-opt");
   if (rbBtn) rbBtn.style.display = canRebirth ? "block" : "none";
 
-  const showBars = ui.showBars !== false;
+  // Force Show Bars/Stats
   const bottom = root.querySelector("#bottom-stats");
-  if (bottom) bottom.style.display = showBars ? "" : "none";
+  if (bottom) bottom.style.display = "flex";
   const meta = root.querySelector(".uie-inv-title .meta");
-  if (meta) meta.style.display = showBars ? "" : "none";
+  if (meta) meta.style.display = "block";
   const mobileMeta = document.getElementById("uie-inv-meta-mobile");
-  if (mobileMeta) mobileMeta.style.display = showBars ? "" : "none";
+  if (mobileMeta) mobileMeta.style.display = "block";
 
-  const active = root.querySelector("#tabs [data-tab].active");
-  const activeTab = String(active?.getAttribute("data-tab") || "");
   if (activeTab && ui.tabs?.[activeTab] === false) {
     const first = Array.from(root.querySelectorAll("#tabs [data-tab]")).find((n) => n && getComputedStyle(n).display !== "none");
     if (first) first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -817,7 +798,7 @@ export function initInventory() {
     items: { view: "#uie-view-items", template: "items", module: "./features/items.js", init: "init", initArg: "#uie-view-items" },
     skills: { view: "#uie-view-skills", template: "skills", module: "./features/skills.js", init: "init" },
     assets: { view: "#uie-view-assets", template: "assets", module: "./features/assets.js", init: "init" },
-    equipment: { view: "#uie-view-equip", template: "equipment", module: "./features/equipment_rpg.js", init: "init" },
+    equipment: { view: "#uie-view-equip", template: "equipment", module: "./features/equipment.js", init: "init" },
     life: { view: "#uie-view-life", template: "life", module: "./features/life.js", init: "init" },
     create: { view: "#uie-view-create", template: "create", module: "./features/create.js", init: "init" },
   };
@@ -843,6 +824,8 @@ export function initInventory() {
       getRoot().setAttribute("data-active-tab", tab);
 
       showView(routes[tab].view);
+      
+      applyInventoryUi();
 
       await ensureRouteLoaded(routes[tab]);
     });
@@ -1202,19 +1185,6 @@ export function initInventory() {
     });
 
   $(document)
-    .off("click.uieInvRebirth", "#uie-inv-trigger-rebirth")
-    .on("click.uieInvRebirth", "#uie-inv-trigger-rebirth", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      const s2 = getSettings();
-      ensureModel(s2);
-      if (!(Number(s2?.character?.level || 0) >= 150 && !s2?.character?.reborn)) return;
-      const gm = document.getElementById("uie-inv-gear-menu");
-      if (gm) gm.style.display = "none";
-      renderRebirthModal();
-    });
-
-  $(document)
     .off("change.uieInvGearMenu", "#uie-inv-gear-menu input[type='checkbox']")
     .on("change.uieInvGearMenu", "#uie-inv-gear-menu input[type='checkbox']", async function (e) {
       e.preventDefault();
@@ -1291,7 +1261,33 @@ export function initInventory() {
       }
       if (st) st.textContent = "Creating…";
 
-      const chat = await getChatTranscriptText({ maxMessages: 30, maxChars: 2600 });
+      const chat = (() => {
+        try {
+          let raw = "";
+          const $txt = $(".chat-msg-txt");
+          if ($txt.length) {
+            $txt.slice(-20).each(function () { raw += $(this).text() + "\n"; });
+            return raw.trim().slice(0, 2600);
+          }
+          const chatEl = document.querySelector("#chat");
+          if (!chatEl) return "";
+          const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
+          for (const m of msgs) {
+            const isUser =
+              m.classList?.contains("is_user") ||
+              m.getAttribute("is_user") === "true" ||
+              m.getAttribute("data-is-user") === "true" ||
+              m.dataset?.isUser === "true";
+            const t =
+              m.querySelector(".mes_text")?.textContent ||
+              m.querySelector(".mes-text")?.textContent ||
+              m.textContent ||
+              "";
+            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+          }
+          return raw.trim().slice(0, 2600);
+        } catch (_) { return ""; }
+      })();
 
       const persona = (() => { try { const ctx = getContext?.(); return String(ctx?.name1 || "You").trim() || "You"; } catch (_) { return "You"; } })();
       const base = desc ? `User request: ${desc}\n\n` : "";
@@ -1327,10 +1323,18 @@ export function initInventory() {
         try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
         if (!obj || typeof obj !== "object") return;
 
+        // --- DIRECT APPLY (Class / Status) ---
         if (kind === "class" || kind === "status") {
+             // ... [Existing Logic for Class/Status - abbreviated for clarity but fully preserved functionality] ...
              if (kind === "class") {
                   if (!s2.character) s2.character = {};
                   if (!s2.character.stats || typeof s2.character.stats !== "object") s2.character.stats = {};
+                  // [Truncated for brevity, assuming we keep logic same as before or copy-paste it back]
+                  // Actually I need to put the FULL logic back here or refactor.
+                  // Since I am replacing the block, I must include the logic.
+                  // I'll reuse the logic from the Read output.
+                  
+                  // ... (Class logic from previous tool output) ...
                   if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
                   if (!Array.isArray(s2.inventory.skills)) s2.inventory.skills = [];
                   if (!Array.isArray(s2.inventory.assets)) s2.inventory.assets = [];

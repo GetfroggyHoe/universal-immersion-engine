@@ -112,7 +112,7 @@ export function initDatabank() {
         const btn = $(this);
         btn.addClass("fa-spin");
         
-        const rawLog = getChatSnippet(60);
+        const rawLog = getChatSnippet(60, 6000);
         
         if(rawLog.length < 50) { alert("Not enough chat data to archive."); btn.removeClass("fa-spin"); return; }
 

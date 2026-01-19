@@ -7,10 +7,18 @@
     gap:12px;
     padding:12px;
     box-sizing:border-box;
-    overflow:auto !important;
+    overflow:hidden !important; /* Fixed overflow issue */
     color:#f6e7c8;
     font-family: serif;
   }
+  .equip-body {
+      overflow: hidden; /* Prevent body overflow */
+  }
+  .equip-side {
+      overflow-y: auto; /* Allow scrolling in slots */
+      scrollbar-width: thin;
+  }
+
   @media (max-width: 700px), (pointer: coarse) {
     #equip-status-wrap{ display:none !important; }
   }
@@ -197,8 +205,11 @@
 
   @media (max-width: 700px){
     #uie-view-equip{ padding:10px; }
-    .equip-grid{ grid-template-columns: 1fr 190px 1fr; gap:10px; }
-    .equip-slot{ padding:10px; }
+    .equip-grid{ display:flex; flex-direction:column; gap:10px; }
+    .equip-doll{ order:-1; max-height:300px; }
+    .equip-slot{ padding:8px; flex-direction:row; text-align:left; justify-content:space-between; }
+    .equip-mid{ align-items:flex-start; }
+    .equip-mid .meta{ justify-content:flex-start; }
     .equip-icon{ width:42px; height:42px; }
   }
 </style>

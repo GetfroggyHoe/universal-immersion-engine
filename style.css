@@ -2157,10 +2157,13 @@
     background: rgba(0,0,0,0.3); border: 1px solid #333;
     border-radius: 5px; cursor: pointer; overflow: hidden;
     transition: transform 0.1s;
+    position: relative;
+    aspect-ratio: 1 / 1;
 }
 .uie-social-card:hover { transform: scale(1.05); border-color: #cba35c; }
-.uie-s-avatar { height: 80px; background: #111; display: flex; align-items: center; justify-content: center; color: #555; }
-.uie-s-name { padding: 5px; font-size: 0.8em; text-align: center; color: #ccc; background: rgba(0,0,0,0.5); }
+.uie-s-avatar { width: 100%; height: 100%; background: #111; display: flex; align-items: center; justify-content: center; color: #555; }
+.uie-s-content { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.6); display: flex; flex-direction: column; }
+.uie-s-name { padding: 5px; font-size: 0.8em; text-align: center; color: #ccc; }
 
 /* Social Overlay */
 #uie-social-overlay {

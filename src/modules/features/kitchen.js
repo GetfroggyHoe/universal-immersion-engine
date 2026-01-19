@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "../core.js";
 import { inferItemType } from "../slot_types_infer.js";
-import { injectRpEvent } from "./rp_log.js";
+import { UnifiedSpine } from "./rp_log.js";
+import { esc, msToClock, clamp01 } from "../utils.js";
 
 let mounted = false;
 let openCtx = { onExit: null };
@@ -18,30 +19,6 @@ const RECIPES = [
   { id: "manual", name: "Manual Cook", stationIds: ["stove", "oven", "campfire"], durationMs: 60000, burnGraceMs: 20000, tags: ["manual"], requires: [{ tag: "any" }], stirNeededEveryMs: 0 }
 ];
 
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function msToClock(ms) {
-  ms = Math.max(0, Number(ms || 0));
-  const sec = Math.ceil(ms / 1000);
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function clamp01(n) {
-  n = Number(n);
-  if (!Number.isFinite(n)) return 0;
-  if (n < 0) return 0;
-  if (n > 1) return 1;
-  return n;
-}
 
 function ensureIds(s) {
   if (!s.inventory) s.inventory = { items: [] };
@@ -323,14 +300,14 @@ async function tick() {
 
   if (st === "cooking" && dur && elapsed >= dur) {
     await setState("done", `Finished cooking ${findRecipe(ses.recipeId)?.name || "recipe"}.`);
-    await injectRpEvent(`Finished cooking ${findRecipe(ses.recipeId)?.name || "a recipe"}.`, { uie: { type: "kitchen_done" } });
+    await UnifiedSpine.handleCrafting("kitchen_done", { recipeName: findRecipe(ses.recipeId)?.name });
   }
 
   const tooLate = dur && burnGrace && elapsed >= dur + burnGrace;
   const tooManyMistakes = Number(ses.mistakes || 0) >= 3;
   if ((st === "cooking" || st === "done") && (tooLate || tooManyMistakes)) {
     await setState("burned", tooLate ? "Burned: left past burn window." : "Burned: too many mistakes.");
-    await injectRpEvent(`Burned the dish (${tooLate ? "overtime" : "mistakes"}).`, { uie: { type: "kitchen_burned" } });
+    await UnifiedSpine.handleCrafting("kitchen_burned", { reason: tooLate ? "overtime" : "mistakes" });
   }
 
   if (st === "cooking" && Number(ses.stirNeededEveryMs || 0) > 0) {
@@ -475,7 +452,7 @@ async function startCooking() {
 
   await setState("cooking", `Started cooking ${r.name}.`);
   saveKitchenDebounced();
-  await injectRpEvent(`Started cooking ${r.name}.`, { uie: { type: "kitchen_start", recipe: r.id } });
+  await UnifiedSpine.handleCrafting("kitchen_start", { recipeName: r.name, recipeId: r.id });
 }
 
 async function pauseCooking() {
@@ -506,7 +483,7 @@ async function stir() {
   if (ses.state !== "cooking") return;
   ses.lastStirAt = Date.now();
   addSessionEvent(s, "Stirred.");
-  await injectRpEvent("Stirred the pot.", { uie: { type: "kitchen_stir" } });
+  await UnifiedSpine.handleCrafting("kitchen_stir", {});
 }
 
 async function cancelCooking() {

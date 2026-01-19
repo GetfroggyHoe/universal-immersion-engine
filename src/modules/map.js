@@ -2,6 +2,7 @@ import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateImageAPI } from "./imageGen.js";
+import { esc, clamp01, getLoreKeys, getChatSnippet } from "./utils.js";
 
 let viewDraft = { tx: 0, ty: 0, scale: 1 };
 let isGenerating = false;
@@ -20,80 +21,9 @@ function ensureMap(s) {
     if (!Number.isFinite(Number(s.map.view.ty))) s.map.view.ty = 0;
 }
 
-function clamp01(n) {
-    n = Number(n);
-    if (!Number.isFinite(n)) return 0.5;
-    if (n < 0) return 0;
-    if (n > 1) return 1;
-    return n;
-}
 
-function esc(s) {
-    return String(s ?? "")
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;")
-        .replace(/'/g,"&#39;");
-}
 
-function getLoreKeys() {
-    try {
-        const ctx = getContext?.();
-        if (!ctx) return [];
-        const keys = [];
 
-        const maybe = ctx.world_info || ctx.lorebook || ctx.lore || ctx.worldInfo;
-        if (Array.isArray(maybe)) {
-            for (const it of maybe) {
-                const k = it?.key || it?.name || it?.title;
-                if (k) keys.push(String(k));
-            }
-        } else if (maybe && typeof maybe === "object") {
-            const entries = maybe.entries || maybe.world_info || maybe.items;
-            if (Array.isArray(entries)) {
-                for (const it of entries) {
-                    const k = it?.key || it?.name || it?.title;
-                    if (k) keys.push(String(k));
-                }
-            }
-        }
-
-        return Array.from(new Set(keys)).slice(0, 60);
-    } catch (_) {
-        return [];
-    }
-}
-
-function getChatSnippet() {
-    try {
-        let raw = "";
-        const $txt = $(".chat-msg-txt");
-        if ($txt.length) {
-            $txt.slice(-12).each(function () { raw += $(this).text() + "\n"; });
-            return raw.trim().slice(0, 1400);
-        }
-        const chatEl = document.getElementById("chat");
-        if (!chatEl) return "";
-        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-12);
-        for (const m of msgs) {
-            const isUser =
-                m.classList?.contains("is_user") ||
-                m.getAttribute?.("is_user") === "true" ||
-                m.getAttribute?.("data-is-user") === "true" ||
-                m.dataset?.isUser === "true";
-            const t =
-                m.querySelector?.(".mes_text")?.textContent ||
-                m.querySelector?.(".mes-text")?.textContent ||
-                m.textContent ||
-                "";
-            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-        }
-        return raw.trim().slice(0, 1400);
-    } catch (_) {
-        return "";
-    }
-}
 
 function hash32(str) {
     const s = String(str || "");

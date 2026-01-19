@@ -1,18 +1,10 @@
 import { getSettings, saveSettings } from "../core.js";
 import { inferItemType } from "../slot_types_infer.js";
-import { injectRpEvent } from "./rp_log.js";
+import { UnifiedSpine } from "./rp_log.js";
+import { esc } from "../utils.js";
 
 let baseRef = null;
 let selectedIds = new Set();
-
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 function ensureIds(s) {
   if (!s.inventory) s.inventory = { items: [] };
@@ -217,7 +209,7 @@ async function applyEnchant() {
   selectedIds = new Set();
   addLog(`Applied ${name} to ${base.name} using ${used.map(x => x.name).join(", ")}`);
   try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-  await injectRpEvent(`Enchanted ${base.name} with ${name}.`, { uie: { type: "enchant", item: base.name } });
+  await UnifiedSpine.handleEnchant("enchant", { item: base.name, enchantment: name });
 }
 
 export function init() {

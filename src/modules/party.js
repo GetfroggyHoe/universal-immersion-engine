@@ -1,9 +1,10 @@
 import { getSettings, saveSettings } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
-import { injectRpEvent } from "./features/rp_log.js";
+import { injectRpEvent, UnifiedSpine } from "./features/rp_log.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { MEDALLIONS } from "./inventory.js";
+import { esc } from "./utils.js";
 
 let selectedId = null;
 let tab = "roster";
@@ -11,14 +12,6 @@ let memberModalOpen = false;
 let memberEdit = false;
 let memberModalTab = "sheet";
 
-function esc(s) {
-    return String(s ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
-}
 
 function skillKey(name) {
     return String(name || "").trim().toLowerCase();
@@ -1292,7 +1285,7 @@ export function initParty() {
                     }
                 } catch (_) {}
                 s.party.members.splice(idx, 1);
-                try { injectRpEvent(`[System: ${leavingName} left the party.]`); } catch (_) {}
+                try { UnifiedSpine.handleParty("leave", { name: leavingName }); } catch (_) {}
                 if (!selectedId) {
                     const next = s.party.members.find(m => m && m.active !== false);
                     selectedId = next ? String(next.id || "") : null;

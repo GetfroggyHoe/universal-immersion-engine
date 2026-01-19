@@ -1,9 +1,10 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js"; 
-import { injectRpEvent } from "./features/rp_log.js";
+import { UnifiedSpine, injectRpEvent } from "./features/rp_log.js";
 import { notify } from "./notifications.js";
 import { checkAndGenerateImage } from "./imageGen.js";
+import { esc, getChatSnippet, getPersonaName } from "./utils.js";
 
 let callTimerInt = null;
 let activeContact = null; // Tracks who we are texting
@@ -48,24 +49,6 @@ async function relayRelationship(name, text, source) {
         if (typeof mod?.updateRelationshipScore !== "function") return;
         await mod.updateRelationshipScore(String(name || ""), String(text || ""), String(source || ""));
     } catch (_) {}
-}
-
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function getPersonaName() {
-    try {
-        const ctx = getContext?.();
-        return String(ctx?.name1 || "You").trim() || "You";
-    } catch (_) {
-        return "You";
-    }
 }
 
 function getSocialMemoryBlockForName(targetName, maxItems = 8) {
@@ -874,7 +857,7 @@ export function initPhone() {
         notify("success", "Message sent.", "Messages", "phoneMessages");
         try { relayRelationship(targetName, t, "text"); } catch (_) {}
         try {
-            const inj = await injectRpEvent(`(Text) ${getPersonaName()} → ${targetName}: "${String(t).slice(0, 500)}"`, { uie: { type: "phone_text", who: targetName } });
+            const inj = await UnifiedSpine.handlePhone("text_sent", { who: targetName, text: t });
             if (inj && inj.ok && inj.mesid) {
                 msgObj.chatMesId = inj.mesid;
                 saveSettings();
@@ -886,7 +869,7 @@ export function initPhone() {
         if (!allow) return;
 
         const mainCtx = getMainChatContext(5);
-        const chat = getChatSnippet(50);
+        const chat = getChatSnippet(50, 5000);
         const lore = (() => { try { const ctx = getContext?.(); const maybe = ctx?.world_info || ctx?.lorebook || ctx?.lore || ctx?.worldInfo; const keys=[]; if(Array.isArray(maybe)){ for(const it of maybe){ const k=it?.key||it?.name||it?.title; if(k) keys.push(String(k)); } } return Array.from(new Set(keys)).slice(0, 60).join(", "); } catch(_) { return ""; } })();
         const character = (() => { try { const ctx = getContext?.(); return JSON.stringify({ user: ctx?.name1, character: ctx?.name2, chatId: ctx?.chatId, characterId: ctx?.characterId, groupId: ctx?.groupId }); } catch(_) { return "{}"; } })();
         const threadTail = getThreadTail(targetName, 10);
@@ -1509,7 +1492,7 @@ ${chat}`.slice(0, 6000), "System Check");
                 saveSettings();
             }
         } catch (_) {}
-        injectRpEvent(`(On phone) Connected with ${n}.`, { uie: { type: "phone_call", who: n } });
+        UnifiedSpine.handlePhone("call_start", { who: n });
         if (arrivalTurns > 0) scheduleArrival(n, arrivalTurns, arrivalReason || "They agreed to come over.");
     };
 

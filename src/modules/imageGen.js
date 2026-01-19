@@ -434,22 +434,32 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
 
     if (!imgRef) {
         if (window.toastr) toastr.error("ComfyUI timed out");
+        console.warn("[UIE] ComfyUI timed out waiting for image.");
         return null;
     }
 
     const filename = encodeURIComponent(String(imgRef.filename || ""));
     const subfolder = encodeURIComponent(String(imgRef.subfolder || ""));
     const type = encodeURIComponent(String(imgRef.type || "output"));
-    const imgFx = await fetchWithCorsProxyFallback(`${viewUrl}?filename=${filename}&subfolder=${subfolder}&type=${type}`, { method: "GET" });
+    const finalViewUrl = `${viewUrl}?filename=${filename}&subfolder=${subfolder}&type=${type}`;
+    
+    // Try to fetch blob (handles Auth/Proxy)
+    const imgFx = await fetchWithCorsProxyFallback(finalViewUrl, { method: "GET" });
     const imgRes = imgFx.response;
-    if (!imgRes.ok) return null;
+    
+    if (!imgRes.ok) {
+        console.warn("[UIE] Failed to fetch ComfyUI image blob:", imgRes.status);
+        // Fallback: Return direct URL if local (might work for <img> tag)
+        if (isLocal) return finalViewUrl;
+        return null;
+    }
+    
     const blob = await imgRes.blob();
-
     const dataUrl = await new Promise((resolve) => {
         const r = new FileReader();
         r.onload = () => resolve(String(r.result || ""));
         r.onerror = () => resolve("");
         r.readAsDataURL(blob);
     });
-    return dataUrl || null;
+    return dataUrl || (isLocal ? finalViewUrl : null);
 }

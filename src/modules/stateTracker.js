@@ -1,10 +1,8 @@
-import { getSettings, commitStateUpdate } from "./core.js";
+import { getSettings, saveSettings, updateLayout, emitStateUpdated } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
-import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
-import { safeJsonParseObject } from "./jsonUtil.js";
 
 import { getST } from "./interaction.js";
 
@@ -117,13 +115,66 @@ export async function scanEverything(opts = {}) {
     if (!gate.ok) return;
     try {
 
-    const chatSnippet = await getChatTranscriptText({ maxMessages: 80, maxChars: 30000 });
+    const readChatSnippet = (max) => {
+        try {
+            let raw = "";
+            const $txt = $(".chat-msg-txt");
+            if ($txt.length) {
+                $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
+                return stripCssBlocks(raw).trim().slice(0, 30000);
+            }
+            const chatEl = document.getElementById("chat");
+            if (!chatEl) return "";
+            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
+            for (const m of msgs) {
+                const isUser =
+                    m.classList?.contains("is_user") ||
+                    m.getAttribute?.("is_user") === "true" ||
+                    m.getAttribute?.("data-is-user") === "true" ||
+                    m.dataset?.isUser === "true";
+                const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
+                let t = "";
+                if (el) {
+                    const clone = el.cloneNode(true);
+                    try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
+                    t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
+                } else {
+                    t = String(m.textContent || "");
+                }
+                t = stripCssBlocks(String(t || "").trim());
+                if (!t) continue;
+                raw += `${isUser ? "You" : "Story"}: ${t}\n`;
+            }
+            return stripCssBlocks(raw).trim().slice(0, 30000);
+        } catch (_) {
+            return "";
+        }
+    };
+
+    const chatSnippet = readChatSnippet(50);
 
     if (!chatSnippet) return;
 
     // --- PHASE 1: FREE REGEX CHECKS (Currency) ---
     // We check the LAST message for instant currency updates (avoids AI cost/latency for simple gold)
-    const lastMsg = await getRecentChatSnippet(1);
+    const lastMsg = (() => {
+        try {
+            const $txt = $(".chat-msg-txt");
+            if ($txt.length) return String($txt.last().text() || "");
+            const chatEl = document.getElementById("chat");
+            if (!chatEl) return "";
+            const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
+            if (!last) return "";
+            return String(
+                last.querySelector?.(".mes_text")?.textContent ||
+                last.querySelector?.(".mes-text")?.textContent ||
+                last.textContent ||
+                ""
+            );
+        } catch (_) {
+            return "";
+        }
+    })();
     const currencyGain = lastMsg.match(/(?:found|received|gained|picked up|looted|loot|earned|rewarded|added)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     const currencyLoss = lastMsg.match(/(?:lost|paid|spent|gave|removed|pay|subtracted)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     
@@ -223,8 +274,15 @@ ${chatSnippet}
     if (!res) return;
 
     try {
-        const data = safeJsonParseObject(res);
-        if (!data) return;
+        const raw = String(res).replace(/```json|```/g, "").trim();
+        const jsonText = (() => {
+            const a = raw.indexOf("{");
+            const b = raw.lastIndexOf("}");
+            if (a >= 0 && b > a) return raw.slice(a, b + 1);
+            return raw;
+        })();
+        const data = JSON.parse(jsonText);
+        if (!data || typeof data !== "object") return;
 
         let needsSave = false;
 
@@ -294,8 +352,8 @@ ${chatSnippet}
         }
 
         // 3.2 Skills
-        if (data.skills && (typeof data.skills === "object" || Array.isArray(data.skills))) {
-            const add = Array.isArray(data.skills) ? data.skills : (Array.isArray(data.skills.add) ? data.skills.add : []);
+        if (data.skills && typeof data.skills === "object") {
+            const add = Array.isArray(data.skills.add) ? data.skills.add : [];
             if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
             const have = new Set(s.inventory.skills.map(x => String(x?.name || "").trim().toLowerCase()).filter(Boolean));
             let added = 0;
@@ -320,8 +378,8 @@ ${chatSnippet}
         }
 
         // 3.3 Assets
-        if (data.assets && (typeof data.assets === "object" || Array.isArray(data.assets))) {
-            const add = Array.isArray(data.assets) ? data.assets : (Array.isArray(data.assets.add) ? data.assets.add : []);
+        if (data.assets && typeof data.assets === "object") {
+            const add = Array.isArray(data.assets.add) ? data.assets.add : [];
             if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
             const have = new Set(s.inventory.assets.map(x => String(x?.name || "").trim().toLowerCase()).filter(Boolean));
             let added = 0;
@@ -570,7 +628,14 @@ ${chatSnippet}
         }
 
         if (needsSave) {
-            commitStateUpdate({ save: true, layout: true, emit: true });
+            saveSettings();
+            updateLayout();
+            emitStateUpdated();
+            try { (await import("./features/items.js")).render?.(); } catch (_) {}
+            try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+            try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+            try { (await import("./features/life.js")).init?.(); } catch (_) {}
+            try { (await import("./battle.js")).renderBattle?.(); } catch (_) {}
         }
 
     } catch (e) {

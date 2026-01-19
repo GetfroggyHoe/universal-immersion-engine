@@ -1,5 +1,6 @@
 import { getSettings } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
+import { esc } from "./utils.js";
 
 const MAX_ENTRIES = 250;
 const buffer = [];
@@ -35,19 +36,10 @@ function renderLog() {
     buffer.slice(-MAX_ENTRIES).forEach((e) => {
         const cls = e.type === "fail" ? "log-fail" : e.type === "warn" ? "log-warn" : e.type === "pass" ? "log-pass" : "log-info";
         const line = `[${String(e.ts).replace("T", " ").replace("Z", "")}] ${e.msg}`;
-        el.append(`<div class="${cls}">${escapeHtml(line)}</div>`);
-        if (e.stack) el.append(`<div class="${cls}" style="opacity:0.85; margin-left:12px; white-space:pre-wrap;">${escapeHtml(e.stack)}</div>`);
+        el.append(`<div class="${cls}">${esc(line)}</div>`);
+        if (e.stack) el.append(`<div class="${cls}" style="opacity:0.85; margin-left:12px; white-space:pre-wrap;">${esc(e.stack)}</div>`);
     });
     el.scrollTop(el[0].scrollHeight);
-}
-
-function escapeHtml(s) {
-    return String(s ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
 }
 
 export function getDebugReport() {

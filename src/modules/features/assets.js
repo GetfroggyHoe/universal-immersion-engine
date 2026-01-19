@@ -1,4 +1,6 @@
 import { getSettings } from "../core.js";
+import { esc } from "../utils.js";
+
 export async function init(){
   const s = getSettings(); if(!s) return;
   const list = s.inventory?.assets || [];
@@ -15,12 +17,10 @@ export async function init(){
     $l.append(`
         <div style="padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.03);display:flex;flex-direction:column;">
             ${imgHtml}
-            <div style="font-weight:800;color:#eee;">${escapeHtml(name)}</div>
-            ${a.description ? `<div style="font-size:11px;opacity:0.7;margin-top:4px;white-space:pre-wrap;">${escapeHtml(a.description)}</div>` : ""}
+            <div style="font-weight:800;color:#eee;">${esc(name)}</div>
+            ${a.description ? `<div style="font-size:11px;opacity:0.7;margin-top:4px;white-space:pre-wrap;">${esc(a.description)}</div>` : ""}
         </div>
     `);
   }
 }
-function escapeHtml(s){
-  return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-}
+

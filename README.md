@@ -20,17 +20,16 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Fullscreen inventory shell (mobile-first) with window controls
 - Items tab uses a tight lined RPG grid (no bubble cards) with real slot icons + large item art
 - Edit pencil for character + inventory customization (including per-tab backgrounds)
-- **Scan Chat Log**: One-click analysis of recent SillyTavern messages to find new Items, Skills, Assets, Life Tracker updates, and Equipment changes (scans do not post into the chat).
+- **Scan Chat Log**: One-click analysis of the chat to find new Items, Skills, Assets, Life Tracker updates, and Equipment changes.
 - **Smart Equipment**: Automatically detects when you change clothes/gear in the story and swaps your equipped items (with AI-generated descriptions).
 - **Mobile Optimized**: Equipment tab automatically switches to a focused grid view on mobile, hiding stats/portrait for better usability.
 - **Leveling**: Earn XP and gain Stat Points to manually distribute (STR, DEX, etc.) in the Skills tab.
-- **Rebirth (Level 150+)**: Rebirth resets progression and grants Medallions used for permanent upgrades.
 - **Creation Station**: Immersive in-menu builder for Items, Skills, Assets, and Classes. Includes **AI Image Generation** for visual flair.
 - Gear menu toggles: disable tabs/functions, slot type categorization, leveling, and UI bars/stats
 - Status effects render as icons (no emojis) with smart, on-screen info popovers
 
 ### War Room (Combat Tracking)
-- One-click scan that reads recent messages and converts them into combat state: enemies, hp/max hp, status effects, turn order, and a combat log
+- One-click scan that reads recent chat and converts it into combat state: enemies, hp/max hp, status effects, turn order, and a combat log
 - Optional post-battle rewards: can auto-generate items/currency/xp when combat ends (toggleable)
 - Optional dice rolling (default OFF): when enabled, rolls inject into chat so the next AI reply can react to outcomes
 
@@ -55,10 +54,6 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Social profiles include a Message action that opens a UIE Messaging thread
 - **Scan Chat Log**: Uses deep analysis to find characters mentioned in the story and add them to your contacts.
 
-### Activities + Stats
-- Activities window (activity loops / timers)
-- Stats window (quick readout of RPG stats and state)
-
 ### Calendar
 - Full event tracking with fantasy/RP date support
 - **Menu Dropdown**: Clean UI with options to Sync Time, Add Events, and Import/Export calendars.
@@ -79,7 +74,7 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Pair it with a fast, low-cost model for most features (chat-driven scanners, map naming, phone replies).
 - Good Turbo-model picks: Kimi K-2 Instruct, Gemini 2.5 Flash.
 - Enable image generation only when you want it (it can be pointed at a Turbo/OpenAI-compatible images endpoint).
-- Local image backends are supported: A1111/SD.Next (`/sdapi/v1/txt2img`) and ComfyUI (`:8188` / `/prompt` with a workflow JSON). UIE can detect the backend and populate Checkpoint / Sampler / Scheduler dropdowns.
+- Local image backends are supported: Stable Diffusion WebUI (`/sdapi/v1/txt2img`) and ComfyUI (`:8188` / `/prompt` with a workflow JSON).
 
 ## Installation
 1. In SillyTavern, open Extensions.
@@ -97,6 +92,5 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 Built to sell immersion: fast to use, hard to break, and story-consistent by design.
 
 ## Dev / Tests
-- No formal test suite is bundled yet. Recommended smoke checks:
-- Load UIE and confirm launcher/menu render
-- Run Scan and confirm state updates (Inventory/War Room/Phone)
+- Databank normalization regression tests:
+  - `node universal-immersion-engine/tests/databankModel.test.js`

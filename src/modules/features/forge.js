@@ -192,7 +192,7 @@ async function craft() {
 
   selectedIds = new Set();
   addLog(`Forged: ${name} (slot ${slotId}) using ${used.map(x => x.name).join(", ")}`);
-  await injectRpEvent(`Forged ${name} using ${used.map(x => x.name).join(", ")}.`, { uie: { type: "forge", item: name } });
+  injectRpEvent("craft", { item: name, materials: used.map(x => x.name).join(", ") });
 }
 
 export function init() {

@@ -1,387 +1,496 @@
-import { getSettings, saveSettings } from "../core.js";
+import { getSettings, commitStateUpdate } from "../core.js";
+import { UnifiedSpine } from "./rp_log.js";
 
-let currentLayerIndex = 2; // ARMOR default
-let currentPage = 0;       // page within layer (3 per side)
-
-const SLOT_LABELS = {
-  // INNER
-  undies: "Undies", socks: "Socks", tattoo: "Tattoo", scar: "Scar",
-  ears: "Ears", face: "Face", ink: "Ink", soul: "Soul",
-
-  // CLOTH
-  shirt: "Shirt", pants: "Pants", vest: "Vest", belt: "Belt",
-  boots: "Boots", gloves: "Gloves", aura: "Aura", bag: "Bag",
-
-  // ARMOR
-  head: "Head", chest: "Chest", legs: "Legs", feet: "Feet",
-  hands: "Hands", shldr: "Shoulder", back: "Back", neck: "Neck",
-
-  // GEAR
-  main: "Main", off: "Off", range: "Range", ammo: "Ammo",
-  r1: "Ring 1", r2: "Ring 2", relic: "Relic", tool: "Tool",
-
-  // Extra utility (kept)
-  trinket: "Trinket", focus: "Focus", quick: "Quick", utility: "Utility",
-};
-
-// Your canonical slot sets (unchanged)
+let layerIndex = 2;
+let pageIndex = 0;
+const PAGE_SIZE = 8;
+ 
 const LAYERS = [
-  { name: "INNER", slots: [
-    { id:"undies", side:"left",  icon:"fa-venus-mars" },
-    { id:"socks",  side:"left",  icon:"fa-socks" },
-    { id:"tattoo", side:"left",  icon:"fa-dragon" },
-    { id:"scar",   side:"left",  icon:"fa-heart-crack" },
-
-    { id:"ears", side:"right", icon:"fa-ear-listen" },
-    { id:"face", side:"right", icon:"fa-face-smile" },
-    { id:"ink",  side:"right", icon:"fa-wand-sparkles" },
-    { id:"soul", side:"right", icon:"fa-ghost" },
-  ]},
-  { name: "CLOTH", slots: [
-    { id:"shirt",  side:"left",  icon:"fa-shirt" },
-    { id:"vest",   side:"left",  icon:"fa-box" },
-    { id:"gloves", side:"left",  icon:"fa-hand" },
-    { id:"aura",   side:"left",  icon:"fa-star" },
-
-    { id:"pants", side:"right", icon:"fa-user" },
-    { id:"belt",  side:"right", icon:"fa-grip-lines" },
-    { id:"boots", side:"right", icon:"fa-shoe-prints" },
-    { id:"bag",   side:"right", icon:"fa-bag-shopping" },
-  ]},
-  { name: "ARMOR", slots: [
-    { id:"head",  side:"left",  icon:"fa-helmet-safety" },
-    { id:"chest", side:"left",  icon:"fa-shield" },
-    { id:"legs",  side:"left",  icon:"fa-person" },
-    { id:"feet",  side:"left",  icon:"fa-shoe-prints" },
-
-    { id:"hands", side:"right", icon:"fa-hand-fist" },
-    { id:"shldr", side:"right", icon:"fa-user-shield" },
-    { id:"back",  side:"right", icon:"fa-feather" },
-    { id:"neck",  side:"right", icon:"fa-link" },
-  ]},
-  { name: "GEAR", slots: [
-    // left (6)
-    { id:"main",  side:"left",  icon:"fa-khanda" },
-    { id:"off",   side:"left",  icon:"fa-shield-halved" },
-    { id:"range", side:"left",  icon:"fa-bow-arrow" },
-    { id:"ammo",  side:"left",  icon:"fa-bullseye" },
-    { id:"tool",  side:"left",  icon:"fa-screwdriver-wrench" },
-    { id:"relic", side:"left",  icon:"fa-gem" },
-
-    // right (6)
-    { id:"r1",      side:"right", icon:"fa-ring" },
-    { id:"r2",      side:"right", icon:"fa-ring" },
-    { id:"trinket", side:"right", icon:"fa-diamond" },
-    { id:"focus",   side:"right", icon:"fa-wand-sparkles" },
-    { id:"quick",   side:"right", icon:"fa-bolt" },
-    { id:"utility", side:"right", icon:"fa-toolbox" },
-  ]},
-];
-
-/**
- * Immersion padding:
- * When a layer side has < 3 slots on the current page, we pad it with other
- * thematic slots (ink/soul/etc) so page 2 doesn't feel empty on mobile.
- *
- * This does NOT remove your slot types — it only displays extra slots as "bonus views".
- */
-const FILLERS = {
-  // Armor page 2 feels empty -> show spiritual/cosmetic slots as immersion
-  ARMOR: {
-    left:  ["tattoo","scar","undies","socks","shirt","belt"],
-    right: ["ink","soul","ears","face","aura","bag"],
+  {
+    name: "INNER",
+    slots: [
+      { id: "undies", icon: "fa-venus-mars" },
+      { id: "socks", icon: "fa-socks" },
+      { id: "tattoo", icon: "fa-dragon" },
+      { id: "scar", icon: "fa-heart-crack" },
+      { id: "ears", icon: "fa-ear-listen" },
+      { id: "face", icon: "fa-face-smile" },
+      { id: "ink", icon: "fa-wand-sparkles" },
+      { id: "soul", icon: "fa-ghost" }
+    ]
   },
-  // Cloth page 2 feels empty -> show body/ritual slots as immersion
-  CLOTH: {
-    left:  ["tattoo","scar","undies","socks","head","neck"],
-    right: ["ink","soul","ears","face","relic","r1"],
+  {
+    name: "CLOTH",
+    slots: [
+      { id: "shirt", icon: "fa-shirt" },
+      { id: "pants", icon: "fa-user" },
+      { id: "vest", icon: "fa-box" },
+      { id: "belt", icon: "fa-grip-lines" },
+      { id: "boots", icon: "fa-shoe-prints" },
+      { id: "gloves", icon: "fa-hand" },
+      { id: "bag", icon: "fa-bag-shopping" },
+      { id: "cloak", icon: "fa-feather" }
+    ]
   },
-  // Optional (not really needed, but keeps symmetry if you ever change paging)
-  INNER: {
-    left:  ["shirt","vest","gloves"],
-    right: ["pants","belt","boots"],
+  {
+    name: "ARMOR",
+    slots: [
+      { id: "head", icon: "fa-helmet-safety" },
+      { id: "chest", icon: "fa-shield" },
+      { id: "legs", icon: "fa-person" },
+      { id: "feet", icon: "fa-shoe-prints" },
+      { id: "hands", icon: "fa-hand-fist" },
+      { id: "neck", icon: "fa-link" },
+      { id: "main", icon: "fa-khanda" },
+      { id: "off", icon: "fa-shield-halved" }
+    ]
   },
-  // GEAR already fills 3/3 on both pages, so no fillers needed
-  GEAR: { left: [], right: [] },
-};
-
-// Build icon lookup from every known slot (across layers)
-const ICON_BY_ID = (() => {
-  const map = {};
-  for (const layer of LAYERS) {
-    for (const s of layer.slots) map[s.id] = s.icon;
+  {
+    name: "METAPHYSICAL",
+    slots: [
+      { id: "aura", icon: "fa-star" },
+      { id: "origin", icon: "fa-compass" },
+      { id: "wings", icon: "fa-dove" },
+      { id: "tail", icon: "fa-dragon" },
+      { id: "relic", icon: "fa-gem" },
+      { id: "r1", icon: "fa-ring" },
+      { id: "r2", icon: "fa-ring" },
+      { id: "focus", icon: "fa-wand-sparkles" }
+    ]
   }
-  // Provide sensible icons for any filler ids not already mapped (rare)
-  map.relic = map.relic || "fa-gem";
-  map.r1 = map.r1 || "fa-ring";
-  map.r2 = map.r2 || "fa-ring";
-  return map;
-})();
+];
+ 
+let currentLoadout = null;
 
-function ensureEquipArrays(s) {
-  if (!s.inventory) s.inventory = { items: [], skills: [], assets: [], statuses: [], equipped: [] };
+function ensureEquipment(s) {
+  if (!s.inventory) s.inventory = {};
   if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
   if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
+  if (!s.character) s.character = {};
+  if (!s.character.stats || typeof s.character.stats !== "object") s.character.stats = {};
+  const d = { str:10,dex:10,con:10,int:10,wis:10,cha:10,per:10,luk:10,agi:10,vit:10,end:10,spi:10 };
+  for (const k of Object.keys(d)) {
+    if (!Number.isFinite(Number(s.character.stats[k]))) s.character.stats[k] = d[k];
+  }
+  if (!Array.isArray(s.character.statusEffects)) s.character.statusEffects = [];
+}
+ 
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
-function findEquippedBySlot(equippedArr, slotId) {
-  for (let i = 0; i < equippedArr.length; i++) {
-    if (String(equippedArr[i].slotId) === slotId) return { item: equippedArr[i], index: i };
+function fxIconClass(raw) {
+  const t = String(raw || "").trim().toLowerCase();
+  if (!t) return "fa-circle-dot";
+  if (/(tired|fatigue|exhaust|sleepy|drowsy)/.test(t)) return "fa-bed";
+  if (/(hungry|starving|famished)/.test(t)) return "fa-utensils";
+  if (/(thirst|dehydrat)/.test(t)) return "fa-droplet";
+  if (/(poison|toxic|venom)/.test(t)) return "fa-skull-crossbones";
+  if (/(bleed|hemorr)/.test(t)) return "fa-kit-medical";
+  if (/(injur|wound|hurt|fractur)/.test(t)) return "fa-bandage";
+  if (/(sick|ill|fever|nausea|dizzy|flu)/.test(t)) return "fa-viruses";
+  if (/(infect|zombie|plague)/.test(t)) return "fa-biohazard";
+  if (/(smell|smelly|stink|odor|stinky|reek)/.test(t)) return "fa-wind";
+  if (/(drunk|intoxic|hungover)/.test(t)) return "fa-wine-bottle";
+  if (/(burn|burning|on fire)/.test(t)) return "fa-fire";
+  if (/(cold|frozen|hypotherm|chill)/.test(t)) return "fa-snowflake";
+  if (/(wet|drench|soaked)/.test(t)) return "fa-water";
+  if (/(stress|anxious|panic)/.test(t)) return "fa-brain";
+  if (/(curs|hex)/.test(t)) return "fa-skull";
+  if (/(shield|guard|ward)/.test(t)) return "fa-shield";
+  if (/(invis|hidden|stealth)/.test(t)) return "fa-eye-slash";
+  if (/(grade|gpa|exam|failing|school)/.test(t)) return "fa-graduation-cap";
+  if (/(crumbl|collapse|broken|ruin)/.test(t)) return "fa-house-crack";
+  return "fa-circle-dot";
+}
+
+function fxFindRelatedTracker(s, raw) {
+  const name = String(raw || "").trim().toLowerCase();
+  const trackers = Array.isArray(s?.life?.trackers) ? s.life.trackers : [];
+  if (!name || !trackers.length) return null;
+  const synonyms = [
+    { re: /(tired|fatigue|exhaust|sleepy)/, keys: ["fatigue", "energy", "stamina", "sleep"] },
+    { re: /(smell|smelly|stink|odor|reek)/, keys: ["hygiene", "clean", "odor", "smell"] },
+    { re: /(crumbl|collapse|broken|ruin)/, keys: ["integrity", "condition", "structure", "base", "durability"] },
+    { re: /(grade|gpa|exam|failing|school)/, keys: ["grade", "gpa", "school", "study"] },
+    { re: /(hunger|hungry|starving)/, keys: ["hunger", "food"] },
+    { re: /(thirst|dehydrat)/, keys: ["thirst", "water"] },
+  ];
+  const hinted = synonyms.find(x => x.re.test(name));
+  const tokens = hinted ? hinted.keys : name.split(/[^a-z0-9]+/g).filter(Boolean).slice(0, 6);
+  if (!tokens.length) return null;
+
+  let best = null;
+  let bestScore = 0;
+  for (const tr of trackers) {
+    const tn = String(tr?.name || "").trim().toLowerCase();
+    if (!tn) continue;
+    let score = 0;
+    for (const tok of tokens) {
+      if (!tok) continue;
+      if (tn === tok) score += 4;
+      else if (tn.includes(tok)) score += 2;
+    }
+    if (score > bestScore) { bestScore = score; best = tr; }
+  }
+  return bestScore ? best : null;
+}
+
+function fxRenderPopover(anchorRect, raw, tracker) {
+  let box = document.getElementById("uie-equip-fx-pop");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "uie-equip-fx-pop";
+    box.style.cssText = "position:fixed;z-index:2147483655;max-width:min(360px,92vw);padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,0.12);background:rgba(15,10,8,0.96);color:#fff;font-weight:900;box-sizing:border-box;";
+    document.body.appendChild(box);
+    box.addEventListener("click", () => { try { box.remove(); } catch (_) {} });
+  }
+  box.innerHTML = "";
+  const head = document.createElement("div");
+  head.style.cssText = "display:flex;gap:10px;align-items:center;margin-bottom:10px;";
+  const ico = document.createElement("i");
+  ico.className = `fa-solid ${fxIconClass(raw)}`;
+  ico.style.cssText = "width:18px;text-align:center;opacity:0.95;";
+  const ttl = document.createElement("div");
+  ttl.textContent = String(raw || "");
+  ttl.style.cssText = "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+  head.appendChild(ico);
+  head.appendChild(ttl);
+  box.appendChild(head);
+
+  if (tracker && typeof tracker === "object") {
+    const name = String(tracker?.name || "Tracker");
+    const cur = Number(tracker?.current ?? 0);
+    const max = Math.max(1, Number(tracker?.max ?? 100));
+    const color = String(tracker?.color || "#89b4fa");
+    const pct = Math.max(0, Math.min(100, (cur / max) * 100));
+    const meta = document.createElement("div");
+    meta.textContent = `${name}: ${cur}/${max}`;
+    meta.style.cssText = "opacity:0.78;font-size:12px;letter-spacing:0.2px;margin-bottom:8px;";
+    box.appendChild(meta);
+    const bar = document.createElement("div");
+    bar.style.cssText = "position:relative;height:14px;border-radius:7px;border:1px solid rgba(255,255,255,0.10);background:rgba(0,0,0,0.30);overflow:hidden;";
+    const fill = document.createElement("div");
+    fill.style.cssText = `height:100%;width:${pct}%;background:${color};`;
+    const txt = document.createElement("div");
+    txt.textContent = `${cur}/${max}`;
+    txt.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;color:rgba(255,255,255,0.92);text-shadow:0 1px 2px rgba(0,0,0,0.7);";
+    bar.appendChild(fill);
+    bar.appendChild(txt);
+    box.appendChild(bar);
+  }
+
+  box.style.left = "0px";
+  box.style.top = "0px";
+  box.style.transform = "none";
+  const pad = 8;
+  const br = box.getBoundingClientRect();
+  let left = (anchorRect.left + anchorRect.right) / 2 - br.width / 2;
+  left = Math.max(pad, Math.min(window.innerWidth - br.width - pad, left));
+  let top = anchorRect.bottom + 8;
+  if (top + br.height + pad > window.innerHeight) top = anchorRect.top - br.height - 8;
+  top = Math.max(pad, Math.min(window.innerHeight - br.height - pad, top));
+  box.style.left = `${Math.round(left)}px`;
+  box.style.top = `${Math.round(top)}px`;
+}
+ 
+function findEquipped(s, slotId) {
+  const eq = s.inventory.equipped || [];
+  for (let i = 0; i < eq.length; i++) {
+    if (String(eq[i]?.slotId || "") === slotId) return { item: eq[i], index: i };
   }
   return { item: null, index: -1 };
 }
-
-function splitBySide(layer) {
-  const left = layer.slots.filter(s => s.side === "left");
-  const right = layer.slots.filter(s => s.side === "right");
-  const leftPages = Math.max(1, Math.ceil(left.length / 3));
-  const rightPages = Math.max(1, Math.ceil(right.length / 3));
-  const totalPages = Math.max(leftPages, rightPages);
-  return { left, right, totalPages };
+ 
+function isEditMode() {
+  const root = document.getElementById("uie-inventory-window");
+  return !!root && root.dataset.editMode === "1";
 }
+ 
+function renderTop(s) {
+  $("#equip-layer-name").text(LAYERS[layerIndex]?.name || "ARMOR");
+  $("#equip-edit-chip").css("display", isEditMode() ? "inline-flex" : "none");
 
-// Pads a slice up to 3 slots using immersion fillers (unique per page)
-function padToThree(slice, side, layerName, alreadyUsedIds) {
-  const out = [...slice];
-  const want = 3 - out.length;
-  if (want <= 0) return out;
-
-  const pool = (FILLERS[layerName] && FILLERS[layerName][side]) ? FILLERS[layerName][side] : [];
-  for (const id of pool) {
-    if (out.length >= 3) break;
-    if (alreadyUsedIds.has(id)) continue;
-    alreadyUsedIds.add(id);
-    out.push({ id, side, icon: ICON_BY_ID[id] || "fa-circle-question" });
+  const wrap = $("#equip-status-wrap");
+  if (wrap.length) {
+    wrap.empty();
+    const fx = Array.isArray(s.character.statusEffects) ? s.character.statusEffects : [];
+    if (!fx.length) {
+      wrap.append(`<div class="equip-chip" style="opacity:0.55;">No Status</div>`);
+    } else {
+      fx.slice(0, 10).forEach((x, i) => {
+        const raw = String(x || "").trim().slice(0, 120);
+        const del = isEditMode() ? ` data-act="delStatus" data-idx="${i}"` : "";
+        wrap.append(`<div class="equip-fx-icon" data-fx="${esc(raw)}" title="${esc(raw)}"${del}><i class="fa-solid ${esc(fxIconClass(raw))}"></i></div>`);
+      });
+    }
   }
+}
 
-  // If still short (unlikely), add blank pads (non-interactive)
-  while (out.length < 3) {
-    const pid = `pad_${layerName}_${side}_${out.length}`;
-    alreadyUsedIds.add(pid);
-    out.push({ id: pid, side, icon: "fa-circle" , _pad: true });
+function renderPaperDoll(s) {
+  const url = String(s?.character?.paperDoll || s?.character?.portrait || "");
+  const img = document.getElementById("equip-doll-img");
+  const empty = document.getElementById("equip-doll-empty");
+  if (!img || !empty) return;
+  if (url) {
+    img.src = url;
+    img.style.display = "block";
+    empty.style.display = "none";
+  } else {
+    img.removeAttribute("src");
+    img.style.display = "none";
+    empty.style.display = "block";
   }
-
-  return out;
 }
 
-function ensureUI() {
-  const container = $("#uie-view-equip");
-  if (!container.length) return;
-  if (container.find(".uie-equip-frame").length) return;
-
-  container.html(
-    '<style>' +
-      /* do NOT force #uie-view-equip display (prevents tab hijack) */
-      '#uie-view-equip .uie-equip-frame{width:100% !important; max-width:360px !important; margin:0 auto !important; padding:4px 6px 10px !important;}' +
-
-      '#uie-view-equip .doll-nav{display:flex !important; justify-content:center !important; align-items:center !important; gap:14px !important; padding:6px 0 4px !important;}' +
-      '#uie-view-equip .slot-nav{display:flex !important; justify-content:center !important; align-items:center !important; gap:12px !important; padding:0 0 8px !important; color:#a6adc8 !important; font-size:12px !important;}' +
-      '#uie-view-equip .slot-nav .navbtn{cursor:pointer !important; color:#89b4fa !important; font-size:18px !important; padding:2px 8px !important; user-select:none !important;}' +
-      '#uie-view-equip .slot-nav .navbtn.disabled{opacity:0.35 !important; pointer-events:none !important;}' +
-
-      /* 3 / Doll / 3 */
-      '#uie-view-equip .uie-doll-row{display:grid !important; grid-template-columns: 1fr 140px 1fr !important; gap:10px !important; padding:0 6px 10px !important; align-items:start !important;}' +
-      '#uie-view-equip .uie-doll-col{display:grid !important; grid-auto-rows:min-content !important; gap:8px !important; justify-items:center !important;}' +
-
-      '#uie-view-equip .uie-doll-center{width:140px !important; height:260px !important; display:flex !important; align-items:center !important; justify-content:center !important; pointer-events:none !important;}' +
-      '#uie-view-equip #uie-doll-img{width:100% !important; height:100% !important; object-fit:contain !important; border-radius:16px !important; display:none;}' +
-      '#uie-view-equip .uie-doll-placeholder{width:140px !important; height:260px !important; border-radius:16px !important; opacity:0.15 !important; border:2px dashed rgba(205,214,244,0.35) !important;}' +
-
-      '#uie-view-equip .uie-equip-wrap{width:78px !important; display:flex !important; flex-direction:column !important; align-items:center !important; gap:4px !important;}' +
-      '#uie-view-equip .uie-equip-slot{width:52px !important; height:52px !important; border-radius:14px !important; display:flex !important; align-items:center !important; justify-content:center !important; cursor:pointer !important; user-select:none !important; background: var(--bp-surface) !important; border:2px solid transparent !important;}' +
-      '#uie-view-equip .uie-equip-slot.filled{border:2px solid var(--bp-accent) !important; background:#1e1e2e !important; box-shadow:0 0 8px rgba(137,180,250,0.18) !important;}' +
-      '#uie-view-equip .uie-equip-slot.pad{opacity:0.20 !important; cursor:default !important;}' +
-      '#uie-view-equip .uie-slot-label{font-size:10px !important; line-height:1 !important; color:#a6adc8 !important; text-align:center !important; max-width:78px !important; white-space:nowrap !important; overflow:hidden !important; text-overflow:ellipsis !important;}' +
-    '</style>' +
-
-    '<div class="uie-equip-frame">' +
-      '<div class="doll-nav">' +
-        '<div id="btn-layer-prev" style="cursor:pointer;font-size:1.4em;color:#89b4fa;">&lt;</div>' +
-        '<div id="lbl-layer-name" style="font-weight:bold;color:#fff;">ARMOR</div>' +
-        '<div id="btn-layer-next" style="cursor:pointer;font-size:1.4em;color:#89b4fa;">&gt;</div>' +
-      '</div>' +
-
-      '<div class="slot-nav">' +
-        '<div id="btn-page-prev" class="navbtn">&lsaquo;</div>' +
-        '<div id="lbl-page" style="min-width:70px;text-align:center;">1/1</div>' +
-        '<div id="btn-page-next" class="navbtn">&rsaquo;</div>' +
-      '</div>' +
-
-      '<div class="uie-doll-row">' +
-        '<div class="uie-doll-col" id="doll-col-left"></div>' +
-        '<div class="uie-doll-center" id="uie-doll-center">' +
-          '<img id="uie-doll-img" src="" alt="">' +
-          '<div class="uie-doll-placeholder" id="uie-doll-placeholder"></div>' +
-        '</div>' +
-        '<div class="uie-doll-col" id="doll-col-right"></div>' +
-      '</div>' +
-    '</div>'
-  );
+function slotLabel(slotId) {
+  const t = String(slotId || "");
+  return t ? t.toUpperCase().replace(/_/g, " ") : "SLOT";
 }
+ 
+function renderSlots(s) {
+  const layer = LAYERS[layerIndex] || LAYERS[2];
+  const $left = $("#equip-slot-left");
+  const $right = $("#equip-slot-right");
+  if (!$left.length || !$right.length) return;
+  $left.empty();
+  $right.empty();
 
-function renderLayer() {
-  ensureUI();
+  const slots = Array.isArray(layer?.slots) ? layer.slots : [];
+  const pages = Math.max(1, Math.ceil(slots.length / PAGE_SIZE));
+  pageIndex = Math.max(0, Math.min(pages - 1, Number(pageIndex) || 0));
+  $("#equip-page-ind").text(`${pageIndex + 1}/${pages}`);
+  const pager = document.querySelector("#uie-view-equip .equip-page");
+  if (pager) pager.style.display = pages <= 1 ? "none" : "";
 
+  const start = pageIndex * PAGE_SIZE;
+  const slice = slots.slice(start, start + PAGE_SIZE);
+  const half = Math.ceil(slice.length / 2);
+  const leftSlots = slice.slice(0, half);
+  const rightSlots = slice.slice(half);
+
+  const renderSlot = (slot) => {
+    const sid = String(slot.id);
+    const found = findEquipped(s, sid);
+    const it = found.item;
+ 
+    const iconHtml = it?.img
+      ? `<img src="${esc(it.img)}" alt="">`
+      : `<i class="fa-solid ${esc(slot.icon || "fa-square")}"></i>`;
+ 
+    const itemName = it ? esc(it.name || "Equipped") : "Empty";
+    const badges = [];
+ 
+    if (it?.rarity) badges.push(`<span class="equip-badge">${esc(it.rarity)}</span>`);
+    if (it?.type) badges.push(`<span class="equip-badge">${esc(it.type)}</span>`);
+    const fx = Array.isArray(it?.statusEffects) ? it.statusEffects : [];
+    if (fx.length) badges.push(`<span class="equip-badge">${esc(fx.join(", "))}</span>`);
+ 
+    const actions = it
+      ? `<button class="equip-btn danger" data-act="unequip" data-slot="${esc(sid)}">Unequip</button>`
+      : (isEditMode() ? `<button class="equip-btn" data-act="setimg" data-slot="${esc(sid)}">Pick Image</button>` : "");
+ 
+    return `
+      <div class="equip-slot" data-slot="${esc(sid)}">
+        <div class="equip-icon">${iconHtml}</div>
+        <div class="equip-mid">
+          <div class="slot-name">${slotLabel(sid)}</div>
+          <div class="item-name">${itemName}</div>
+          <div class="meta">${badges.join("")}</div>
+        </div>
+        <div class="equip-actions">
+          ${actions}
+        </div>
+      </div>
+    `;
+  };
+
+  leftSlots.forEach(slt => $left.append(renderSlot(slt)));
+  rightSlots.forEach(slt => $right.append(renderSlot(slt)));
+}
+ 
+export function render() {
   const s = getSettings();
   if (!s) return;
-  ensureEquipArrays(s);
-
-  const layer = LAYERS[currentLayerIndex];
-  const pageInfo = splitBySide(layer);
-
-  if (currentPage < 0) currentPage = 0;
-  if (currentPage > pageInfo.totalPages - 1) currentPage = pageInfo.totalPages - 1;
-
-  $("#lbl-layer-name").text(layer.name);
-
-  const showPager = pageInfo.totalPages > 1;
-  $("#btn-page-prev, #btn-page-next, #lbl-page").toggle(showPager);
-  $("#lbl-page").text(`${currentPage + 1}/${pageInfo.totalPages}`);
-  $("#btn-page-prev").toggleClass("disabled", currentPage === 0);
-  $("#btn-page-next").toggleClass("disabled", currentPage >= pageInfo.totalPages - 1);
-
-  const avatar = s.avatar || "";
-  if (avatar) {
-    $("#uie-doll-img").attr("src", avatar).show();
-    $("#uie-doll-placeholder").hide();
-  } else {
-    $("#uie-doll-img").hide();
-    $("#uie-doll-placeholder").show();
-  }
-
-  const leftCol = $("#doll-col-left");
-  const rightCol = $("#doll-col-right");
-  if (!leftCol.length || !rightCol.length) return;
-
-  leftCol.empty();
-  rightCol.empty();
-
-  const equipped = s.inventory.equipped;
-  const start = currentPage * 3;
-
-  let leftSlice = pageInfo.left.slice(start, start + 3);
-  let rightSlice = pageInfo.right.slice(start, start + 3);
-
-  // Only pad when needed (this is what makes page 2 feel immersive)
-  const used = new Set();
-  for (const sl of leftSlice) used.add(sl.id);
-  for (const sr of rightSlice) used.add(sr.id);
-
-  if (leftSlice.length < 3) leftSlice = padToThree(leftSlice, "left", layer.name, used);
-  if (rightSlice.length < 3) rightSlice = padToThree(rightSlice, "right", layer.name, used);
-
-  function makeWrap(slot) {
-    const isPad = !!slot._pad || String(slot.id).startsWith("pad_");
-    const label = isPad ? "—" : (SLOT_LABELS[slot.id] || slot.id);
-
-    let inner = `<i class="fa-solid ${slot.icon}" style="color:#6c7086;font-size:1.25em;"></i>`;
-
-    if (!isPad) {
-      const found = findEquippedBySlot(equipped, slot.id);
-      const eqItem = found.item;
-
-      if (eqItem && eqItem.image) {
-        inner = `<img src="${eqItem.image}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;">`;
-      }
-      return $(`
-        <div class="uie-equip-wrap">
-          <div class="uie-equip-slot ${eqItem ? "filled" : ""}" data-id="${slot.id}">${inner}</div>
-          <div class="uie-slot-label">${label}</div>
-        </div>
-      `);
-    }
-
-    // pad slot (non-clickable)
-    return $(`
-      <div class="uie-equip-wrap">
-        <div class="uie-equip-slot pad">${inner}</div>
-        <div class="uie-slot-label">${label}</div>
-      </div>
-    `);
-  }
-
-  leftSlice.forEach(slot => leftCol.append(makeWrap(slot)));
-  rightSlice.forEach(slot => rightCol.append(makeWrap(slot)));
+  ensureEquip(s);
+  renderTop(s);
+  renderPaperDoll(s);
+  renderSlots(s);
 }
-
+ 
 export function init() {
-  try {
-    $(document)
-      .off("click.uieEquipPrev", "#btn-layer-prev")
-      .on("click.uieEquipPrev", "#btn-layer-prev", (e) => {
-        e.preventDefault();
-        currentLayerIndex = (currentLayerIndex - 1 + LAYERS.length) % LAYERS.length;
-        currentPage = 0;
-        renderLayer();
-      });
+  const s = getSettings();
+  if (!s) return;
+  ensureEquip(s);
+ 
+  $(document)
+    .off("click.uieEquipLayerPrev", "#equip-layer-prev")
+    .on("click.uieEquipLayerPrev", "#equip-layer-prev", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      layerIndex = (layerIndex - 1 + LAYERS.length) % LAYERS.length;
+      pageIndex = 0;
+      render();
+    });
 
-    $(document)
-      .off("click.uieEquipNext", "#btn-layer-next")
-      .on("click.uieEquipNext", "#btn-layer-next", (e) => {
-        e.preventDefault();
-        currentLayerIndex = (currentLayerIndex + 1) % LAYERS.length;
-        currentPage = 0;
-        renderLayer();
-      });
+  $(document)
+    .off("click.uieEquipFx", "#equip-status-wrap .equip-fx-icon")
+    .on("click.uieEquipFx", "#equip-status-wrap .equip-fx-icon", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const act = String($(this).data("act") || "");
+      const idx = Number($(this).data("idx"));
+      const s2 = getSettings();
+      ensureEquip(s2);
+      if (act === "delStatus" && Number.isFinite(idx) && isEditMode()) {
+        const fx = Array.isArray(s2.character.statusEffects) ? s2.character.statusEffects : [];
+        if (idx >= 0 && idx < fx.length) {
+          fx.splice(idx, 1);
+          s2.character.statusEffects = fx;
+          commitStateUpdate({ save: true, layout: false, emit: true });
+          render();
+        }
+        return;
+      }
+      const tip = String(this.getAttribute("title") || "").trim();
+      if (!tip) return;
+      const rect = this.getBoundingClientRect();
+      const tracker = fxFindRelatedTracker(s2, tip);
+      fxRenderPopover(rect, tip, tracker);
+    });
+ 
+  $(document)
+    .off("click.uieEquipLayerNext", "#equip-layer-next")
+    .on("click.uieEquipLayerNext", "#equip-layer-next", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      layerIndex = (layerIndex + 1) % LAYERS.length;
+      pageIndex = 0;
+      render();
+    });
 
-    $(document)
-      .off("click.uieEquipPagePrev", "#btn-page-prev")
-      .on("click.uieEquipPagePrev", "#btn-page-prev", (e) => {
-        e.preventDefault();
-        currentPage -= 1;
-        renderLayer();
-      });
+  $(document)
+    .off("click.uieEquipPagePrev", "#equip-page-prev")
+    .on("click.uieEquipPagePrev", "#equip-page-prev", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      pageIndex = Math.max(0, Number(pageIndex || 0) - 1);
+      render();
+    });
 
-    $(document)
-      .off("click.uieEquipPageNext", "#btn-page-next")
-      .on("click.uieEquipPageNext", "#btn-page-next", (e) => {
-        e.preventDefault();
-        currentPage += 1;
-        renderLayer();
-      });
-
-    $(document)
-      .off("click.uieEquipSlot", "#uie-view-equip .uie-equip-slot")
-      .on("click.uieEquipSlot", "#uie-view-equip .uie-equip-slot", function (e) {
-        e.preventDefault();
-
-        // ignore pad slots
-        if ($(this).hasClass("pad")) return;
-
-        const slotId = String($(this).data("id") || "");
-        if (!slotId) return;
-
-        const s = getSettings();
-        if (!s) return;
-        ensureEquipArrays(s);
-
-        const found = findEquippedBySlot(s.inventory.equipped, slotId);
+  $(document)
+    .off("click.uieEquipPageNext", "#equip-page-next")
+    .on("click.uieEquipPageNext", "#equip-page-next", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      pageIndex = Number(pageIndex || 0) + 1;
+      render();
+    });
+ 
+  $(document)
+    .off("click.uieEquipAct", "#equip-slot-left [data-act], #equip-slot-right [data-act]")
+    .on("click.uieEquipAct", "#equip-slot-left [data-act], #equip-slot-right [data-act]", async function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+ 
+      const act = String($(this).data("act") || "");
+      const slotId = String($(this).data("slot") || "");
+      if (!slotId) return;
+ 
+      const s2 = getSettings();
+      if (!s2) return;
+      ensureEquip(s2);
+ 
+      if (act === "unequip") {
+        const found = findEquipped(s2, slotId);
         if (found.item) {
           const putBack = { ...found.item };
+          const name = String(putBack.name || "Item");
           delete putBack.slotId;
-          s.inventory.equipped.splice(found.index, 1);
-          s.inventory.items.push(putBack);
-          saveSettings();
-          renderLayer();
+          s2.inventory.equipped.splice(found.index, 1);
+          s2.inventory.items.push(putBack);
+          commitStateUpdate({ save: true, layout: false, emit: true });
+          render();
+          UnifiedSpine.handleUnequip({ name }, slotId);
         }
-      });
+        return;
+      }
+ 
+      if (act === "setimg") {
+        if (!isEditMode()) return;
+        const input = document.getElementById("uie-inv-file");
+        if (!input) return;
+        input.value = "";
+        input.onchange = async () => {
+          const f = input.files && input.files[0];
+          if (!f) return;
+          const r = new FileReader();
+          r.onload = () => {
+            const dataUrl = String(r.result || "");
+            const found = findEquipped(s2, slotId);
+            if (found.item) {
+              found.item.img = dataUrl;
+            } else {
+              s2.inventory.equipped.push({ slotId, name: slotLabel(slotId), img: dataUrl, type: "equip", rarity: "common" });
+            }
+            commitStateUpdate({ save: true, layout: false, emit: true });
+            render();
+          };
+          r.readAsDataURL(f);
+        };
+        input.click();
+      }
+    });
 
-    renderLayer();
-  } catch (err) {
-    console.error("[UIE] equipment.js init prevented crash:", err);
-  }
-}
+  $(document)
+    .off("click.uieEquipPickDoll", "#equip-doll-frame")
+    .on("click.uieEquipPickDoll", "#equip-doll-frame", function(e){
+      if (!isEditMode()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const input = document.getElementById("uie-inv-file");
+      if (!input) return;
+      input.value = "";
+      input.onchange = async () => {
+        const f = input.files && input.files[0];
+        if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+          const dataUrl = String(r.result || "");
+          const s2 = getSettings();
+          ensureEquip(s2);
+          if (!s2.character) s2.character = {};
+          s2.character.paperDoll = dataUrl;
+          commitStateUpdate({ save: true, layout: false, emit: true });
+          render();
+        };
+        r.readAsDataURL(f);
+      };
+      input.click();
+    });
 
-export function render() {
-  // Only re-render when the Equip tab is active
-  try {
-    if (!$("#uie-inventory-window .pop-tab[data-tab='equip']").hasClass("active")) return;
-  } catch (e) {
-    // If DOM isn't ready, just bail safely
-    return;
-  }
-
-  try { renderLayer(); }
-  catch (e) { console.error("[UIE] Equipment.render failed", e); }
+  $(document)
+    .off("click.uieEquipStatus", "#equip-status-wrap [data-act='delStatus']")
+    .on("click.uieEquipStatus", "#equip-status-wrap [data-act='delStatus']", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!isEditMode()) return;
+      const idx = Number($(this).data("idx"));
+      const s2 = getSettings();
+      ensureEquip(s2);
+      if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
+      if (idx >= 0 && idx < s2.character.statusEffects.length) {
+        s2.character.statusEffects.splice(idx, 1);
+        commitStateUpdate({ save: true, layout: false, emit: true });
+        render();
+      }
+    });
+ 
+  render();
 }
 

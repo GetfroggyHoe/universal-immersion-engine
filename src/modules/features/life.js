@@ -1,4 +1,5 @@
 import { getSettings, saveSettings } from "../core.js";
+import { esc } from "../utils.js";
 
 let deleteMode = false;
 let selected = new Set();
@@ -163,7 +164,7 @@ function bump(idx, delta) {
   t.current = clamp(Number(t.current ?? 0) + delta, -999999, 999999);
   t.max = clamp(t.max ?? 100, 0, 999999);
 
-  saveSettingssafe(s);
+  saveSafe(s);
   render();
   $(document).trigger("uie:updateVitals");
 }
@@ -199,15 +200,9 @@ function deleteSelected() {
 }
 
 /* avoid rare save failures */
-function RAZ(){}
-
 function saveSafe(s){
   try { saveSettings(s); } catch(e){ console.error("[UIE] saveSettings failed:", e); }
 }
-function saveSettingsSafe(s){ saveSafe(s); }
-function saveSettingsSafes(s){ saveSafe(s); }
-function saveSettingssafes(s){ saveSafe(s); }
-function saveSettingssafe(s){ saveSafe(s); }
 
 export function init() {
   portalModalsToBody();
@@ -313,13 +308,4 @@ export function init() {
       else selected.add(idx);
       render();
     });
-}
-
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g,"&amp;")
-    .replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;")
-    .replace(/"/g,"&quot;")
-    .replace(/'/g,"&#39;");
 }

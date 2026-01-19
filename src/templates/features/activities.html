@@ -1,0 +1,65 @@
+
+<style>
+.uie-act-tab {
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    font-weight: bold;
+}
+.uie-act-tab.active {
+    background: rgba(241, 196, 15, 0.2);
+    border-color: rgba(241, 196, 15, 0.4);
+    color: #f1c40f;
+}
+.uie-act-pane {
+    height: 100%;
+    width: 100%;
+}
+</style>
+<div class="uie-activities-container" style="height:100%; display:flex; flex-direction:column; color:#eee;">
+    <div class="uie-act-tabs" style="display:flex; gap:10px; padding:10px; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.05);">
+        <button class="uie-act-tab active" data-tab="general">General</button>
+        <button class="uie-act-tab" data-tab="life">Life</button>
+        <button class="uie-act-tab" data-tab="skills">Skills</button>
+    </div>
+    
+    <div class="uie-act-content" style="flex:1; overflow:hidden; position:relative;">
+        <!-- General Tab (XP / Activities) -->
+        <div id="uie-act-view-general" class="uie-act-pane" style="overflow:auto; padding:10px;">
+            <div style="margin-bottom:15px; padding:10px; background:rgba(255,255,255,0.03); border-radius:8px;">
+                <div style="font-size:0.8em; text-transform:uppercase; opacity:0.6; margin-bottom:5px;">Current Activity</div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div id="uie-activity-current-display" style="font-weight:bold; font-size:1.1em; color:#f1c40f;">Idle</div>
+                    <div id="uie-activity-timer" style="font-family:monospace; opacity:0.8;">--:--</div>
+                </div>
+                <div style="height:6px; background:rgba(0,0,0,0.3); border-radius:3px; overflow:hidden;">
+                    <div id="uie-activity-progress" style="height:100%; width:0%; background:#f1c40f; transition:width 0.2s;"></div>
+                </div>
+                <button id="uie-activity-stop" style="margin-top:10px; width:100%; padding:6px; background:rgba(231, 76, 60, 0.2); border:1px solid rgba(231, 76, 60, 0.4); color:#e74c3c; border-radius:6px; cursor:pointer; display:none;">Stop</button>
+            </div>
+            
+            <div style="font-weight:bold; margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid rgba(255,255,255,0.1);">Available Activities</div>
+            <div id="uie-activities-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+            
+            <div style="margin-top:20px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.1);">
+                <div style="display:flex; gap:8px;">
+                    <input id="uie-activity-new-name" placeholder="New Activity Name" style="flex:1; padding:8px; background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); color:white; border-radius:6px;">
+                    <button id="uie-activity-create" style="padding:8px 12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; border-radius:6px; cursor:pointer;">+</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Life Tab -->
+        <div id="uie-act-view-life" class="uie-act-pane" style="display:none; overflow:hidden;">
+             <!-- Content injected by life.js -->
+        </div>
+        
+        <!-- Skills Tab -->
+        <div id="uie-act-view-skills" class="uie-act-pane" style="display:none; overflow:hidden;">
+             <!-- Content injected by skills.js -->
+        </div>
+    </div>
+</div>

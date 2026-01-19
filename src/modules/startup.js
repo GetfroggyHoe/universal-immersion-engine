@@ -12,22 +12,6 @@ const baseUrl = (() => {
 export async function loadTemplates() {
     // Manually inject launcher to ensure it exists (bypassing fetch failure risks)
     if ($("#uie-launcher").length === 0) {
-        try {
-            setTimeout(() => {
-                try {
-                    const hasMainCss = Array.from(document.styleSheets || []).some(s => String(s?.href || "").includes("/universal-immersion-engine/") && String(s?.href || "").includes("style.css"));
-                    if (hasMainCss) return;
-                    if (document.getElementById("uie-launcher-fallback-style")) return;
-                    const st = document.createElement("style");
-                    st.id = "uie-launcher-fallback-style";
-                    st.textContent = `
-#uie-launcher{position:fixed;right:18px;bottom:18px;width:54px;height:54px;z-index:2147483645;border-radius:18px;border:1px solid rgba(241,196,15,0.35);background:rgba(0,0,0,0.65);cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,0.45)}
-#uie-launcher .uie-launcher-fallback{display:block}
-`;
-                    document.head.appendChild(st);
-                } catch (_) {}
-            }, 550);
-        } catch (_) {}
         // SVG Icon fallback in case image fails
         const launcherHtml = `
             <div id="uie-launcher" title="Open Menu">

@@ -312,6 +312,28 @@ textarea.uie-edit-field { resize: vertical; min-height: 60px; }
         max-width: 95vw !important;
         max-height: 90vh !important;
     }
+
+    /* Mobile Activities/Skills Optimization */
+    .uie-activities-container {
+        height: auto !important;
+        flex: 1;
+        overflow: hidden;
+    }
+    .uie-act-tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+        padding: 5px;
+    }
+    .uie-act-tab {
+        flex: 0 0 auto;
+        padding: 6px 12px;
+        font-size: 0.9em;
+    }
+    #uie-skills-list {
+        grid-template-columns: repeat(2, 1fr) !important; 
+        gap: 8px !important;
+        padding-bottom: 60px;
+    }
 }
 
 /* --- EQUIPMENT PAPER DOLL (Layered) --- */

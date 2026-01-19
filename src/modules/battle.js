@@ -1,10 +1,9 @@
-import { getSettings, commitStateUpdate } from "./core.js";
+import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
-import { injectRpEvent } from "./features/rp_log.js";
+import { UnifiedSpine } from "./features/rp_log.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
-import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
-import { safeJsonParseObject } from "./jsonUtil.js";
+import { esc, simpleHash } from "./utils.js";
 
 let bound = false;
 let observer = null;
@@ -13,36 +12,10 @@ let autoTimer = null;
 let autoInFlight = false;
 let autoLastAt = 0;
 
-function esc(s) {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function simpleHash(str) {
-  let h = 0;
-  const s = String(str || "");
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return String(h);
-}
-
 function ensureBattle(s) {
-  if (!s.battle) s.battle = { auto: false, state: { active: false, enemies: [], turnOrder: [], log: [] } };
-  if (typeof s.battle.auto !== "boolean") s.battle.auto = false;
-  if (!s.battle.state) s.battle.state = { active: false, enemies: [], turnOrder: [], log: [] };
-  if (!s.battle.dice || typeof s.battle.dice !== "object") s.battle.dice = { enabled: false, last: null };
-  if (typeof s.battle.dice.enabled !== "boolean") s.battle.dice.enabled = false;
-  if (!Array.isArray(s.battle.state.enemies)) s.battle.state.enemies = [];
-  if (!Array.isArray(s.battle.state.turnOrder)) s.battle.state.turnOrder = [];
-  if (!Array.isArray(s.battle.state.log)) s.battle.state.log = [];
-  if (!s.ui) s.ui = {};
-  if (!s.ui.notifications || typeof s.ui.notifications !== "object") s.ui.notifications = { css: "", categories: {}, lowHp: { enabled: false, threshold: 0.25, lastWarnAt: 0 }, postBattle: { enabled: false, lastSig: "" } };
-  if (!s.ui.notifications.postBattle || typeof s.ui.notifications.postBattle !== "object") s.ui.notifications.postBattle = { enabled: false, lastSig: "" };
-  if (s.ui.notifications.postBattle.enabled === undefined) s.ui.notifications.postBattle.enabled = false;
-  if (s.ui.notifications.postBattle.lastSig === undefined) s.ui.notifications.postBattle.lastSig = "";
+  if (!s.battle || typeof s.battle !== "object") s.battle = {};
+  const b = s.battle;
+  if (!Array.isArray(b.log)) b.log = [];
 }
 
 async function maybePostBattleRewards(chat) {
@@ -55,7 +28,7 @@ async function maybePostBattleRewards(chat) {
   const sig = simpleHash(String(chat || "").slice(-800));
   if (sig && s.ui.notifications.postBattle.lastSig === sig) return;
   s.ui.notifications.postBattle.lastSig = sig;
-  commitStateUpdate({ save: true, layout: false, emit: true });
+  saveSettings();
 
   if (!s.inventory) s.inventory = { items: [], skills: [], assets: [], statuses: [] };
   if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
@@ -77,8 +50,8 @@ ${String(chat || "").slice(0, 4200)}
 `;
   const res = await generateContent(prompt.slice(0, 6000), "System Check");
   if (!res) return;
-  const obj = safeJsonParseObject(res);
-  if (!obj) return;
+  let obj = null;
+  try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
   if (!obj || typeof obj !== "object") return;
 
   const items = Array.isArray(obj.items) ? obj.items : [];
@@ -112,7 +85,7 @@ ${String(chat || "").slice(0, 4200)}
   }
   if (xpDelta > 0) s.xp = Number(s.xp || 0) + xpDelta;
 
-  commitStateUpdate({ save: true, layout: false, emit: true });
+  saveSettings();
   $(document).trigger("uie:updateVitals");
   try { (await import("./features/items.js")).render?.(); } catch (_) {}
 
@@ -129,11 +102,7 @@ function pct(cur, max) {
   return Math.max(0, Math.min(100, (cur / max) * 100));
 }
 
-async function readChatTail(n = 20) {
-  try {
-    const t = await getChatTranscriptText({ maxMessages: Math.max(1, Number(n || 20)), maxChars: 4200 });
-    if (t) return t;
-  } catch (_) {}
+function readChatTail(n = 20) {
   try {
     let raw = "";
     const $txt = $(".chat-msg-txt");
@@ -141,8 +110,26 @@ async function readChatTail(n = 20) {
       $txt.slice(-n).each(function () { raw += $(this).text() + "\n"; });
       return raw.trim().slice(0, 4200);
     }
-  } catch (_) {}
-  return "";
+    const chatEl = document.querySelector("#chat");
+    if (!chatEl) return "";
+    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-n);
+    for (const m of msgs) {
+      const isUser =
+        m.classList?.contains("is_user") ||
+        m.getAttribute("is_user") === "true" ||
+        m.getAttribute("data-is-user") === "true" ||
+        m.dataset?.isUser === "true";
+      const t =
+        m.querySelector(".mes_text")?.textContent ||
+        m.querySelector(".mes-text")?.textContent ||
+        m.textContent ||
+        "";
+      raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
+    }
+    return raw.trim().slice(0, 4200);
+  } catch (_) {
+    return "";
+  }
 }
 
 function mergeEnemies(existing, incoming) {
@@ -222,15 +209,15 @@ async function scanBattle() {
   if (!s) return;
   ensureBattle(s);
 
-  const chat = await readChatTail(24);
+  const chat = readChatTail(20);
   if (!chat) return;
 
   const prompt = SCAN_TEMPLATES.warroom.battle(chat);
 
   const res = await generateContent(prompt.slice(0, 6000), "System Check");
   if (!res) return;
-  const obj = safeJsonParseObject(res);
-  if (!obj) return;
+  let obj = null;
+  try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
   if (!obj || typeof obj !== "object") {
     notify("error", "Scan failed: AI returned invalid data.", "War Room", "api");
     return;
@@ -248,12 +235,12 @@ async function scanBattle() {
   
   if (!incomingEnemies.length && !obj.active) notify("info", "No combat detected.", "War Room", "api");
 
-  commitStateUpdate({ save: true, layout: false, emit: true });
+  saveSettings();
   renderBattle();
   if (!prevActive && st.active) {
     try {
       const names = (Array.isArray(st.enemies) ? st.enemies : []).map(e => String(e?.name || "").trim()).filter(Boolean).slice(0, 6);
-      injectRpEvent(`[System: Combat Started against ${names.length ? names.join(", ") : "unknown enemies"}.]`);
+      UnifiedSpine.handleBattle("start", { enemies: names });
     } catch (_) {}
   }
   try {
@@ -262,7 +249,7 @@ async function scanBattle() {
       if (!k) continue;
       const prevHp = Number(prevEnemyHp.get(k) || 0);
       const hp = Number(e?.hp || 0);
-      if (prevHp > 0 && hp <= 0) injectRpEvent(`[System: ${String(e?.name || "Enemy")} has been defeated.]`);
+      if (prevHp > 0 && hp <= 0) UnifiedSpine.handleBattle("defeat", { enemy: String(e?.name || "Enemy") });
     }
   } catch (_) {}
   if (prevActive && !st.active) {
@@ -291,7 +278,8 @@ function startAuto() {
         if (autoInFlight) return;
         if (now - autoLastAt < min) return;
         if (s?.generation?.scanOnlyOnGenerateButtons === true) return;
-        const txt = await getRecentChatSnippet(1);
+        const last = $(".chat-msg-txt").last();
+        const txt = last.length ? (last.text() || "") : "";
         const h = simpleHash(txt);
         if (h === lastHash) return;
         lastHash = h;
@@ -350,7 +338,7 @@ export function initBattle() {
     const s = getSettings();
     ensureBattle(s);
     s.battle.auto = !s.battle.auto;
-    commitStateUpdate({ save: true, layout: false, emit: true });
+    saveSettings();
     renderBattle();
   });
 
@@ -359,7 +347,7 @@ export function initBattle() {
     const s = getSettings();
     ensureBattle(s);
     s.battle.dice.enabled = !s.battle.dice.enabled;
-    commitStateUpdate({ save: true, layout: false, emit: true });
+    saveSettings();
     renderBattle();
     notify("info", `Dice influence: ${s.battle.dice.enabled ? "ON" : "OFF"}`, "War Room", "api");
   });
@@ -393,7 +381,7 @@ export function initBattle() {
     const line = `DICE ${res.expr} => ${res.total}${res.rolls.length ? ` [${res.rolls.join(",")}]` : ""}`;
     s.battle.state.log.push(line.slice(0, 180));
     s.battle.dice.last = { ...res, ts: Date.now() };
-    commitStateUpdate({ save: true, layout: false, emit: true });
+    saveSettings();
     renderBattle();
     if (s.battle.dice.enabled) {
       try {
