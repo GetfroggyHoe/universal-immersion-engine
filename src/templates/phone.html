@@ -370,13 +370,14 @@
                             <p><strong>Edit Mode (Pencil):</strong> Click the pencil icon to edit your Name, Class, Level, and stats. It also allows you to delete items or change their properties.</p>
                             <p><strong>Creation Station (Sparkle):</strong> Open the "Creation Station" menu to manually add Items, Skills, Assets, or Classes. 
                                <br>• <em>Image Gen:</em> Check "Generate Image" to automatically create a thumbnail for your new item/skill using the description.
-                               <br>• <em>Scan Chat:</em> Use "Scan Chat Log" to have the AI find loot/items from the recent story.</p>
+                               <br>• <em>Scan Chat:</em> Use "Scan Chat Log" (or the global Scan button) to have the AI find loot/items/skills/assets from recent messages. Scans do not post anything into the chat.</p>
+                            <p><strong>Rebirth:</strong> At Level 150+, a Rebirth option appears in the gear menu. Rebirth resets progression and grants Medallions that power permanent upgrades.</p>
                             <p><strong>Mobile View:</strong> On mobile, the Equipment tab focuses purely on your grid. Portrait and stats are hidden to give you more room.</p>
                         </div>
 
                         <div id="guide-warroom" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
                             <h3 style="color:#e74c3c; margin:0 0 8px 0; border-bottom:1px solid rgba(231,76,60,0.3); padding-bottom:4px;">War Room</h3>
-                            <p><strong>Scanning:</strong> Click "Scan Chat" to analyze the recent roleplay for combatants. The AI will populate enemies, allies, and their HP/Status.</p>
+                            <p><strong>Scanning:</strong> Click "Scan Chat" (or the global Scan button) to analyze recent messages for combatants. The AI will populate enemies, combat state, and a short combat log.</p>
                             <p><strong>Turn Order:</strong> Drag and drop combatants to reorder them.</p>
                             <p><strong>Dice Rolling:</strong> Enable dice in settings to have rolls injected into the chat for the AI to see.</p>
                         </div>
@@ -393,7 +394,7 @@
                         <div id="guide-social" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
                             <h3 style="color:#9b59b6; margin:0 0 8px 0; border-bottom:1px solid rgba(155,89,182,0.3); padding-bottom:4px;">Social & Contacts</h3>
                             <p><strong>Scanning:</strong> Use "Scan Chat Log" in the Social tab to find characters you've met. They will be added to your relationship list.</p>
-                            <p><strong>Contacts:</strong> People in your Social list are automatically added to your Phone Contacts if they have a number generated.</p>
+                            <p><strong>Contacts:</strong> Phone numbers shown or saved in the story are added to Phone Contacts during a scan. Social contacts may also appear if they have known numbers.</p>
                             <p><strong>Manual Add:</strong> You can manually add friends or rivals using the + button.</p>
                         </div>
 
@@ -419,7 +420,7 @@
                         <div id="guide-shop" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
                             <h3 style="color:#f1c40f; margin:0 0 8px 0; border-bottom:1px solid rgba(241,196,15,0.3); padding-bottom:4px;">Shop</h3>
                             <p><strong>Stock:</strong> View available items. Use "Generate Stock" to populate the shop based on the current location/merchant.</p>
-                            <p><strong>Trade:</strong> Buy items with gold or sell your loot. Prices may vary based on your CHA stat.</p>
+                            <p><strong>Per-Chat State:</strong> Shop inventory is stored per-chat, so different chats can have different merchants and stock.</p>
                         </div>
 
                         <div id="guide-crafting" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
@@ -440,7 +441,7 @@
                         <div id="guide-settings" style="padding:10px; border-radius:8px; background:rgba(0,0,0,0.2); margin-bottom:15px;">
                             <h3 style="color:#95a5a6; margin:0 0 8px 0; border-bottom:1px solid rgba(149,165,166,0.3); padding-bottom:4px;">Settings & AI</h3>
                             <p><strong>Turbo API:</strong> For best performance, enable the Turbo API setting and point it to a fast model (like Gemini Flash or Haiku). This powers the background scans (Map, Loot, Phone replies) without slowing down your main chat.</p>
-                            <p><strong>Image Generation:</strong> UIE supports Stable Diffusion (WebUI/ComfyUI) and OpenAI-compatible image endpoints. Configure this in the main extension settings to enable image generation for Items, Skills, and Messages.</p>
+                            <p><strong>Image Generation:</strong> UIE supports Stable Diffusion (ComfyUI or A1111/SD.Next) and OpenAI-compatible image endpoints. When you enter a backend URL, UIE attempts to detect the backend and populate Checkpoint / Sampler / Scheduler dropdowns. Use the refresh button after changing URLs.</p>
                         </div>
                         
                         <div style="text-align:center; margin-top:20px; font-style:italic; opacity:0.6;">

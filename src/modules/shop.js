@@ -2,6 +2,7 @@ import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { getChatTranscriptText } from "./chatLog.js";
 
 function ensureShop(s) {
     if (!s.shop) s.shop = {};
@@ -18,10 +19,14 @@ function esc(s) {
         .replace(/'/g, "&#39;");
 }
 
-function chatSnippet() {
+async function chatSnippet() {
+    try {
+        const t = await getChatTranscriptText({ maxMessages: 30, maxChars: 2400 });
+        if (t) return t;
+    } catch (_) {}
     let raw = "";
-    $(".chat-msg-txt").slice(-18).each(function () { raw += $(this).text() + "\n"; });
-    return raw.trim().slice(0, 2000);
+    $(".chat-msg-txt").slice(-24).each(function () { raw += $(this).text() + "\n"; });
+    return raw.trim().slice(0, 2400);
 }
 
 function loreKeys() {
@@ -84,7 +89,7 @@ async function generateCatalog() {
     s.shop.keywords = keys;
     saveSettings();
 
-    const chat = chatSnippet();
+    const chat = await chatSnippet();
     const lore = loreKeys().join(", ");
     const prompt = `
 You are generating a shop catalog for a roleplay UI.

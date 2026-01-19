@@ -2,6 +2,8 @@ import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { SCAN_TEMPLATES } from "./scanTemplates.js";
+import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 
 let bound = false;
 let observer = null;
@@ -126,7 +128,11 @@ function pct(cur, max) {
   return Math.max(0, Math.min(100, (cur / max) * 100));
 }
 
-function readChatTail(n = 20) {
+async function readChatTail(n = 20) {
+  try {
+    const t = await getChatTranscriptText({ maxMessages: Math.max(1, Number(n || 20)), maxChars: 4200 });
+    if (t) return t;
+  } catch (_) {}
   try {
     let raw = "";
     const $txt = $(".chat-msg-txt");
@@ -134,26 +140,8 @@ function readChatTail(n = 20) {
       $txt.slice(-n).each(function () { raw += $(this).text() + "\n"; });
       return raw.trim().slice(0, 4200);
     }
-    const chatEl = document.querySelector("#chat");
-    if (!chatEl) return "";
-    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-n);
-    for (const m of msgs) {
-      const isUser =
-        m.classList?.contains("is_user") ||
-        m.getAttribute("is_user") === "true" ||
-        m.getAttribute("data-is-user") === "true" ||
-        m.dataset?.isUser === "true";
-      const t =
-        m.querySelector(".mes_text")?.textContent ||
-        m.querySelector(".mes-text")?.textContent ||
-        m.textContent ||
-        "";
-      raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-    }
-    return raw.trim().slice(0, 4200);
-  } catch (_) {
-    return "";
-  }
+  } catch (_) {}
+  return "";
 }
 
 function mergeEnemies(existing, incoming) {
@@ -233,7 +221,7 @@ async function scanBattle() {
   if (!s) return;
   ensureBattle(s);
 
-  const chat = readChatTail(20);
+  const chat = await readChatTail(24);
   if (!chat) return;
 
   const prompt = SCAN_TEMPLATES.warroom.battle(chat);
@@ -302,8 +290,7 @@ function startAuto() {
         if (autoInFlight) return;
         if (now - autoLastAt < min) return;
         if (s?.generation?.scanOnlyOnGenerateButtons === true) return;
-        const last = $(".chat-msg-txt").last();
-        const txt = last.length ? (last.text() || "") : "";
+        const txt = await getRecentChatSnippet(1);
         const h = simpleHash(txt);
         if (h === lastHash) return;
         lastHash = h;

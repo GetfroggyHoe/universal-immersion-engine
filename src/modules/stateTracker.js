@@ -1,8 +1,9 @@
-import { getSettings, saveSettings, updateLayout } from "./core.js";
+import { getSettings, saveSettings, updateLayout, emitStateUpdated } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
 import { generateContent } from "./apiClient.js";
 import { notify } from "./notifications.js";
 import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusFx.js";
+import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 
 import { getST } from "./interaction.js";
 
@@ -93,9 +94,10 @@ function stripCssBlocks(text) {
 /**
  * UNIFIED SCANNER: Scans World State, Loot, and Status in ONE call.
  */
-export async function scanEverything() {
+export async function scanEverything(opts = {}) {
     const s = getSettings();
     if (s.enabled === false) return;
+    const force = !!opts?.force;
     ensureState(s);
     const gate = (() => {
         try {
@@ -103,7 +105,7 @@ export async function scanEverything() {
             const now = Date.now();
             const min = Math.max(1000, Number(s?.generation?.autoScanMinIntervalMs || 8000));
             if (g.inFlight) return { ok: false };
-            if (now - Number(g.lastAt || 0) < min) return { ok: false };
+            if (!force && now - Number(g.lastAt || 0) < min) return { ok: false };
             g.inFlight = true;
             g.lastAt = now;
             return { ok: true };
@@ -114,66 +116,13 @@ export async function scanEverything() {
     if (!gate.ok) return;
     try {
 
-    const readChatSnippet = (max) => {
-        try {
-            let raw = "";
-            const $txt = $(".chat-msg-txt");
-            if ($txt.length) {
-                $txt.slice(-1 * Math.max(1, Number(max || 50))).each(function () { raw += stripCssBlocks($(this).text()) + "\n"; });
-                return stripCssBlocks(raw).trim().slice(0, 30000);
-            }
-            const chatEl = document.getElementById("chat");
-            if (!chatEl) return "";
-            const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-1 * Math.max(1, Number(max || 50)));
-            for (const m of msgs) {
-                const isUser =
-                    m.classList?.contains("is_user") ||
-                    m.getAttribute?.("is_user") === "true" ||
-                    m.getAttribute?.("data-is-user") === "true" ||
-                    m.dataset?.isUser === "true";
-                const el = m.querySelector?.(".mes_text") || m.querySelector?.(".mes-text") || null;
-                let t = "";
-                if (el) {
-                    const clone = el.cloneNode(true);
-                    try { clone.querySelectorAll?.("style, script, noscript, template, button, input, textarea").forEach(n => n.remove()); } catch (_) {}
-                    t = (clone.innerText != null ? clone.innerText : clone.textContent) || "";
-                } else {
-                    t = String(m.textContent || "");
-                }
-                t = stripCssBlocks(String(t || "").trim());
-                if (!t) continue;
-                raw += `${isUser ? "You" : "Story"}: ${t}\n`;
-            }
-            return stripCssBlocks(raw).trim().slice(0, 30000);
-        } catch (_) {
-            return "";
-        }
-    };
-
-    const chatSnippet = readChatSnippet(50);
+    const chatSnippet = await getChatTranscriptText({ maxMessages: 80, maxChars: 30000 });
 
     if (!chatSnippet) return;
 
     // --- PHASE 1: FREE REGEX CHECKS (Currency) ---
     // We check the LAST message for instant currency updates (avoids AI cost/latency for simple gold)
-    const lastMsg = (() => {
-        try {
-            const $txt = $(".chat-msg-txt");
-            if ($txt.length) return String($txt.last().text() || "");
-            const chatEl = document.getElementById("chat");
-            if (!chatEl) return "";
-            const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
-            if (!last) return "";
-            return String(
-                last.querySelector?.(".mes_text")?.textContent ||
-                last.querySelector?.(".mes-text")?.textContent ||
-                last.textContent ||
-                ""
-            );
-        } catch (_) {
-            return "";
-        }
-    })();
+    const lastMsg = await getRecentChatSnippet(1);
     const currencyGain = lastMsg.match(/(?:found|received|gained|picked up|looted|loot|earned|rewarded|added)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     const currencyLoss = lastMsg.match(/(?:lost|paid|spent|gave|removed|pay|subtracted)\s+(\d+)\s*(?:gp|gold|credits|coins|silver)/i);
     
@@ -210,6 +159,22 @@ export async function scanEverything() {
     const userName = String(ctx.name1 || "User").trim();
     const charName = String(ctx.name2 || "Character").trim();
 
+    const invNames = (() => {
+        try {
+            const items = Array.isArray(s?.inventory?.items) ? s.inventory.items : [];
+            return Array.from(new Set(items.map(x => String(x?.name || "").trim()).filter(Boolean))).slice(0, 160);
+        } catch (_) {
+            return [];
+        }
+    })();
+    const skillNames = (() => {
+        try {
+            const skills = Array.isArray(s?.inventory?.skills) ? s.inventory.skills : [];
+            return Array.from(new Set(skills.map(x => String(x?.name || "").trim()).filter(Boolean))).slice(0, 160);
+        } catch (_) {
+            return [];
+        }
+    })();
     const prompt = `[UIE_LOCKED]
 Analyze the chat history to update the RPG State.
 Current World: ${JSON.stringify(s.worldState)}
@@ -217,6 +182,8 @@ Current HP: ${Number(s.hp ?? 100)} / ${Number(s.maxHp ?? 100)}
 Current MP: ${Number(s.mp ?? 50)} / ${Number(s.maxMp ?? 50)}
 Life Trackers: ${JSON.stringify((s.life?.trackers || []).slice(0, 30).map(t => ({ name: t.name, current: t.current, max: t.max })))}
 Current Status Effects: ${JSON.stringify((s.character?.statusEffects || []).slice(0, 30))}
+Existing Inventory Items: ${JSON.stringify(invNames)}
+Existing Skills: ${JSON.stringify(skillNames)}
 Existing Social Names: ${JSON.stringify((() => { try { ensureSocial(s); const arr = ["friends","romance","family","rivals"].flatMap(k => (s.social[k] || []).map(p => String(p?.name || "").trim()).filter(Boolean)); return Array.from(new Set(arr)).slice(0, 120); } catch (_) { return []; } })())}
 Deleted Social Names: ${JSON.stringify((() => { try { ensureSocial(s); return (s.socialMeta.deletedNames || []).slice(-120); } catch (_) { return []; } })())}
 
@@ -224,17 +191,22 @@ Task: Return a SINGLE JSON object with these keys:
 1. "world": Update location, threat, status, time, weather.
 2. "inventory": Lists of "added" (items found/acquired/created) and "removed" (items lost/used/given). Ignore currency.
 3. "stats": Integer deltas for "hp" and "mp" (e.g. -10, +5).
-4. "quests": List of new quest objects { "title": "...", "desc": "...", "type": "main|side" } if a NEW quest is explicitly given.
-5. "lore": List of new lore objects { "key": "Term", "entry": "Description" } if NEW important lore is revealed.
-6. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
-7. "life": (optional) { "lifeUpdates":[{"name":"","delta":0,"set":null,"max":null}], "newTrackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}] }
-8. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
-9. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for ANY character present in the scene.
+4. "skills": (optional) { "add":[{"name":"","desc":"","type":"active|passive"}] } for NEW skills learned, purchased, revealed, or used by name.
+5. "assets": (optional) { "add":[{"name":"","desc":"","category":""}] } for NEW titles, deeds, key lore assets, etc.
+6. "quests": List of new quest objects { "title": "...", "desc": "...", "type": "main|side" } if a NEW quest is explicitly given.
+7. "lore": List of new lore objects { "key": "Term", "entry": "Description" } if NEW important lore is revealed.
+8. "messages": List of { "from": "Name", "text": "..." } if a character sends a text message/SMS in the chat.
+9. "phoneNumbers": (optional) [{ "name":"", "number":"" }] if a phone number is shown/saved (e.g. 404-555-0192).
+10. "life": (optional) { "lifeUpdates":[{"name":"","delta":0,"set":null,"max":null}], "newTrackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}] }
+11. "statusEffects": (optional) { "add":[""], "remove":[""] } (NO EMOJIS)
+12. "social": (optional) { "add":[{"name":"","role":"","affinity":50}], "remove":[""] } for ANY character present in the scene.
+13. "battle": (optional) { "active": true|false, "enemies":[{"name":"","hp":null,"status":"","threat":""}], "log":[\"...\"] } when combat happens.
 
 Rules:
 - "inventory": CHECK AGGRESSIVELY. If the user picks up, buys, is given, or creates an item, ADD IT. Even if implied.
 - "added": [{ "name": "Item Name", "type": "item|weapon|armor", "qty": 1, "desc": "Description" }]
 - "removed": ["Item Name"]
+- "skills.add": Only add if it is NEW (not in Existing Skills).
 - "social": Scan for ANY character names in the chat who are not in 'Existing Social Names'. If a character speaks or is described, ADD THEM.
 - "social.add": [{ "name": "Name", "role": "friend|rival|romance|family", "affinity": 50 }]
 - EXCLUDE from social: "${userName}", "System", "Narrator", "Game", "Omniscient", or any metadata card names.
@@ -307,17 +279,74 @@ ${chatSnippet}
             }
         }
 
-        // 3. Stats
-        if (data.stats) {
-            if (!s.stats) s.stats = { hp: 100, maxHp: 100, mp: 50, maxMp: 50, xp: 0, level: 1 };
-            if (data.stats.hp) {
-                s.stats.hp = Math.min(s.stats.maxHp, Math.max(0, s.stats.hp + data.stats.hp));
-                if (data.stats.hp < 0) notify("warning", `${data.stats.hp} HP`, "Damage", "combat");
-                else notify("success", `+${data.stats.hp} HP`, "Healed", "combat");
+        // 3. Stats (HP/MP)
+        if (data.stats && typeof data.stats === "object") {
+            const dhp = Number(data.stats.hp);
+            const dmp = Number(data.stats.mp);
+            if (Number.isFinite(dhp) && dhp !== 0) {
+                const max = Number.isFinite(Number(s.maxHp)) ? Number(s.maxHp) : 100;
+                s.hp = clamp(Number(s.hp ?? max), 0, max);
+                s.hp = clamp(s.hp + dhp, 0, max);
+                if (dhp < 0) notify("warning", `${dhp} HP`, "Damage", "combat");
+                else notify("success", `+${dhp} HP`, "Healed", "combat");
                 needsSave = true;
             }
-            if (data.stats.mp) {
-                s.stats.mp = Math.min(s.stats.maxMp, Math.max(0, s.stats.mp + data.stats.mp));
+            if (Number.isFinite(dmp) && dmp !== 0) {
+                const max = Number.isFinite(Number(s.maxMp)) ? Number(s.maxMp) : 50;
+                s.mp = clamp(Number(s.mp ?? max), 0, max);
+                s.mp = clamp(s.mp + dmp, 0, max);
+                needsSave = true;
+            }
+        }
+
+        // 3.2 Skills
+        if (data.skills && (typeof data.skills === "object" || Array.isArray(data.skills))) {
+            const add = Array.isArray(data.skills) ? data.skills : (Array.isArray(data.skills.add) ? data.skills.add : []);
+            if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
+            const have = new Set(s.inventory.skills.map(x => String(x?.name || "").trim().toLowerCase()).filter(Boolean));
+            let added = 0;
+            for (const sk of add.slice(0, 40)) {
+                const nm = String(sk?.name || "").trim();
+                if (!nm) continue;
+                const key = nm.toLowerCase();
+                if (have.has(key)) continue;
+                s.inventory.skills.push({
+                    kind: "skill",
+                    name: nm,
+                    description: String(sk?.desc || "").trim().slice(0, 1200),
+                    type: String(sk?.type || "active").trim()
+                });
+                have.add(key);
+                added++;
+            }
+            if (added) {
+                notify("success", `Learned ${added} skill(s).`, "Skills", "loot");
+                needsSave = true;
+            }
+        }
+
+        // 3.3 Assets
+        if (data.assets && (typeof data.assets === "object" || Array.isArray(data.assets))) {
+            const add = Array.isArray(data.assets) ? data.assets : (Array.isArray(data.assets.add) ? data.assets.add : []);
+            if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
+            const have = new Set(s.inventory.assets.map(x => String(x?.name || "").trim().toLowerCase()).filter(Boolean));
+            let added = 0;
+            for (const a of add.slice(0, 40)) {
+                const nm = String(a?.name || "").trim();
+                if (!nm) continue;
+                const key = nm.toLowerCase();
+                if (have.has(key)) continue;
+                s.inventory.assets.push({
+                    kind: "asset",
+                    name: nm,
+                    description: String(a?.desc || "").trim().slice(0, 1200),
+                    category: String(a?.category || "").trim().slice(0, 80)
+                });
+                have.add(key);
+                added++;
+            }
+            if (added) {
+                notify("info", `Added ${added} asset(s).`, "Assets", "loot");
                 needsSave = true;
             }
         }
@@ -492,9 +521,69 @@ ${chatSnippet}
             if (added) needsSave = true;
         }
 
+        // 7.5 Phone Numbers
+        if (Array.isArray(data.phoneNumbers)) {
+            if (!s.phone || typeof s.phone !== "object") s.phone = { smsThreads: {}, numberBook: [] };
+            if (!Array.isArray(s.phone.numberBook)) s.phone.numberBook = [];
+            const normalizeNumber = (raw) => String(raw || "").replace(/[^\d+]/g, "").replace(/^1(?=\d{10}$)/, "");
+            const seen = new Set(s.phone.numberBook.map(x => normalizeNumber(x?.number || "")).filter(Boolean));
+            let added = 0;
+            for (const it of data.phoneNumbers.slice(0, 30)) {
+                const nm = String(it?.name || "").trim() || "Unknown";
+                const numRaw = String(it?.number || "").trim();
+                const digits = normalizeNumber(numRaw);
+                if (!digits) continue;
+                if (seen.has(digits)) continue;
+                s.phone.numberBook.push({ name: nm.slice(0, 60), number: numRaw.slice(0, 40), ts: Date.now() });
+                seen.add(digits);
+                added++;
+            }
+            if (added) {
+                notify("success", `Saved ${added} contact(s).`, "Phone", "phoneCalls");
+                needsSave = true;
+            }
+        }
+
+        // 8. Battle
+        if (data.battle && typeof data.battle === "object") {
+            if (!s.battle || typeof s.battle !== "object") s.battle = { auto: false, state: { active: false, enemies: [], turnOrder: [], log: [] } };
+            if (!s.battle.state || typeof s.battle.state !== "object") s.battle.state = { active: false, enemies: [], turnOrder: [], log: [] };
+            if (typeof data.battle.active === "boolean") s.battle.state.active = data.battle.active;
+            if (Array.isArray(data.battle.enemies)) {
+                const normEnemies = data.battle.enemies
+                    .map(e => ({
+                        name: String(e?.name || "").trim(),
+                        hp: (e?.hp === null || e?.hp === undefined) ? null : Number(e.hp),
+                        status: String(e?.status || "").trim().slice(0, 60),
+                        threat: String(e?.threat || "").trim().slice(0, 60)
+                    }))
+                    .filter(e => e.name)
+                    .slice(0, 12);
+                if (!Array.isArray(s.battle.state.enemies)) s.battle.state.enemies = [];
+                s.battle.state.enemies = normEnemies;
+                needsSave = true;
+            }
+            if (Array.isArray(data.battle.log)) {
+                if (!Array.isArray(s.battle.state.log)) s.battle.state.log = [];
+                for (const line of data.battle.log.slice(0, 10)) {
+                    const t = String(line || "").trim();
+                    if (!t) continue;
+                    s.battle.state.log.push(t.slice(0, 200));
+                }
+                s.battle.state.log = s.battle.state.log.slice(-120);
+                needsSave = true;
+            }
+        }
+
         if (needsSave) {
             saveSettings();
             updateLayout();
+            emitStateUpdated();
+            try { (await import("./features/items.js")).render?.(); } catch (_) {}
+            try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+            try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+            try { (await import("./features/life.js")).init?.(); } catch (_) {}
+            try { (await import("./battle.js")).renderBattle?.(); } catch (_) {}
         }
 
     } catch (e) {

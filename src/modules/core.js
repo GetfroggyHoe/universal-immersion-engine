@@ -19,7 +19,9 @@ export const SETTINGS_DEFAULT = {
     hearts: 5,
     maxHearts: 5,
     map: { mode: "procedural", html: "", data: null, seed: "", scope: "local", prompt: "", location: "Unknown", marker: { x: 0.5, y: 0.5 } },
-    menuHidden: { inventory:false, shop:false, journal:false, diary:false, social:false, party:false, battle:false, phone:false, map:false, calendar:false, databank:false, settings:false, debug:false, world:false, help:false },
+    shop: { catalog: [], keywords: "" },
+    activities: { active: [], loops: [] },
+    menuHidden: { inventory:false, shop:false, journal:false, diary:false, social:false, party:false, battle:false, activities:false, stats:false, phone:false, map:false, calendar:false, databank:false, settings:false, debug:false, world:false, help:false },
     features: { codexEnabled: false, phoneEnabled: true },
     ai: {
         phoneBrowser: true,
@@ -51,7 +53,7 @@ export const SETTINGS_DEFAULT = {
     currency: 150, 
     currencySymbol: "G",   // Custom Symbol
     currencyRate: 0,       // 0 = Disabled, 10 = $10 per 1 Gold
-    inventory: { items: [], skills: [], assets: [], statuses: [] },
+    inventory: { items: [], skills: [], assets: [], statuses: [], equipped: [] },
     journal: { active: [], pending: [], abandoned: [], completed: [], codex: [] },
     social: { friends:[], enemies:[] },
     worldState: { location: "Unknown", threat: "None", status: "Normal", time: "Day", weather: "Clear", custom: {} },
@@ -118,6 +120,9 @@ export const SETTINGS_DEFAULT = {
 
 export function getSettings() { return extension_settings[EXT_ID]; }
 export function saveSettings() { saveSettingsDebounced(); }
+export function emitStateUpdated() {
+    try { $(document).trigger("uie:stateUpdated"); } catch (_) {}
+}
 
 const CHAT_SCOPED_KEYS = [
     "permadeath",
@@ -127,7 +132,9 @@ const CHAT_SCOPED_KEYS = [
     "currency", "currencySymbol",
     "map",
     "inventory",
+    "shop",
     "journal",
+    "activities",
     "party",
     "worldState",
     "memories",
@@ -363,6 +370,7 @@ export function sanitizeSettings() {
     if (!s.image.comfy || typeof s.image.comfy !== "object") s.image.comfy = { ...SETTINGS_DEFAULT.image.comfy };
     if (typeof s.image.comfy.workflow !== "string") s.image.comfy.workflow = String(s.image.comfy.workflow || "");
     if (typeof s.image.comfy.checkpoint !== "string") s.image.comfy.checkpoint = String(s.image.comfy.checkpoint || "");
+    if (String(s.image.comfy.checkpoint || "").trim() === "[object Object]") s.image.comfy.checkpoint = "";
     if (typeof s.image.comfy.quality !== "string") s.image.comfy.quality = String(s.image.comfy.quality || "balanced");
     if (typeof s.image.comfy.positiveNodeId !== "string") s.image.comfy.positiveNodeId = String(s.image.comfy.positiveNodeId || "");
     if (typeof s.image.comfy.negativeNodeId !== "string") s.image.comfy.negativeNodeId = String(s.image.comfy.negativeNodeId || "");
@@ -430,6 +438,18 @@ export function sanitizeSettings() {
 
     if (!s.inventory) s.inventory = SETTINGS_DEFAULT.inventory;
     if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+    if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
+    if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
+    if (!Array.isArray(s.inventory.statuses)) s.inventory.statuses = [];
+    if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
+
+    if (!s.shop || typeof s.shop !== "object") s.shop = { ...SETTINGS_DEFAULT.shop };
+    if (!Array.isArray(s.shop.catalog)) s.shop.catalog = [];
+    if (typeof s.shop.keywords !== "string") s.shop.keywords = String(s.shop.keywords || "");
+
+    if (!s.activities || typeof s.activities !== "object") s.activities = { ...SETTINGS_DEFAULT.activities };
+    if (!Array.isArray(s.activities.active)) s.activities.active = [];
+    if (!Array.isArray(s.activities.loops)) s.activities.loops = [];
     const symRaw = (typeof s.currencySymbol === "string") ? s.currencySymbol.trim() : "";
     const sym = symRaw || SETTINGS_DEFAULT.currencySymbol || "G";
     const curFromSetting = Number(s.currency);

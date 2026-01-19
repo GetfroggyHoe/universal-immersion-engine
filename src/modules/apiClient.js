@@ -3,6 +3,7 @@ import { getSettings } from "./core.js";
 import { getContext } from "../../../../../extensions.js";
 import { buildSystemPrompt, consumePendingSystemEvents, validateResponse } from "./logicEnforcer.js";
 import { notify } from "./notifications.js";
+import { getChatTranscriptText } from "./chatLog.js";
 
 function ensureConfirmModal() {
     if ($("#uie-ai-confirm").length) return;
@@ -38,31 +39,10 @@ function ensureConfirmModal() {
     `);
 }
 
-function chatLogCheck() {
+async function chatLogCheck() {
     try {
-        let raw = "";
-        const $txt = $(".chat-msg-txt");
-        if ($txt.length) {
-            $txt.slice(-20).each(function () { raw += $(this).text() + "\n"; });
-            return raw.trim().slice(0, 2600);
-        }
-        const chatEl = document.querySelector("#chat");
-        if (!chatEl) return "";
-        const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
-        for (const m of msgs) {
-            const isUser =
-                m.classList?.contains("is_user") ||
-                m.getAttribute("is_user") === "true" ||
-                m.getAttribute("data-is-user") === "true" ||
-                m.dataset?.isUser === "true";
-            const t =
-                m.querySelector(".mes_text")?.textContent ||
-                m.querySelector(".mes-text")?.textContent ||
-                m.textContent ||
-                "";
-            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-        }
-        return raw.trim().slice(0, 2600);
+        const t = await getChatTranscriptText({ maxMessages: 20, maxChars: 2600 });
+        return String(t || "");
     } catch (_) {
         return "";
     }
@@ -372,8 +352,8 @@ function socialContextCheck() {
     }
 }
 
-function rootProtocolBlock(seedText) {
-    const chat = chatLogCheck();
+async function rootProtocolBlock(seedText) {
+    const chat = await chatLogCheck();
     const lore = loreCheck();
     const worldInfo = worldInfoDetailsCheck();
     const who = userCheck();
@@ -1123,7 +1103,7 @@ export async function generateContent(prompt, type) {
     })();
     const pending = String(consumePendingSystemEvents ? consumePendingSystemEvents() : "").trim();
     const baseWithCustom = `${prefixes}${base}`.trim();
-    const finalPrompt = `${rootProtocolBlock(baseWithCustom)}\n\n${baseWithCustom}${pending ? `\n\n[SYSTEM EVENT]\n${pending}` : ""}`.slice(0, 12000);
+    const finalPrompt = `${await rootProtocolBlock(baseWithCustom)}\n\n${baseWithCustom}${pending ? `\n\n[SYSTEM EVENT]\n${pending}` : ""}`.slice(0, 12000);
 
     if (type === "Webpage") {
         const ok = await confirmAICall({

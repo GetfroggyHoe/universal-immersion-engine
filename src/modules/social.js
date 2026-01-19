@@ -3,6 +3,7 @@ import { generateContent } from "./apiClient.js";
 import { getContext } from "../../../../../extensions.js"; 
 import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { getChatTranscriptText } from "./chatLog.js";
 
 let currentTab = "friends";
 let deleteMode = false;
@@ -38,7 +39,18 @@ function baseUrl() {
     return "/scripts/extensions/third-party/universal-immersion-engine/";
 }
 
-async function ensurePhoneThread(name) {
+function extractJsonText(input) {
+    const raw = String(input || "").replace(/```json|```/g, "").trim();
+    const a = raw.indexOf("{");
+    const b = raw.lastIndexOf("}");
+    if (a >= 0 && b > a) return raw.slice(a, b + 1);
+    const c = raw.indexOf("[");
+    const d = raw.lastIndexOf("]");
+    if (c >= 0 && d > c) return raw.slice(c, d + 1);
+    return raw;
+}
+
+async function ensurePaperTemplate() {
     const nm = String(name || "").trim();
     if (!nm) return;
     try {
@@ -178,7 +190,11 @@ function unforgetDeletedName(s, name) {
     s.socialMeta.deletedNames = (s.socialMeta.deletedNames || []).filter(x => String(x || "").toLowerCase().trim() !== k);
 }
 
-function getChatTranscript(maxMessages) {
+async function getChatTranscript(maxMessages) {
+    try {
+        const t = await getChatTranscriptText({ maxMessages: Math.max(10, Number(maxMessages || 90)), maxChars: 150000 });
+        if (t) return t;
+    } catch (_) {}
     const out = [];
     try {
         const nodes = getChatMessageNodes(maxMessages || 5000);
@@ -315,7 +331,7 @@ async function scanMemoriesForActivePerson() {
     if (!person) return;
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
-    const transcript = getChatTranscript(90);
+    const transcript = await getChatTranscript(90);
     if (!transcript) {
         try { window.toastr?.info?.("No chat transcript found."); } catch (_) {}
         return;
@@ -341,7 +357,7 @@ Rules:
     const res = await generateContent(prompt.slice(0, 16000), "System Check");
     if (!res) return;
     let obj = null;
-    try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
+    try { obj = JSON.parse(extractJsonText(res)); } catch (_) { obj = null; }
     const mems = Array.isArray(obj?.memories) ? obj.memories : [];
     const existing = new Set((person.memories || []).map(m => String(m?.text || "").toLowerCase().replace(/\s+/g, " ").trim()).filter(Boolean));
     let added = 0;
@@ -841,7 +857,7 @@ async function scanChatIntoSocial({ silent } = {}) {
     const deleted = deletedNameSet(s);
 
     // Grab raw text logic
-    const transcript = getChatTranscript(240);
+    const transcript = await getChatTranscript(240);
     if (!transcript) {
         if (!silent) notify("info", "No chat transcript found.", "Social", "social");
         return;
@@ -875,7 +891,7 @@ Rules:
             if (!silent) notify("warning", "AI returned no response.", "Social", "api");
             return;
         }
-        const obj = JSON.parse(String(res || "").replace(/```json|```/g, "").trim());
+        const obj = JSON.parse(extractJsonText(res));
         found = Array.isArray(obj?.found) ? obj.found : [];
     } catch (e) {
         console.warn("Social Scan Parse Error", e);

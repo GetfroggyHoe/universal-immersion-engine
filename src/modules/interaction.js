@@ -312,7 +312,7 @@ export function initInteractions() {
         btn.style.cssText = "margin:4px; padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); background:rgba(203,163,92,0.16); color:#cba35c; font-weight:900; cursor:pointer;";
         btn.addEventListener("click", async (e) => {
             e.preventDefault(); e.stopPropagation();
-            try { await scanEverything(); } catch (_) {}
+            try { await scanEverything({ force: true }); } catch (_) {}
         });
         try {
             const anchor = document.querySelector("#continue_but") || document.querySelector("#regenerate_but");
@@ -550,6 +550,157 @@ export function initInteractions() {
                 }
             }
         } catch (_) {}
+    };
+
+    const buildCorsProxyCandidates = (targetUrl) => {
+        const u = String(targetUrl || "").trim();
+        if (!u) return [];
+        const enc = encodeURIComponent(u);
+        const out = [];
+        const add = (x) => { if (x && !out.includes(x)) out.push(x); };
+        add(`/api/proxy?url=${enc}`);
+        add(`/proxy?url=${enc}`);
+        add(`/api/cors-proxy?url=${enc}`);
+        add(`/cors-proxy?url=${enc}`);
+        add(`/api/corsProxy?url=${enc}`);
+        add(`/corsProxy?url=${enc}`);
+        add(`/api/proxy/${enc}`);
+        add(`/proxy/${enc}`);
+        add(`/api/cors-proxy/${enc}`);
+        add(`/cors-proxy/${enc}`);
+        add(`/api/corsProxy/${enc}`);
+        add(`/corsProxy/${enc}`);
+        return out;
+    };
+
+    const isFailedToFetchError = (e) => {
+        const m = String(e?.message || e || "").toLowerCase();
+        return m.includes("failed to fetch") || m.includes("networkerror") || m.includes("load failed");
+    };
+
+    const tryJson = async (url) => {
+        try {
+            const r = await fetch(url, { method: "GET" });
+            if (!r.ok) return null;
+            return await r.json().catch(() => null);
+        } catch (e) {
+            if (!isFailedToFetchError(e)) return null;
+            for (const proxyUrl of buildCorsProxyCandidates(url)) {
+                try {
+                    const r2 = await fetch(proxyUrl, { method: "GET" });
+                    if (!r2.ok) continue;
+                    return await r2.json().catch(() => null);
+                } catch (_) {}
+            }
+            return null;
+        }
+    };
+
+    const getComfyEnum = (info, nodeName, inputKey) => {
+        try {
+            const entry = info?.[nodeName]?.input?.required?.[inputKey];
+            const options = Array.isArray(entry?.[0]) ? entry[0] : [];
+            return options.map(String).map(x => x.trim()).filter(Boolean);
+        } catch (_) {
+            return [];
+        }
+    };
+
+    const loadA1111 = async (baseUrl) => {
+        const b = String(baseUrl || "").trim().replace(/\/+$/, "");
+        const [models, samplers, schedulers] = await Promise.all([
+            tryJson(`${b}/sdapi/v1/sd-models`).catch(() => []),
+            tryJson(`${b}/sdapi/v1/samplers`).catch(() => []),
+            tryJson(`${b}/sdapi/v1/schedulers`).catch(() => []),
+        ]);
+        return {
+            checkpoints: (models || []).map(m => m?.title || m?.model_name || m?.filename).filter(Boolean).map(x => String(x).trim()).filter(Boolean),
+            samplers: (samplers || []).map(s => s?.name).filter(Boolean).map(x => String(x).trim()).filter(Boolean),
+            schedulers: (schedulers || []).map(s => (typeof s === "string" ? s : (s?.name ?? s))).filter(Boolean).map(x => String(x).trim()).filter(Boolean),
+        };
+    };
+
+    const fillSelect = (sel, items, currentValue = "") => {
+        if (!sel) return;
+        sel.innerHTML = "";
+        const list = Array.from(new Set((Array.isArray(items) ? items : []).map(x => String(x || "").trim()).filter(Boolean))).slice(0, 800);
+        if (!list.length) {
+            const o = document.createElement("option");
+            o.value = "";
+            o.textContent = "(No options detected)";
+            sel.appendChild(o);
+            return;
+        }
+        for (const v of list) {
+            const opt = document.createElement("option");
+            opt.value = v;
+            opt.textContent = v;
+            if (String(v) === String(currentValue)) opt.selected = true;
+            sel.appendChild(opt);
+        }
+        if (currentValue) {
+            const has = list.includes(String(currentValue));
+            if (!has) sel.value = list[0];
+        }
+    };
+
+    const detectBackend = async (baseUrl) => {
+        const b = String(baseUrl || "").trim().replace(/\/+$/, "");
+        const comfyInfo = await tryJson(`${b}/object_info`);
+        if (comfyInfo) return { type: "comfy", info: comfyInfo };
+        const samplers = await tryJson(`${b}/sdapi/v1/samplers`);
+        if (samplers) return { type: "a1111" };
+        return { type: "unknown" };
+    };
+
+    const hydrateImageBackendDropdowns = async (baseUrl, s2, forceRefresh = false) => {
+        const base = String(baseUrl || "").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
+        const ckSel = document.getElementById("uie-img-comfy-ckpt");
+        const saSel = document.getElementById("uie-img-comfy-sampler");
+        const scSel = document.getElementById("uie-img-comfy-scheduler");
+        if (!ckSel || !saSel || !scSel) return;
+
+        const cache = (window.UIE_IMG_BACKEND_CACHE = window.UIE_IMG_BACKEND_CACHE || {});
+        const cached = cache[base];
+        const now = Date.now();
+        const fresh = cached && (now - Number(cached.t || 0) < 5 * 60 * 1000);
+
+        if (!forceRefresh && fresh && cached?.options) {
+            const opts = cached.options;
+            fillSelect(ckSel, opts.checkpoints || [], s2?.image?.comfy?.checkpoint || "");
+            fillSelect(saSel, opts.samplers || [], s2?.image?.comfy?.easy?.sampler || "");
+            fillSelect(scSel, opts.schedulers || [], s2?.image?.comfy?.easy?.scheduler || "");
+            return;
+        }
+
+        ckSel.innerHTML = saSel.innerHTML = scSel.innerHTML = `<option value="">Loading…</option>`;
+        const det = await detectBackend(base);
+        if (det.type === "comfy") {
+            const info = det.info;
+            const checkpoints = getComfyEnum(info, "CheckpointLoaderSimple", "ckpt_name");
+            const samplers = getComfyEnum(info, "KSampler", "sampler_name");
+            const schedulers = getComfyEnum(info, "KSampler", "scheduler");
+            cache[base] = { t: now, type: "comfy", options: { checkpoints, samplers, schedulers } };
+            renderComfyCkpts(checkpoints, s2?.image?.comfy?.checkpoint || "");
+            fillSelect(saSel, samplers, s2?.image?.comfy?.easy?.sampler || "");
+            fillSelect(scSel, schedulers, s2?.image?.comfy?.easy?.scheduler || "");
+            return;
+        }
+        if (det.type === "a1111") {
+            const opts = await loadA1111(base);
+            const fallbackSchedulers = ["karras", "sgm_uniform", "exponential", "ddim_uniform", "normal", "beta", "beta57"];
+            cache[base] = { t: now, type: "a1111", options: { checkpoints: opts.checkpoints, samplers: opts.samplers, schedulers: opts.schedulers?.length ? opts.schedulers : fallbackSchedulers } };
+            renderComfyCkpts(opts.checkpoints, s2?.image?.comfy?.checkpoint || "");
+            fillSelect(saSel, opts.samplers, s2?.image?.comfy?.easy?.sampler || "");
+            fillSelect(scSel, opts.schedulers?.length ? opts.schedulers : fallbackSchedulers, s2?.image?.comfy?.easy?.scheduler || "");
+            return;
+        }
+
+        cache[base] = { t: now, type: "unknown", options: { checkpoints: [], samplers: [], schedulers: [] } };
+        ckSel.innerHTML = `<option value="">(Couldn’t detect backend)</option>`;
+        saSel.innerHTML = `<option value="">(Couldn’t detect backend)</option>`;
+        scSel.innerHTML = `<option value="">(Couldn’t detect backend)</option>`;
+        try { notify("warning", "Couldn’t detect ComfyUI or A1111 backend. Using manual values.", "UIE", "api"); } catch (_) {}
     };
 
     const refreshProfileSelect = (scope, s2) => {
@@ -841,6 +992,12 @@ export function initInteractions() {
             setImg("#uie-img-party", "party");
             setImg("#uie-img-items", "items");
             showImageBlocks(provider);
+            try {
+                if (provider === "comfy") {
+                    const b = String(scope.querySelector("#uie-img-comfy-base")?.value || url || "http://127.0.0.1:8188").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
+                    setTimeout(() => { try { hydrateImageBackendDropdowns(b, getSettings(), false); } catch (_) {} }, 0);
+                }
+            } catch (_) {}
         } catch (_) {}
 
         const ai = s2.ai || {};
@@ -1317,6 +1474,13 @@ export function initInteractions() {
             $("#uie-img-url").val(base);
             $("#uie-img-url-adv").val(base);
             saveSettings();
+            try {
+                if (!$("#uie-img-comfy-block").is(":visible")) return;
+                if (window.UIE_imgBackendHydrateT) clearTimeout(window.UIE_imgBackendHydrateT);
+                window.UIE_imgBackendHydrateT = setTimeout(() => {
+                    try { hydrateImageBackendDropdowns(base, getSettings(), false); } catch (_) {}
+                }, 650);
+            } catch (_) {}
         });
 
     $(document)
@@ -1404,90 +1568,15 @@ export function initInteractions() {
             try {
                 const s2 = getSettings();
                 const base = String($("#uie-img-comfy-base").val() || s2?.image?.url || "http://127.0.0.1:8188").trim().replace(/\/prompt\s*$/i, "").replace(/\/+$/g, "");
-                const url = `${base}/object_info`;
-                const r = await fetch(url, { method: "GET" });
-                if (!r.ok) throw new Error(`HTTP ${r.status}`);
-                const j = await r.json().catch(() => null);
-                const renderSelectList = (id, list, current) => {
-                    try {
-                        const sel = document.getElementById(id);
-                        if (!sel) return;
-                        const cur = String(current || sel.value || "");
-                        const next = Array.from(new Set((Array.isArray(list) ? list : []).map(x => String(x || "").trim()).filter(Boolean)));
-                        if (!next.length) return;
-                        sel.innerHTML = "";
-                        for (const v of next.slice(0, 300)) {
-                            const o = document.createElement("option");
-                            o.value = v;
-                            o.textContent = v;
-                            sel.appendChild(o);
-                        }
-                        const has = next.includes(cur);
-                        sel.value = has ? cur : next[0];
-                    } catch (_) {}
-                };
-                const list = (() => {
-                    const norm = (x) => {
-                        if (!x) return "";
-                        if (typeof x === "string") return x.trim();
-                        const name = x?.name || x?.title || x?.label || x?.id || x?.ckpt_name || x?.checkpoint || "";
-                        return String(name || "").trim();
-                    };
-                    const tryPick = (obj) => {
-                        const node = obj?.CheckpointLoaderSimple || obj?.checkpointloadersimple || null;
-                        const req = node?.input?.required || node?.input?.Required || null;
-                        const ck = req?.ckpt_name || req?.checkpoint || null;
-                        const arr = Array.isArray(ck) ? ck : (Array.isArray(ck?.[0]) ? ck[0] : (Array.isArray(ck?.values) ? ck.values : null));
-                        if (Array.isArray(arr)) return arr.map(norm).filter(Boolean);
-                        return null;
-                    };
-                    const a = tryPick(j);
-                    if (a && a.length) return a;
-                    if (j && typeof j === "object") {
-                        for (const v of Object.values(j)) {
-                            const a2 = tryPick({ CheckpointLoaderSimple: v });
-                            if (a2 && a2.length) return a2;
-                        }
-                    }
-                    return [];
-                })();
-
-                const ks = (() => {
-                    const norm = (x) => (typeof x === "string" ? x.trim() : String(x?.name || x?.label || x || "").trim());
-                    const pick = (node) => {
-                        const req = node?.input?.required || node?.input?.Required || null;
-                        const sampler = req?.sampler_name || null;
-                        const scheduler = req?.scheduler || null;
-                        const toList = (v) => {
-                            const arr = Array.isArray(v) ? v : (Array.isArray(v?.[0]) ? v[0] : (Array.isArray(v?.values) ? v.values : null));
-                            if (!Array.isArray(arr)) return [];
-                            return arr.map(norm).filter(Boolean);
-                        };
-                        return { samplers: toList(sampler), schedulers: toList(scheduler) };
-                    };
-                    const n = j?.KSampler || j?.ksampler || null;
-                    if (n) return pick(n);
-                    if (j && typeof j === "object") {
-                        for (const v of Object.values(j)) {
-                            const cls = String(v?.name || v?.class_type || "").toLowerCase();
-                            if (cls.includes("ksampler") || cls === "ksampler") return pick(v);
-                        }
-                    }
-                    return { samplers: [], schedulers: [] };
-                })();
-
-                window.UIE_COMFY_CKPTS = Array.from(new Set(list)).sort((a, b) => String(a).localeCompare(String(b)));
-                const cur = String(getSettings()?.image?.comfy?.checkpoint || "");
-                renderComfyCkpts(window.UIE_COMFY_CKPTS, cur);
+                await hydrateImageBackendDropdowns(base, s2, true);
                 try {
-                    const s3 = getSettings();
-                    const ez = s3?.image?.comfy?.easy || {};
-                    if (ks.samplers.length) renderSelectList("uie-img-comfy-sampler", ks.samplers, ez.sampler);
-                    if (ks.schedulers.length) renderSelectList("uie-img-comfy-scheduler", ks.schedulers, ez.scheduler);
+                    const cache = window.UIE_IMG_BACKEND_CACHE?.[String(base || "").replace(/\/+$/g, "")];
+                    const t = String(cache?.type || "");
+                    if (t === "comfy") notify("success", "Detected ComfyUI backend.", "UIE", "api");
+                    else if (t === "a1111") notify("success", "Detected A1111/SD.Next backend.", "UIE", "api");
                 } catch (_) {}
-                try { notify("success", `Detected ${window.UIE_COMFY_CKPTS.length} checkpoints.`, "UIE", "api"); } catch (_) {}
             } catch (err) {
-                try { notify("error", `ComfyUI detect failed: ${String(err?.message || err || "Error")}`, "UIE", "api"); } catch (_) {}
+                try { notify("error", `Backend detect failed: ${String(err?.message || err || "Error")}`, "UIE", "api"); } catch (_) {}
             } finally {
                 btn.prop("disabled", false);
             }
@@ -2630,6 +2719,52 @@ export function initInteractions() {
     $(document).on("click.uie", "#uie-btn-social", (e) => { e.stopPropagation(); openWindow("#uie-social-window", "./social.js", "renderSocial"); });
     $(document).on("click.uie", "#uie-btn-party", (e) => { e.stopPropagation(); openWindow("#uie-party-window", "./party.js", "initParty"); });
     $(document).on("click.uie", "#uie-btn-battle", (e) => { e.stopPropagation(); openWindow("#uie-battle-window", "./battle.js", "initBattle"); });
+    $(document).on("click.uie", "#uie-btn-activities", async (e) => {
+        e.stopPropagation();
+        if ($("#uie-activities-window").length === 0) {
+            let root = "";
+            try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+            root = root.replace(/^\/+|\/+$/g, "");
+            const urls = [
+                `${baseUrl}src/templates/activities.html`,
+                `/${root}/src/templates/activities.html`,
+                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/activities.html`
+            ];
+            let html = "";
+            for (const url of urls) {
+                try { html = await fetchTemplateHtml(url); if (html) break; } catch (_) {}
+            }
+            if (!html) {
+                notify("error", "Activities UI failed to load.", "UIE", "api");
+                return;
+            }
+            $("body").append(html);
+        }
+        openWindow("#uie-activities-window", "./features/activities.js", "initActivities");
+    });
+    $(document).on("click.uie", "#uie-btn-stats", async (e) => {
+        e.stopPropagation();
+        if ($("#uie-stats-window").length === 0) {
+            let root = "";
+            try { root = String(window.UIE_BASEPATH || "scripts/extensions/third-party/universal-immersion-engine"); } catch (_) { root = "scripts/extensions/third-party/universal-immersion-engine"; }
+            root = root.replace(/^\/+|\/+$/g, "");
+            const urls = [
+                `${baseUrl}src/templates/stats.html`,
+                `/${root}/src/templates/stats.html`,
+                `/scripts/extensions/third-party/universal-immersion-engine/src/templates/stats.html`
+            ];
+            let html = "";
+            for (const url of urls) {
+                try { html = await fetchTemplateHtml(url); if (html) break; } catch (_) {}
+            }
+            if (!html) {
+                notify("error", "Stats UI failed to load.", "UIE", "api");
+                return;
+            }
+            $("body").append(html);
+        }
+        openWindow("#uie-stats-window", "./features/stats.js", "initStats");
+    });
     $(document).on("click.uie", "#uie-btn-open-phone", (e) => { e.stopPropagation(); openWindow("#uie-phone-window", "./phone.js", "initPhone"); });
     $(document).on("click.uie", "#uie-btn-open-calendar", async (e) => {
         e.stopPropagation();
@@ -3463,6 +3598,8 @@ function applyMenuVisibility() {
         set("uie-btn-social", !!s.menuHidden.social);
         set("uie-btn-party", !!s.menuHidden.party);
         set("uie-btn-battle", !!s.menuHidden.battle);
+        set("uie-btn-activities", !!s.menuHidden.activities);
+        set("uie-btn-stats", !!s.menuHidden.stats);
         set("uie-btn-open-phone", !!s.menuHidden.phone);
         set("uie-btn-open-map", !!s.menuHidden.map);
         set("uie-btn-open-calendar", !!s.menuHidden.calendar);

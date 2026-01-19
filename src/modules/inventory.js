@@ -7,6 +7,8 @@ import { notify, notifyLowHpIfNeeded } from "./notifications.js";
 import { normalizeStatusList, statusName, statusKey, formatRemaining, summarizeMods, computeStatusTotals, applyStatusTickToVitals, parseDurationToMs } from "./statusFx.js";
 import { generateImageAPI } from "./imageGen.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
+import { scanEverything } from "./stateTracker.js";
+import { getChatTranscriptText } from "./chatLog.js";
 
 export const MEDALLIONS = {
     "medallion_water": {
@@ -392,285 +394,10 @@ export async function scanLootAndStatus(force = false) {
     }
 
     if (force) notify("info", "Scanning chat log...", "Inventory", "api");
-
-    // Gather Context
-    let ctx = {};
-    try { ctx = getContext?.() || {}; } catch (_) {}
-
-    const charName = String(s.character?.name || ctx.name1 || "You").trim();
-    const charPersona = String(ctx.persona1 || "").trim();
-
-    let partyContext = "";
-    if (Array.isArray(ctx.characters)) {
-        partyContext = ctx.characters
-            .map(c => `[Character: ${c.name}]\n${c.description || c.persona || "N/A"}`)
-            .join("\n\n");
-    }
-
-    // Transcript (Last 60 messages)
-    const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-60);
-    let transcript = "";
-    for (const m of msgs) {
-        const isUser = m.classList?.contains("is_user") || m.dataset?.isUser === "true";
-        const name = m.querySelector(".ch_name")?.textContent || (isUser ? "You" : "Story");
-        const t = m.querySelector(".mes_text")?.textContent || m.textContent || "";
-        transcript += `${name}: ${String(t || "").trim()}\n`;
-    }
-
-    if (!transcript.trim()) {
-        if (force) notify("warning", "No chat content.", "Inventory", "scan");
-        return;
-    }
-
-    const prompt = `[UIE_LOCKED]
-Analyze the chat log and extract NEW progression elements.
-User: ${charName}
-Persona: ${charPersona}
-Party/Cards:
-${partyContext}
-
-Transcript:
-${transcript}
-
-Task: Return JSON with NEW Items, Skills, Assets, Life/Status Updates, and Equipment Changes.
-1. **Items**: New loot, currency, or unequipped items found/bought.
-2. **Skills**: New skills learned or revealed (for User or Party).
-3. **Assets**: New abstract resources (deeds, titles, knowledge).
-4. **Life**: Updates to life trackers (HP, MP, Stress, etc.). "delta" for changes.
-5. **Equipment**: Clothes/Gear the user is *currently wearing* or *changed into*. Generate detailed descriptions.
-   - If user changes clothes, the old outfit is unequipped (moved to inventory) and the new one is equipped.
-
-Return ONLY JSON:
-{
-  "items": [{"name":"", "type":"item|weapon|currency", "qty":1, "desc":""}],
-  "skills": [{"name":"", "desc":"", "type":"active|passive"}],
-  "assets": [{"name":"", "desc":"", "category":""}],
-  "life": [{"name":"TrackerName", "delta":0, "set":null, "max":null}],
-  "equipped": [{"slotId":"Head|Body|MainHand|OffHand|Accessory", "name":"", "desc":"", "type":"armor|weapon"}]
-}
-`;
-
     try {
-        const res = await generateContent(prompt, "Full Scan");
-        if (!res) {
-            if (force) notify("warning", "No results from AI.", "Inventory", "scan");
-            return;
-        }
-
-        let obj = null;
-        try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) {}
-        if (!obj || typeof obj !== "object") {
-            if (force) notify("error", "Invalid AI response.", "Inventory", "error");
-            return;
-        }
-
-        let changes = 0;
-        ensureModel(s);
-
-        // Process Equipment (First, to handle swaps)
-        if (Array.isArray(obj.equipped)) {
-            if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
-            for (const eq of obj.equipped) {
-                if (!eq.name || !eq.slotId) continue;
-                
-                // Find existing item in this slot
-                const existingIdx = s.inventory.equipped.findIndex(x => x.slotId.toLowerCase() === eq.slotId.toLowerCase());
-                if (existingIdx >= 0) {
-                    // Unequip old item to inventory
-                    const old = s.inventory.equipped[existingIdx];
-                    s.inventory.items.push({
-                        kind: "item",
-                        name: old.name,
-                        type: old.type || "equipment",
-                        description: old.description || old.desc || "",
-                        qty: 1,
-                        rarity: old.rarity || "common",
-                        mods: old.mods || {},
-                        statusEffects: old.statusEffects || []
-                    });
-                    // Remove from equipped
-                    s.inventory.equipped.splice(existingIdx, 1);
-                }
-
-                // Equip new item
-                s.inventory.equipped.push({
-                    slotId: eq.slotId,
-                    name: eq.name,
-                    description: eq.desc || "",
-                    type: eq.type || "equipment",
-                    rarity: "common",
-                    statusEffects: [],
-                    img: ""
-                });
-                changes++;
-            }
-        }
-
-        // Process Items
-        if (Array.isArray(obj.items)) {
-            for (const it of obj.items) {
-                if (!it.name) continue;
-                const exist = s.inventory.items.find(x => x.name === it.name);
-                if (exist) {
-                    exist.qty = (exist.qty || 1) + (it.qty || 1);
-                } else {
-                    s.inventory.items.push({
-                        kind: "item",
-                        name: it.name,
-                        type: it.type || "item",
-                        description: it.desc || "Found item.",
-                        qty: it.qty || 1,
-                        rarity: "common",
-                        mods: {},
-                        statusEffects: []
-                    });
-                }
-                changes++;
-            }
-        }
-
-        // Process Skills
-        if (Array.isArray(obj.skills)) {
-            if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
-            for (const sk of obj.skills) {
-                if (!sk.name) continue;
-                if (s.inventory.skills.some(x => x.name === sk.name)) continue;
-                s.inventory.skills.push({
-                    kind: "skill",
-                    name: sk.name,
-                    description: sk.desc || "",
-                    type: sk.type || "active"
-                });
-                changes++;
-            }
-        }
-
-        // Process Assets
-        if (Array.isArray(obj.assets)) {
-            if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
-            for (const a of obj.assets) {
-                if (!a.name) continue;
-                if (s.inventory.assets.some(x => x.name === a.name)) continue;
-                s.inventory.assets.push({
-                    kind: "asset",
-                    name: a.name,
-                    description: a.desc || "",
-                    category: a.category || ""
-                });
-                changes++;
-            }
-        }
-
-        // Process Life
-        if (Array.isArray(obj.life)) {
-            if (!s.life) s.life = {};
-            if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
-            for (const up of obj.life) {
-                const t = s.life.trackers.find(x => x.name.toLowerCase() === up.name.toLowerCase());
-                if (t) {
-                    if (Number.isFinite(up.set)) t.current = up.set;
-                    else if (Number.isFinite(up.delta)) t.current = (t.current || 0) + up.delta;
-                    if (Number.isFinite(up.max)) t.max = up.max;
-                    changes++;
-                } else {
-                     // Create new if name is valid and it seems like a tracker
-                     if (up.name && (Number.isFinite(up.set) || Number.isFinite(up.delta))) {
-                         s.life.trackers.push({
-                             name: up.name,
-                             current: Number.isFinite(up.set) ? up.set : (up.delta || 10),
-                             max: up.max || 100,
-                             color: "#89b4fa",
-                             notes: "Auto-scanned"
-                         });
-                         changes++;
-                     }
-                }
-            }
-        }
-
-        // Process Equipment
-        if (Array.isArray(obj.equipment)) {
-             if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
-             for (const eq of obj.equipment) {
-                 const slot = String(eq.slot || "").trim().toLowerCase();
-                 const itemName = String(eq.item || "").trim();
-                 if (!slot) continue;
-                 
-                 // Find existing equipped item in this slot
-                 const existingIdx = s.inventory.equipped.findIndex(x => String(x.slotId || "").toLowerCase() === slot);
-                 
-                 // If unequip or equipping new, move existing to inventory
-                 if (existingIdx >= 0) {
-                     const oldItem = s.inventory.equipped[existingIdx];
-                     // Move to inventory
-                     s.inventory.items.push({
-                         kind: "item",
-                         name: oldItem.name,
-                         type: oldItem.type || "equip",
-                         description: oldItem.desc || oldItem.description || "",
-                         qty: 1,
-                         rarity: oldItem.rarity || "common",
-                         mods: oldItem.mods || {},
-                         statusEffects: oldItem.statusEffects || [],
-                         img: oldItem.img || ""
-                     });
-                     s.inventory.equipped.splice(existingIdx, 1);
-                     changes++;
-                 }
-
-                 if (eq.action === "equip" && itemName) {
-                     // Find item in inventory to move to equipped
-                     const invIdx = s.inventory.items.findIndex(x => x.name === itemName);
-                     let itemToEquip = null;
-                     
-                     if (invIdx >= 0) {
-                         itemToEquip = s.inventory.items[invIdx];
-                         if (itemToEquip.qty > 1) itemToEquip.qty--;
-                         else s.inventory.items.splice(invIdx, 1);
-                     } else {
-                         // Create new if not found (AI said we equipped it, so we must have it)
-                         itemToEquip = {
-                             kind: "item",
-                             name: itemName,
-                             type: "equip",
-                             description: "Auto-equipped.",
-                             qty: 1,
-                             rarity: "common"
-                         };
-                     }
-                     
-                     // Add to equipped
-                     s.inventory.equipped.push({
-                         slotId: slot,
-                         name: itemToEquip.name,
-                         type: itemToEquip.type,
-                         rarity: itemToEquip.rarity,
-                         description: itemToEquip.description || itemToEquip.desc || "",
-                         mods: itemToEquip.mods || {},
-                         statusEffects: itemToEquip.statusEffects || [],
-                         img: itemToEquip.img || ""
-                     });
-                     changes++;
-                 }
-             }
-        }
-
-        if (changes > 0) {
-            saveSettings();
-            updateLayout(); // Refreshes currency/stats
-            notify("success", `Scan updated ${changes} element(s).`, "Inventory", "scan");
-            
-            // Reload modules
-            try { (await import("./features/items.js")).render?.(); } catch (_) {}
-            try { (await import("./features/skills.js")).init?.(); } catch (_) {}
-            try { (await import("./features/assets.js")).init?.(); } catch (_) {}
-            try { (await import("./features/life.js")).init?.(); } catch (_) {}
-        } else if (force) {
-            notify("info", "No new changes found.", "Inventory", "scan");
-        }
-
+        await scanEverything({ force: !!force });
     } catch (e) {
-        console.warn("Scan Error", e);
+        try { console.warn("Scan Error", e); } catch (_) {}
         if (force) notify("error", "Scan failed to process.", "Inventory", "error");
     }
 }
@@ -1475,6 +1202,19 @@ export function initInventory() {
     });
 
   $(document)
+    .off("click.uieInvRebirth", "#uie-inv-trigger-rebirth")
+    .on("click.uieInvRebirth", "#uie-inv-trigger-rebirth", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const s2 = getSettings();
+      ensureModel(s2);
+      if (!(Number(s2?.character?.level || 0) >= 150 && !s2?.character?.reborn)) return;
+      const gm = document.getElementById("uie-inv-gear-menu");
+      if (gm) gm.style.display = "none";
+      renderRebirthModal();
+    });
+
+  $(document)
     .off("change.uieInvGearMenu", "#uie-inv-gear-menu input[type='checkbox']")
     .on("change.uieInvGearMenu", "#uie-inv-gear-menu input[type='checkbox']", async function (e) {
       e.preventDefault();
@@ -1551,33 +1291,7 @@ export function initInventory() {
       }
       if (st) st.textContent = "Creating…";
 
-      const chat = (() => {
-        try {
-          let raw = "";
-          const $txt = $(".chat-msg-txt");
-          if ($txt.length) {
-            $txt.slice(-20).each(function () { raw += $(this).text() + "\n"; });
-            return raw.trim().slice(0, 2600);
-          }
-          const chatEl = document.querySelector("#chat");
-          if (!chatEl) return "";
-          const msgs = Array.from(chatEl.querySelectorAll(".mes")).slice(-20);
-          for (const m of msgs) {
-            const isUser =
-              m.classList?.contains("is_user") ||
-              m.getAttribute("is_user") === "true" ||
-              m.getAttribute("data-is-user") === "true" ||
-              m.dataset?.isUser === "true";
-            const t =
-              m.querySelector(".mes_text")?.textContent ||
-              m.querySelector(".mes-text")?.textContent ||
-              m.textContent ||
-              "";
-            raw += `${isUser ? "You" : "Story"}: ${String(t || "").trim()}\n`;
-          }
-          return raw.trim().slice(0, 2600);
-        } catch (_) { return ""; }
-      })();
+      const chat = await getChatTranscriptText({ maxMessages: 30, maxChars: 2600 });
 
       const persona = (() => { try { const ctx = getContext?.(); return String(ctx?.name1 || "You").trim() || "You"; } catch (_) { return "You"; } })();
       const base = desc ? `User request: ${desc}\n\n` : "";
@@ -1613,18 +1327,10 @@ export function initInventory() {
         try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
         if (!obj || typeof obj !== "object") return;
 
-        // --- DIRECT APPLY (Class / Status) ---
         if (kind === "class" || kind === "status") {
-             // ... [Existing Logic for Class/Status - abbreviated for clarity but fully preserved functionality] ...
              if (kind === "class") {
                   if (!s2.character) s2.character = {};
                   if (!s2.character.stats || typeof s2.character.stats !== "object") s2.character.stats = {};
-                  // [Truncated for brevity, assuming we keep logic same as before or copy-paste it back]
-                  // Actually I need to put the FULL logic back here or refactor.
-                  // Since I am replacing the block, I must include the logic.
-                  // I'll reuse the logic from the Read output.
-                  
-                  // ... (Class logic from previous tool output) ...
                   if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
                   if (!Array.isArray(s2.inventory.skills)) s2.inventory.skills = [];
                   if (!Array.isArray(s2.inventory.assets)) s2.inventory.assets = [];
