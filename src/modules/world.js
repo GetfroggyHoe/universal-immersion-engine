@@ -903,54 +903,129 @@ class RealityEngine {
     let menuToggleLock = 0;
 
     const reVv = () => {
+        // NOTE: getBoundingClientRect() is already relative to the *current* viewport in most mobile browsers.
+        // Adding visualViewport offsets can double-apply the offset and effectively pin UI to the top.
         const vv = (typeof window !== "undefined") ? window.visualViewport : null;
         const vw = Number(vv?.width || window.innerWidth || 0);
         const vh = Number(vv?.height || window.innerHeight || 0);
-        const ox = Number(vv?.offsetLeft || 0);
-        const oy = Number(vv?.offsetTop || 0);
-        return { vw, vh, ox, oy };
+        return { vw, vh };
     };
     const reClamp = (v, min, max) => Math.max(min, Math.min(max, v));
     const rePlaceFixed = (el, left, top) => {
         if (!el) return;
-        el.style.position = "fixed";
-        el.style.left = `${Math.round(left)}px`;
-        el.style.top = `${Math.round(top)}px`;
-        el.style.right = "auto";
-        el.style.bottom = "auto";
-        el.style.transform = "none";
+        try { el.style.setProperty("position", "fixed", "important"); } catch (_) { el.style.position = "fixed"; }
+        try { el.style.setProperty("left", `${Math.round(left)}px`, "important"); } catch (_) { el.style.left = `${Math.round(left)}px`; }
+        try { el.style.setProperty("top", `${Math.round(top)}px`, "important"); } catch (_) { el.style.top = `${Math.round(top)}px`; }
+        try { el.style.setProperty("right", "auto", "important"); } catch (_) { el.style.right = "auto"; }
+        try { el.style.setProperty("bottom", "auto", "important"); } catch (_) { el.style.bottom = "auto"; }
+        try { el.style.setProperty("transform", "none", "important"); } catch (_) { el.style.transform = "none"; }
     };
     const reCenterFixedClamped = (el, pad = 10) => {
         if (!el) return;
-        const { vw, vh, ox, oy } = reVv();
+        const { vw, vh } = reVv();
         const r = el.getBoundingClientRect();
         const w = Number(r.width || 320);
         const h = Number(r.height || 260);
-        const left = reClamp(ox + (vw - w) / 2, ox + pad, ox + vw - w - pad);
-        const top = reClamp(oy + (vh - h) / 2, oy + pad, oy + vh - h - pad);
+        const left = reClamp((vw - w) / 2, pad, vw - w - pad);
+        const top = reClamp((vh - h) / 2, pad, vh - h - pad);
         rePlaceFixed(el, left, top);
     };
     const rePlaceNearAnchor = (el, anchorEl, pad = 10) => {
         if (!el) return;
-        const { vw, vh, ox, oy } = reVv();
+        const { vw, vh } = reVv();
         const a = anchorEl?.getBoundingClientRect?.();
         const r = el.getBoundingClientRect();
         const w = Number(r.width || 320);
         const h = Number(r.height || 260);
-        const ar = a || { left: ox + vw / 2, top: oy + vh / 2, width: 0, height: 0, bottom: oy + vh / 2, right: ox + vw / 2 };
+        const ar = a || { left: vw / 2, top: vh / 2, width: 0, height: 0, bottom: vh / 2, right: vw / 2 };
 
         // Prefer above anchor; if not enough room, place below.
-        let left = ox + ar.left + (ar.width / 2) - (w / 2);
-        let top = oy + ar.top - h - 10;
-        const minLeft = ox + pad;
-        const maxLeft = ox + vw - w - pad;
-        const minTop = oy + pad;
-        const maxTop = oy + vh - h - pad;
+        let left = ar.left + (ar.width / 2) - (w / 2);
+        let top = ar.top - h - 10;
+        const minLeft = pad;
+        const maxLeft = vw - w - pad;
+        const minTop = pad;
+        const maxTop = vh - h - pad;
         left = reClamp(left, minLeft, maxLeft);
-        if (top < minTop) top = reClamp(oy + (ar.bottom || (ar.top + ar.height)) + 10, minTop, maxTop);
+        if (top < minTop) top = reClamp((ar.bottom || (ar.top + ar.height)) + 10, minTop, maxTop);
         top = reClamp(top, minTop, maxTop);
         rePlaceFixed(el, left, top);
     };
+
+    const reFitToViewport = (el, pad = 10, opts = {}) => {
+        if (!el) return;
+        const { vw, vh } = reVv();
+        const minH = Number(opts.minH ?? 140);
+        const minW = Number(opts.minW ?? 200);
+        const maxH = Math.max(minH, Math.floor(vh - pad * 2));
+        const maxW = Math.max(minW, Math.floor(vw - pad * 2));
+        try {
+            el.style.setProperty("max-height", `${maxH}px`, "important");
+            el.style.setProperty("max-width", `${maxW}px`, "important");
+            el.style.setProperty("overflow", "auto", "important");
+        } catch (_) {}
+    };
+
+    const reNormalizeQuickModal = (modal) => {
+        if (!modal) return;
+        try {
+            // If any other code mutated styles, force the overlay back to a safe centering baseline.
+            modal.style.setProperty("position", "fixed", "important");
+            modal.style.setProperty("inset", "0", "important");
+            modal.style.setProperty("top", "0", "important");
+            modal.style.setProperty("left", "0", "important");
+            modal.style.setProperty("right", "0", "important");
+            modal.style.setProperty("bottom", "0", "important");
+            modal.style.setProperty("align-items", "center", "important");
+            modal.style.setProperty("justify-content", "center", "important");
+            modal.style.setProperty("padding", "14px", "important");
+            modal.style.setProperty("pointer-events", "auto", "important");
+            modal.style.setProperty("z-index", "2147483647", "important");
+        } catch (_) {}
+        try {
+            const card = modal.firstElementChild;
+            if (card) {
+                reFitToViewport(card, 14, { minH: 160, minW: 260 });
+                try { card.style.setProperty("position", "fixed", "important"); } catch (_) { card.style.position = "fixed"; }
+            }
+        } catch (_) {}
+    };
+
+    const rePulseWhileOpen = (() => {
+        let t = 0;
+        return () => {
+            if (t) return;
+            let n = 0;
+            t = window.setInterval(() => {
+                n++;
+                try {
+                    const menu = document.getElementById("re-st-menu");
+                    if (menu && String(getComputedStyle(menu).display || "") !== "none") {
+                        reFitToViewport(menu, 10, { minH: 120, minW: 240 });
+                        const anchor = document.getElementById("re-q-menu") || document.getElementById("uie-launcher");
+                        rePlaceNearAnchor(menu, anchor, 10);
+                    }
+                } catch (_) {}
+                try {
+                    const modal = document.getElementById("re-quick-modal");
+                    if (modal && String(getComputedStyle(modal).display || "") !== "none") {
+                        reNormalizeQuickModal(modal);
+                        const card = modal.firstElementChild;
+                        if (card) {
+                            reFitToViewport(card, 14, { minH: 160, minW: 260 });
+                            reCenterFixedClamped(card, 10);
+                        }
+                    }
+                } catch (_) {}
+
+                // Run a few times to defeat late style overrides, then stop.
+                if (n >= 12) {
+                    try { window.clearInterval(t); } catch (_) {}
+                    t = 0;
+                }
+            }, 120);
+        };
+    })();
 
     const ensureReViewportWatcher = (() => {
         let on = false;
@@ -971,8 +1046,7 @@ class RealityEngine {
                         const card = modal.firstElementChild;
                         if (card) {
                             // Keep card within visible viewport
-                            card.style.maxHeight = "min(88dvh, 88vh)";
-                            card.style.overflow = "auto";
+                            reFitToViewport(card, 14, { minH: 160, minW: 260 });
                             reCenterFixedClamped(card, 10);
                         }
                     }
@@ -1033,6 +1107,13 @@ class RealityEngine {
         }
         // -----------------------------------------
 
+        // Ensure it's not trapped inside the stage DOM (mobile fixed-position can behave badly in transformed/contained ancestors)
+        try {
+            if (m && m.parentElement !== document.body) {
+                document.body.appendChild(m);
+            }
+        } catch (_) {}
+
         if (!m) {
             console.error("[UIE] Menu element #re-st-menu not found!");
             try { notify("error", "Menu element not found!", "UIE"); } catch (_) {}
@@ -1057,6 +1138,7 @@ class RealityEngine {
             if (isMobile) {
                 // Mobile: place near the menu button, but relative to the VISUAL viewport (keyboard/address-bar safe).
                 const anchor = document.getElementById("re-q-menu") || document.getElementById("uie-launcher");
+                reFitToViewport(m, 10, { minH: 120, minW: 240 });
                 rePlaceNearAnchor(m, anchor, 10);
             } else {
                 // Desktop: position next to the launcher/quick menu button
@@ -1095,6 +1177,7 @@ class RealityEngine {
             
             m.style.visibility = "visible";
             ensureReViewportWatcher();
+            rePulseWhileOpen();
             // try { notify("info", "Menu Opened", "UIE"); } catch (_) {}
         } else {
             m.style.display = "none";
@@ -1137,6 +1220,7 @@ class RealityEngine {
                 }
             } catch (_) {}
             modal.style.display = "flex";
+            reNormalizeQuickModal(modal);
             const l = document.getElementById("re-quick-label"); if(l) l.value = "";
             const i = document.getElementById("re-quick-icon"); if(i) i.value = "";
             const p = document.getElementById("re-quick-prompt"); if(p) p.value = "";
@@ -1145,8 +1229,7 @@ class RealityEngine {
                 const card = modal.firstElementChild;
                 if (card) {
                     card.style.position = "fixed";
-                    card.style.maxHeight = "min(88dvh, 88vh)";
-                    card.style.overflow = "auto";
+                    reFitToViewport(card, 14, { minH: 160, minW: 260 });
                     // Measure after display:flex is applied
                     requestAnimationFrame(() => {
                         try { reCenterFixedClamped(card, 10); } catch (_) {}
@@ -1154,6 +1237,7 @@ class RealityEngine {
                 }
             } catch (_) {}
             ensureReViewportWatcher();
+            rePulseWhileOpen();
         }
     });
 
@@ -1239,10 +1323,24 @@ class RealityEngine {
                         }
                     } catch (_) {}
                     modal.style.display = "flex";
+                    reNormalizeQuickModal(modal);
                     // Reset fields
                     const l = document.getElementById("re-quick-label"); if(l) l.value = "";
                     const i = document.getElementById("re-quick-icon"); if(i) i.value = "";
                     const p = document.getElementById("re-quick-prompt"); if(p) p.value = "";
+
+                    try {
+                        const card = modal.firstElementChild;
+                        if (card) {
+                            card.style.position = "fixed";
+                            reFitToViewport(card, 14, { minH: 160, minW: 260 });
+                            requestAnimationFrame(() => {
+                                try { reCenterFixedClamped(card, 10); } catch (_) {}
+                            });
+                        }
+                    } catch (_) {}
+                    ensureReViewportWatcher();
+                    rePulseWhileOpen();
                 }
             }
             else if (el.classList.contains("re-custom-btn")) {

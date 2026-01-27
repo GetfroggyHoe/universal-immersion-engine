@@ -170,3 +170,17 @@ export function injectSettingsUI() {
     });
     */
 }
+
+try {
+    window.uie = window.uie || {};
+    window.uie.phone = window.uie.phone || {};
+    if (typeof window.uie.phone.openBooksGuide !== "function") {
+        window.uie.phone.openBooksGuide = async (sectionId) => {
+            try {
+                const mod = await import("./phone.js");
+                if (typeof mod?.initPhone === "function") mod.initPhone();
+                if (typeof mod?.openBooksGuide === "function") mod.openBooksGuide(sectionId);
+            } catch (_) {}
+        };
+    }
+} catch (_) {}

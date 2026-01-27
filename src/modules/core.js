@@ -189,6 +189,8 @@ const CHAT_SCOPED_KEYS = [
     "life"
 ];
 
+const FULL_STATE_KEYS = Object.keys(SETTINGS_DEFAULT).filter(k => k !== "chatState");
+
 function deepClone(v) {
     if (v === undefined) return undefined;
     try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
@@ -236,6 +238,69 @@ function snapshotChatState(s) {
         out[k] = deepClone(s[k]);
     }
     return out;
+}
+
+function snapshotFullState(s) {
+    const out = deepClone(s) || {};
+    try { delete out.chatState; } catch (_) { out.chatState = undefined; }
+    return out;
+}
+
+function applyFullState(s, state) {
+    const st0 = state && typeof state === "object" ? deepClone(state) : {};
+    try { delete st0.chatState; } catch (_) { st0.chatState = undefined; }
+
+    const prevChatState = s.chatState;
+    try {
+        for (const k of Object.keys(s)) {
+            if (k === "chatState") continue;
+            try { delete s[k]; } catch (_) { s[k] = undefined; }
+        }
+    } catch (_) {}
+
+    try {
+        for (const [k, v] of Object.entries(st0)) {
+            if (k === "chatState") continue;
+            s[k] = v;
+        }
+    } catch (_) {}
+    if (prevChatState !== undefined) s.chatState = prevChatState;
+
+    try { sanitizeSettings(); } catch (_) {}
+}
+
+function ensureManualSaveStore(s) {
+    if (!s) return { key: "legacy:global", bucket: {} };
+    if (!s.chatState || typeof s.chatState !== "object") s.chatState = { activeKey: "", states: {} };
+    if (typeof s.chatState.legacyKey !== "string") s.chatState.legacyKey = "legacy:global";
+    const key = String(s.chatState.activeKey || s.chatState.legacyKey || "legacy:global");
+    if (!s.chatState.manualSaves || typeof s.chatState.manualSaves !== "object") s.chatState.manualSaves = {};
+    if (!s.chatState.manualSaves[key] || typeof s.chatState.manualSaves[key] !== "object") s.chatState.manualSaves[key] = {};
+    return { key, bucket: s.chatState.manualSaves[key] };
+}
+
+function listManualSaveNames(s) {
+    try {
+        const { bucket } = ensureManualSaveStore(s);
+        return Object.keys(bucket || {}).sort((a, b) => a.localeCompare(b));
+    } catch (_) {
+        return [];
+    }
+}
+
+function refreshStateSaveSelects() {
+    const s = getSettings();
+    const names = listManualSaveNames(s);
+    $(".uie-state-select").each(function () {
+        const sel = this;
+        const cur = String($(sel).val() || "");
+        try {
+            sel.innerHTML = "";
+            sel.appendChild(new Option("(Select Save...)", ""));
+            for (const nm of names) sel.appendChild(new Option(nm, nm));
+            if (cur && names.includes(cur)) $(sel).val(cur);
+        } catch (_) {}
+    });
 }
 
 function applyChatState(s, state, isNewChat = false) {
@@ -304,6 +369,13 @@ export function ensureChatStateLoaded() {
     if (!candidates.length) return;
     const key = candidates.find((k) => s.chatState.states[k]) || candidates[0];
     const cur = String(s.chatState.activeKey || "").trim();
+
+    try {
+        if (!s.chatState.manualSaves || typeof s.chatState.manualSaves !== "object") s.chatState.manualSaves = {};
+        if (!s.chatState.manualSaves[s.chatState.legacyKey] || typeof s.chatState.manualSaves[s.chatState.legacyKey] !== "object") s.chatState.manualSaves[s.chatState.legacyKey] = {};
+        if (!s.chatState.manualSaves[key] || typeof s.chatState.manualSaves[key] !== "object") s.chatState.manualSaves[key] = {};
+        if (cur && (!s.chatState.manualSaves[cur] || typeof s.chatState.manualSaves[cur] !== "object")) s.chatState.manualSaves[cur] = {};
+    } catch (_) {}
 
     // Initial Load (No active key yet)
     if (!cur) {
@@ -1186,6 +1258,204 @@ $("body").on("pointerup click touchstart", "#uie-settings-window .uie-set-tab", 
     container.find("[id^='uie-sw-']").hide();
     container.find(`#uie-sw-${tab}`).show();
 });
+
+let uieLastStateBtnPointerTime = 0;
+
+let uieSettingsApplyLastTouch = 0;
+
+const uieSettingsRoot = (el) => $(el).closest("#uie-settings-window, .uie-settings-block");
+
+$("body")
+    .off("pointerup.uieCustomCssApply click.uieCustomCssApply", "#uie-settings-window #uie-custom-css-apply, .uie-settings-block #uie-custom-css-apply")
+    .on("pointerup.uieCustomCssApply click.uieCustomCssApply", "#uie-settings-window #uie-custom-css-apply, .uie-settings-block #uie-custom-css-apply", function (e) {
+        if (e?.type === "pointerup" && e.pointerType === "touch") {
+            uieSettingsApplyLastTouch = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieSettingsApplyLastTouch < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        if (e?.type === "pointerup" && e.pointerType && e.pointerType !== "touch") return;
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+
+        const root = uieSettingsRoot(this);
+        const s = getSettings();
+        if (!s.ui) s.ui = {};
+        if (!s.ui.css) s.ui.css = {};
+        if (!s.ui.css.targets || typeof s.ui.css.targets !== "object") s.ui.css.targets = {};
+        s.ui.css.global = String(root.find("#uie-custom-css").val() || "");
+        s.ui.css.targets.stats = String(root.find("#uie-custom-css-stats").val() || "");
+        s.ui.css.targets.activities = String(root.find("#uie-custom-css-activities").val() || "");
+        saveSettings();
+        try { updateLayout(); } catch (_) {}
+        try { window.toastr?.success?.("Applied CSS", "UIE"); } catch (_) {}
+    });
+
+$("body")
+    .off("pointerup.uiePopupCssApply click.uiePopupCssApply", "#uie-settings-window #uie-popup-css-apply, .uie-settings-block #uie-popup-css-apply")
+    .on("pointerup.uiePopupCssApply click.uiePopupCssApply", "#uie-settings-window #uie-popup-css-apply, .uie-settings-block #uie-popup-css-apply", function (e) {
+        if (e?.type === "pointerup" && e.pointerType === "touch") {
+            uieSettingsApplyLastTouch = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieSettingsApplyLastTouch < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        if (e?.type === "pointerup" && e.pointerType && e.pointerType !== "touch") return;
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+
+        const root = uieSettingsRoot(this);
+        const s = getSettings();
+        if (!s.ui) s.ui = {};
+        if (!s.ui.notifications || typeof s.ui.notifications !== "object") s.ui.notifications = {};
+        s.ui.notifications.css = String(root.find("#uie-popup-css-text").val() || "");
+        saveSettings();
+        try { updateLayout(); } catch (_) {}
+        try { window.toastr?.success?.("Applied popup CSS", "UIE"); } catch (_) {}
+    });
+
+$("body")
+    .off("pointerup.uiePopupCssReset click.uiePopupCssReset", "#uie-settings-window #uie-popup-css-reset, .uie-settings-block #uie-popup-css-reset")
+    .on("pointerup.uiePopupCssReset click.uiePopupCssReset", "#uie-settings-window #uie-popup-css-reset, .uie-settings-block #uie-popup-css-reset", function (e) {
+        if (e?.type === "pointerup" && e.pointerType === "touch") {
+            uieSettingsApplyLastTouch = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieSettingsApplyLastTouch < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        if (e?.type === "pointerup" && e.pointerType && e.pointerType !== "touch") return;
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+
+        const root = uieSettingsRoot(this);
+        root.find("#uie-popup-css-text").val("");
+        const s = getSettings();
+        if (!s.ui) s.ui = {};
+        if (!s.ui.notifications || typeof s.ui.notifications !== "object") s.ui.notifications = {};
+        s.ui.notifications.css = "";
+        saveSettings();
+        try { updateLayout(); } catch (_) {}
+        try { window.toastr?.success?.("Reset popup CSS", "UIE"); } catch (_) {}
+    });
+
+$("body")
+    .off("pointerup.uiePopupTest click.uiePopupTest", "#uie-settings-window #uie-popup-test, .uie-settings-block #uie-popup-test")
+    .on("pointerup.uiePopupTest click.uiePopupTest", "#uie-settings-window #uie-popup-test, .uie-settings-block #uie-popup-test", function (e) {
+        if (e?.type === "pointerup" && e.pointerType === "touch") {
+            uieSettingsApplyLastTouch = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieSettingsApplyLastTouch < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        if (e?.type === "pointerup" && e.pointerType && e.pointerType !== "touch") return;
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        try { window.toastr?.info?.("This is a test popup.", "UIE"); } catch (_) {}
+    });
+
+try { window.UIE_refreshStateSaves = refreshStateSaveSelects; } catch (_) {}
+
+$("body")
+    .off("pointerup.uieStateSave click.uieStateSave", ".uie-state-save-btn")
+    .on("pointerup.uieStateSave click.uieStateSave", ".uie-state-save-btn", function (e) {
+        if (e?.type === "pointerup") {
+            if (e.pointerType && e.pointerType !== "touch") return;
+            uieLastStateBtnPointerTime = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieLastStateBtnPointerTime < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        try { ensureChatStateLoaded(); } catch (_) {}
+        const root = $(this).closest("#uie-settings-window, .uie-settings-block");
+        const rawName = String(root.find(".uie-state-name").first().val() || "").trim();
+        const { bucket } = ensureManualSaveStore(s);
+
+        let name = rawName;
+        if (!name) {
+            const base = "Save";
+            let n = 1;
+            while (bucket[`${base} ${n}`]) n++;
+            name = `${base} ${n}`;
+        }
+        name = name.slice(0, 80);
+        bucket[name] = { ts: Date.now(), kind: "full", state: snapshotFullState(s) };
+        saveSettings();
+        refreshStateSaveSelects();
+        root.find(".uie-state-select").val(name);
+        root.find(".uie-state-name").val(name);
+        try { window.toastr?.success?.(`Saved state: ${name}`); } catch (_) {}
+    });
+
+$("body")
+    .off("pointerup.uieStateLoad click.uieStateLoad", ".uie-state-load-btn")
+    .on("pointerup.uieStateLoad click.uieStateLoad", ".uie-state-load-btn", function (e) {
+        if (e?.type === "pointerup") {
+            if (e.pointerType && e.pointerType !== "touch") return;
+            uieLastStateBtnPointerTime = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieLastStateBtnPointerTime < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        try { ensureChatStateLoaded(); } catch (_) {}
+        const root = $(this).closest("#uie-settings-window, .uie-settings-block");
+        const name = String(root.find(".uie-state-select").first().val() || "").trim();
+        if (!name) return;
+        const { bucket } = ensureManualSaveStore(s);
+        const entry = bucket?.[name];
+        const snap = entry && typeof entry === "object" ? entry.state : null;
+        const kind = entry && typeof entry === "object" ? String(entry.kind || "") : "";
+        if (!snap || typeof snap !== "object") return;
+        if (kind === "full" || snap.enabled !== undefined || snap.ui !== undefined || snap.turbo !== undefined) {
+            applyFullState(s, snap);
+        } else {
+            applyChatState(s, snap, false);
+        }
+
+        // IMPORTANT:
+        // Keep the per-chat autosave snapshot in sync with what we just loaded.
+        // Otherwise, the periodic ensureChatStateLoaded() / chat switching logic can
+        // re-apply an older snapshot and make it look like the load "didn't stick".
+        try {
+            if (!s.chatState || typeof s.chatState !== "object") s.chatState = { activeKey: "", states: {} };
+            if (!s.chatState.states || typeof s.chatState.states !== "object") s.chatState.states = {};
+            const active = String(s.chatState.activeKey || s.chatState.legacyKey || "").trim();
+            if (active) s.chatState.states[active] = snapshotChatState(s);
+        } catch (_) {}
+
+        saveSettings();
+        updateLayout();
+        emitStateUpdated();
+        try { window.toastr?.success?.(`Loaded state: ${name}`); } catch (_) {}
+    });
+
+$("body")
+    .off("pointerup.uieStateDel click.uieStateDel", ".uie-state-del-btn")
+    .on("pointerup.uieStateDel click.uieStateDel", ".uie-state-del-btn", function (e) {
+        if (e?.type === "pointerup") {
+            if (e.pointerType && e.pointerType !== "touch") return;
+            uieLastStateBtnPointerTime = Date.now();
+        } else if (e?.type === "click" && Date.now() - uieLastStateBtnPointerTime < 300) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const s = getSettings();
+        try { ensureChatStateLoaded(); } catch (_) {}
+        const root = $(this).closest("#uie-settings-window, .uie-settings-block");
+        const name = String(root.find(".uie-state-select").first().val() || "").trim();
+        if (!name) return;
+        const { bucket } = ensureManualSaveStore(s);
+        if (bucket && bucket[name]) {
+            try { delete bucket[name]; } catch (_) { bucket[name] = undefined; }
+            saveSettings();
+            refreshStateSaveSelects();
+            root.find(".uie-state-select").val("");
+            try { window.toastr?.success?.(`Deleted state: ${name}`); } catch (_) {}
+        }
+    });
 
 const uieGetStConnectionProfiles = () => {
     const out = [];

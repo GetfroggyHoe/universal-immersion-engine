@@ -9,6 +9,150 @@ export function initInteractions() {
     initScavenge();
     initSpriteInteraction();
     initLauncher();
+    initMobileBackNav();
+}
+
+let uieNavInited = false;
+let uieNavLock = false;
+let uieNavStack = [];
+
+function initMobileBackNav() {
+    if (uieNavInited) return;
+    uieNavInited = true;
+
+    const isMobileNow = () => {
+        try { return isMobileUI(); } catch (_) {}
+        try { return window.matchMedia("(max-width: 768px), (pointer: coarse)").matches; } catch (_) {}
+        return false;
+    };
+
+    const navPush = (tag = "uie") => {
+        if (!isMobileNow()) return;
+        if (uieNavLock) return;
+        try {
+            uieNavStack.push(String(tag || "uie"));
+            history.pushState({ uie: true, tag: String(tag || "uie"), t: Date.now() }, "");
+        } catch (_) {}
+    };
+
+    const navPop = () => {
+        if (!isMobileNow()) return;
+        if (uieNavLock) return;
+        if (!uieNavStack.length) return;
+        uieNavLock = true;
+        try { uieNavStack.pop(); } catch (_) {}
+        try { history.back(); } catch (_) {}
+        setTimeout(() => { uieNavLock = false; }, 120);
+    };
+
+    const closePhoneBack = () => {
+        try {
+            const phone = document.getElementById("uie-phone-window");
+            if (!phone) return false;
+            const disp = String(getComputedStyle(phone).display || "none");
+            if (disp === "none") return false;
+
+            const stickerDrawer = document.getElementById("uie-phone-sticker-drawer");
+            if (stickerDrawer && String(getComputedStyle(stickerDrawer).display || "none") !== "none") {
+                try { document.getElementById("uie-phone-sticker-close")?.click(); } catch (_) {}
+                return true;
+            }
+
+            const $phone = $(phone);
+            const $visibleApp = $phone.find(".phone-app-window:visible").first();
+            if ($visibleApp.length) {
+                const $btn = $visibleApp.find(".phone-back-btn").first();
+                if ($btn.length) {
+                    try { $btn.trigger("click"); } catch (_) {}
+                    return true;
+                }
+            }
+
+            const lock = document.getElementById("uie-phone-lockscreen");
+            if (lock && String(getComputedStyle(lock).display || "none") !== "none") {
+                try { $(phone).hide(); } catch (_) {}
+                return true;
+            }
+
+            const home = document.getElementById("uie-phone-homescreen");
+            if (home && String(getComputedStyle(home).display || "none") !== "none") {
+                try { $(phone).hide(); } catch (_) {}
+                return true;
+            }
+        } catch (_) {}
+        return false;
+    };
+
+    const closeTopmostOverlay = () => {
+        try {
+            const ids = [
+                "re-quick-modal",
+                "re-vn-settings-modal",
+                "re-forge-modal",
+                "re-st-menu",
+                "uie-create-overlay",
+                "uie-launcher-options-window"
+            ];
+            for (const id of ids) {
+                const el = document.getElementById(id);
+                if (!el) continue;
+                const disp = String(getComputedStyle(el).display || "none");
+                if (disp === "none") continue;
+                try { $(el).hide(); } catch (_) { try { el.style.display = "none"; } catch (_) {} }
+                return true;
+            }
+
+            if (closePhoneBack()) return true;
+
+            const $mods = $(".uie-modal:visible, .uie-overlay:visible, .uie-full-modal:visible");
+            if ($mods.length) {
+                let best = null;
+                let bestZ = -Infinity;
+                $mods.each(function () {
+                    const z = Number(getComputedStyle(this).zIndex) || 0;
+                    if (z >= bestZ) { bestZ = z; best = this; }
+                });
+                if (best) {
+                    try { $(best).hide(); } catch (_) {}
+                    return true;
+                }
+            }
+
+            const $wins = $(".uie-window:visible");
+            if ($wins.length) {
+                let best = null;
+                let bestZ = -Infinity;
+                $wins.each(function () {
+                    const z = Number(getComputedStyle(this).zIndex) || 0;
+                    if (z >= bestZ) { bestZ = z; best = this; }
+                });
+                if (best) {
+                    try { $(best).hide(); } catch (_) {}
+                    return true;
+                }
+            }
+        } catch (_) {}
+        return false;
+    };
+
+    try {
+        window.UIE_navPush = navPush;
+        window.UIE_navPop = navPop;
+        window.UIE_navCloseTop = closeTopmostOverlay;
+    } catch (_) {}
+
+    try {
+        window.addEventListener("popstate", () => {
+            if (!isMobileNow()) return;
+            if (uieNavLock) return;
+            if (uieNavStack.length) {
+                try { uieNavStack.pop(); } catch (_) {}
+                closeTopmostOverlay();
+            } else {
+                closeTopmostOverlay();
+            }
+        });
+    } catch (_) {}
 }
 
 function clampToViewportPx(left, top, w, h, pad = 8) {
@@ -335,6 +479,8 @@ function initGenericHandlers() {
             if (this.id === "re-forge-close") $("#re-forge-modal").hide();
             if (this.id === "uie-map-card-close") $("#uie-map-card").hide();
         }
+
+        try { window.UIE_navPop?.(); } catch (_) {}
     });
 
     $("body").off("click.uieLauncherOptClose pointerup.uieLauncherOptClose", "#uie-launcher-opt-close").on("click.uieLauncherOptClose pointerup.uieLauncherOptClose", "#uie-launcher-opt-close", function(e) {
@@ -397,6 +543,9 @@ function openWindow(selector) {
 
     // Close main menu
     $("#uie-main-menu").hide();
+
+    try { window.UIE_navPush?.(`win:${String(selector || "")}`); } catch (_) {}
+    try { window.UIE_refreshStateSaves?.(); } catch (_) {}
 }
 
 function initWindowLayering() {

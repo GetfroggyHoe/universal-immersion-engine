@@ -195,7 +195,14 @@ export function initPhone() {
     
     // BIND OPEN BUTTON (Fix for "Can't Open")
     $(document).off("click", "#btn-phn").on("click", "#btn-phn", () => {
-        $("#uie-phone-window").fadeToggle(200);
+        const $p = $("#uie-phone-window");
+        const wasVisible = $p.is(":visible");
+        $p.fadeToggle(200);
+        if (!wasVisible) {
+            try { window.UIE_navPush?.("win:#uie-phone-window"); } catch (_) {}
+        } else {
+            try { window.UIE_navPop?.(); } catch (_) {}
+        }
     });
 
     const parseChatTimestamp = () => {
@@ -1318,10 +1325,17 @@ ${chat}`.slice(0, 6000);
     };
 
     const openThread = (name) => {
-        activeContact = String(name || "").trim();
-        if (!activeContact) return;
+        if (!name) return;
+        activeContact = name;
         try { getThread(activeContact); } catch (_) {}
-        $("#uie-phone-window").show().css("display", "flex");
+        {
+            const $p = $("#uie-phone-window");
+            const wasVisible = $p.is(":visible");
+            $p.show().css("display", "flex");
+            if (!wasVisible) {
+                try { window.UIE_navPush?.("win:#uie-phone-window"); } catch (_) {}
+            }
+        }
         openApp("#uie-app-msg-view");
         try { $("#msg-contact-name").text(String(activeContact || "Messages")); } catch (_) {}
         try { renderMessages(); } catch (_) {}
@@ -1329,63 +1343,6 @@ ${chat}`.slice(0, 6000);
     };
     try { window.UIE_phone_openThread = openThread; } catch (_) {}
 
-    $win.off("click.phoneMsgNewNumber", "#msg-new-number").on("click.phoneMsgNewNumber", "#msg-new-number", function(e){
-        e.preventDefault();
-        e.stopPropagation();
-        const raw = (prompt("Text which number?") || "").trim();
-        if (!raw) return;
-        const s = getSettings();
-        ensureContactNumbers(s);
-        const digits = normalizeNumber(raw);
-        const formatted = formatNumber(digits);
-        const friends = Array.isArray(s?.social?.friends) ? s.social.friends : [];
-        const hit = friends.find(p => normalizeNumber(p?.phone || p?.phoneNumber || "") === digits);
-        if (hit?.name) {
-            openThread(hit.name);
-            return;
-        }
-        const name = (prompt("Name (optional):") || "").trim();
-        if (name) {
-            ensureNumbersState(s);
-            s.phone.numberBook = (s.phone.numberBook || []).filter(x => normalizeNumber(x?.number || "") !== digits);
-            s.phone.numberBook.push({ name: name.slice(0, 60), number: formatted, ts: Date.now() });
-            saveSettings();
-            openThread(name);
-            return;
-        }
-        openThread(formatted);
-    });
-
-    $win.off("click.phoneContactRow", "#contact-list .contact-row").on("click.phoneContactRow", "#contact-list .contact-row", function (e) {
-        if ($(e.target).closest(".phone-msg-trigger, .phone-call-trigger").length) return;
-        e.preventDefault();
-        e.stopPropagation();
-        openThread($(this).data("name"));
-    });
-
-    // TRIGGER MESSAGE FROM CONTACT
-    $win.on("click.phone", ".phone-msg-trigger", function(e) {
-        e.stopPropagation();
-        e.preventDefault();
-        openThread($(this).data("name"));
-    });
-
-    const promptAddContact = () => {
-        const n = (prompt("Enter Name for new contact:") || "").trim();
-        if(!n) return;
-        const s = getSettings();
-        ensureNumbersState(s);
-        const allSocial = getSocialPeople(s);
-        const existsSocial = allSocial.some(p => String(p?.name || "").trim().toLowerCase() === n.toLowerCase());
-        const existsPhone = (s.phone.numberBook || []).some(p => String(p?.name || "").trim().toLowerCase() === n.toLowerCase());
-        if (existsSocial || existsPhone) { alert("Contact already exists!"); return; }
-        const raw = (prompt("Number (optional):") || "").trim();
-        const digits = raw ? normalizeNumber(raw) : generateNumber(new Set((s.phone.numberBook || []).map(x => normalizeNumber(x?.number || "")).filter(Boolean)));
-        const formatted = formatNumber(digits);
-        s.phone.numberBook.push({ name: n.slice(0, 60), number: formatted, ts: Date.now() });
-        saveSettings();
-        renderContacts();
-    };
     $win.on("click.phone", "#contact-add-manual", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
     $win.on("click.phone", "#contact-add-fab", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
 
@@ -1397,14 +1354,68 @@ ${chat}`.slice(0, 6000);
         startCall(activeContact, { dir: "out" });
     });
 
+    const setCallUiState = (state) => {
+        const st = String(state || "");
+        const $incoming = $("#call-incoming-actions");
+        const $controls = $("#call-incall-controls");
+        const $inputRow = $("#uie-call-screen .call-input-row");
+        const $endRow = $("#call-end-btn").closest(".call-actions");
+
+        if ($incoming.length) {
+            if (st === "incoming") $incoming.css("display", "flex");
+            else $incoming.css("display", "none");
+        }
+        if ($controls.length) {
+            if (st === "connected") $controls.show();
+            else if (st === "incoming") $controls.hide();
+            else $controls.show();
+        }
+        if ($inputRow.length) {
+            if (st === "connected") $inputRow.css("display", "flex");
+            else $inputRow.hide();
+        }
+        if ($endRow.length) {
+            if (st === "incoming") $endRow.hide();
+            else $endRow.show();
+        }
+
+        if (st !== "connected") {
+            try { $("#call-timer-disp").text("00:00"); } catch (_) {}
+        }
+    };
+
+    const setCallAvatar = (s0, name) => {
+        const who = String(name || "").trim();
+        const $av = $("#call-avatar-img");
+        if (!$av.length) return;
+        let src = "";
+        try {
+            for (const p of getSocialPeople(s0)) {
+                if (String(p?.name || "").trim() === who) {
+                    src = String(p?.avatar || p?.img || p?.image || "").trim();
+                    break;
+                }
+            }
+        } catch (_) {}
+
+        if (src) {
+            $av.html(`<img src="${esc(src)}">`);
+        } else {
+            const initial = who ? who.charAt(0).toUpperCase() : "?";
+            $av.html(`<span style="font-weight:800; font-size:34px; opacity:0.9;">${esc(initial)}</span>`);
+        }
+    };
+
     const startCall = async (name, opts = {}) => {
-        $("#uie-phone-homescreen").hide();
-        $("#uie-app-contacts-view").hide();
-        $("#uie-call-screen").css("display", "flex").hide().fadeIn(200);
+        try { openApp("#uie-call-screen"); } catch (_) {
+            $(".phone-app-window").hide();
+            $("#uie-phone-homescreen").hide();
+            $("#uie-call-screen").css("display", "flex").hide().fadeIn(200);
+        }
         const rawName = String(name || "").trim();
         const dir = String(opts?.dir || "out").trim() || "out";
         $("#call-name-disp").text(rawName || "Unknown");
-        $(".call-status").text("Dialing...");
+        $(".call-status").text(dir === "in" ? "Incoming call..." : "Dialing...");
         $("#call-transcript").empty();
         try {
             const s0 = getSettings();
@@ -1428,9 +1439,20 @@ ${chat}`.slice(0, 6000);
                 const who = rawName || (number || "Unknown");
                 s0.phone.activeCall = { who, number, dir, startedAt: Date.now(), lines: [], answered: false };
                 saveSettings();
+                try { setCallAvatar(s0, who); } catch (_) {}
             }
         } catch (_) {}
-        syncToMainChat(`(On phone) Calling ${rawName || "Unknown"}...`);
+        if (dir === "in") syncToMainChat(`(On phone) Incoming call from ${rawName || "Unknown"}...`);
+        else syncToMainChat(`(On phone) Calling ${rawName || "Unknown"}...`);
+
+        try { callChatContext = getChatSnippet(50); } catch (_) {}
+
+        if (dir === "in") {
+            setCallUiState("incoming");
+            return;
+        }
+
+        setCallUiState("dialing");
 
         const sAllow = getSettings();
         if (sAllow?.ai && sAllow.ai.phoneCalls === false) {
@@ -1440,7 +1462,6 @@ ${chat}`.slice(0, 6000);
         }
 
         try {
-            callChatContext = getChatSnippet(50);
             const chat = callChatContext;
             const persona = getPersonaName();
             const card = getCharacterCardBlock(2600);
@@ -1484,12 +1505,14 @@ ${chat}`.slice(0, 6000), "System Check");
             }
 
             $(".call-status").text("Ringing...");
+            setCallUiState("ringing");
             setTimeout(() => connectCall(String(logic.greeting || "Hello?"), Number(logic.arrivalInTurns || 0), String(logic.arrivalReason || "")), 1200);
         } catch(e) { connectCall("Hello?", 0, ""); }
     };
 
     const connectCall = (greetingLine = "Hello?", arrivalTurns = 0, arrivalReason = "") => {
         $(".call-status").text("Connected");
+        setCallUiState("connected");
         $("#call-timer-disp").text("00:00");
         let callSeconds = 0;
         if(callTimerInt) clearInterval(callTimerInt);
@@ -1498,13 +1521,15 @@ ${chat}`.slice(0, 6000), "System Check");
             $("#call-timer-disp").text(new Date(callSeconds * 1000).toISOString().substr(14, 5));
         }, 1000);
         const n = $("#call-name-disp").text();
-        const gl = sanitizePhoneLine(cleanOutput(greetingLine, "chat"), 240) || "Hello?";
-        $("#call-transcript").append(`<div style="text-align:left;color:#ccc;margin:5px;">${n}: ${gl}</div>`);
+        const glRaw = sanitizePhoneLine(cleanOutput(greetingLine, "chat"), 240);
+        if (glRaw) {
+            $("#call-transcript").append(`<div style="text-align:left;color:#ccc;margin:5px;">${n}: ${glRaw}</div>`);
+        }
         try {
             const s0 = getSettings();
             if (s0?.phone?.activeCall && typeof s0.phone.activeCall === "object") {
                 if (!Array.isArray(s0.phone.activeCall.lines)) s0.phone.activeCall.lines = [];
-                s0.phone.activeCall.lines.push({ who: String(n || ""), isUser: false, text: gl.slice(0, 320), ts: Date.now() });
+                if (glRaw) s0.phone.activeCall.lines.push({ who: String(n || ""), isUser: false, text: glRaw.slice(0, 320), ts: Date.now() });
                 s0.phone.activeCall.answered = true;
                 saveSettings();
             }
@@ -1547,7 +1572,14 @@ ${chat}`.slice(0, 6000), "System Check");
             if (typeof window.UIE_forceOpenWindow === "function") {
                 window.UIE_forceOpenWindow("#uie-phone-window", "./phone.js", "initPhone");
             }
-            $("#uie-phone-window").show().css("display", "flex");
+            {
+                const $p = $("#uie-phone-window");
+                const wasVisible = $p.is(":visible");
+                $p.show().css("display", "flex");
+                if (!wasVisible) {
+                    try { window.UIE_navPush?.("win:#uie-phone-window"); } catch (_) {}
+                }
+            }
             if (window.toastr) toastr.info("Call incoming", "Phone");
             startCall(activeContact, { dir: "in" });
         } catch (e) { console.warn("[UIE] Incoming call handler failed:", e); }
@@ -1566,7 +1598,14 @@ ${chat}`.slice(0, 6000), "System Check");
             if (typeof window.UIE_forceOpenWindow === "function") {
                 window.UIE_forceOpenWindow("#uie-phone-window", "./phone.js", "initPhone");
             }
-            $("#uie-phone-window").show().css("display", "flex");
+            {
+                const $p = $("#uie-phone-window");
+                const wasVisible = $p.is(":visible");
+                $p.show().css("display", "flex");
+                if (!wasVisible) {
+                    try { window.UIE_navPush?.("win:#uie-phone-window"); } catch (_) {}
+                }
+            }
             activeContact = name;
             openApp("#uie-app-msg-view");
             if (window.toastr) toastr.success("New message", "Phone");
@@ -1575,6 +1614,32 @@ ${chat}`.slice(0, 6000), "System Check");
             try { relayRelationship(name, msg, "text"); } catch (_) {}
         } catch (e) { console.warn("[UIE] Incoming text handler failed:", e); }
     };
+
+    $win.off("click.phoneCallAccept", "#call-accept-btn").on("click.phoneCallAccept", "#call-accept-btn", (e) => {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const who = String($("#call-name-disp").text() || "").trim() || "Unknown";
+        connectCall("");
+        try { handleCallReply("", who, true); } catch (_) {}
+    });
+
+    $win.off("click.phoneCallDecline", "#call-decline-btn").on("click.phoneCallDecline", "#call-decline-btn", (e) => {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        $(".call-status").text("Declined");
+        setTimeout(endCall, 250);
+    });
+
+    $win.off("click.phoneCallTranscript", "#call-transcript-btn").on("click.phoneCallTranscript", "#call-transcript-btn", (e) => {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const $t = $("#call-transcript");
+        if (!$t.length) return;
+        $t.toggle();
+    });
+
+    $win.off("click.phoneCallNoop", "#call-mute-btn, #call-speaker-btn, #call-keypad-btn, #call-add-btn, #call-notes-btn")
+        .on("click.phoneCallNoop", "#call-mute-btn, #call-speaker-btn, #call-keypad-btn, #call-add-btn, #call-notes-btn", (e) => {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            try { window.toastr?.info?.("Control not implemented yet.", "Phone"); } catch (_) {}
+        });
 
     $win.off("click.phoneCallEnd", "#call-end-btn").on("click.phoneCallEnd", "#call-end-btn", endCall);
     $win.off("click.phoneCallSpeak", "#call-speak-btn").on("click.phoneCallSpeak", "#call-speak-btn", () => {
@@ -1660,7 +1725,7 @@ ${chat}`.slice(0, 6000), "System Check");
     $win.off("click.phoneDialBtn", "#uie-app-dial-view .dial-btn").on("click.phoneDialBtn", "#uie-app-dial-view .dial-btn", function(e){
         e.preventDefault();
         e.stopPropagation();
-        const d = String($(this).data("digit") || "");
+        const d = String($(this).data("digit") ?? "");
         if (!d) return;
         if (dialBuf.length >= 24) return;
         dialBuf += d;
@@ -1715,15 +1780,28 @@ ${chat}`.slice(0, 6000), "System Check");
         goHome();
     };
 
+    let uiePhoneBackLastPointer = 0;
     $win
         .off("click.phoneBack pointerup.phoneBack", "#uie-phone-window .phone-back-btn, #uie-phone-window #p-browser-home")
         .on("click.phoneBack pointerup.phoneBack", "#uie-phone-window .phone-back-btn, #uie-phone-window #p-browser-home", function(e){
-            if (e.type === "pointerup" && e.pointerType !== "touch") return;
+            if (e?.type === "pointerup") {
+                uiePhoneBackLastPointer = Date.now();
+            } else if (e?.type === "click" && Date.now() - uiePhoneBackLastPointer < 300) {
+                try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+                return;
+            }
             e.preventDefault();
             e.stopPropagation();
             smartBack(this);
         });
-    $win.on("click.phone", "#uie-phone-close", () => $("#uie-phone-window").hide());
+    $win.on("click.phone", "#uie-phone-close", () => {
+        const $p = $("#uie-phone-window");
+        const wasVisible = $p.is(":visible");
+        $p.hide();
+        if (wasVisible) {
+            try { window.UIE_navPop?.(); } catch (_) {}
+        }
+    });
 
     $win.on("click.phone", "#uie-phone-lock-btn", () => {
         $(".phone-app-window").hide();

@@ -174,6 +174,213 @@
             }
         }
         
+        #uie-call-screen{
+            width: 100%;
+            height: 100%;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 18px 16px 16px 16px;
+            box-sizing: border-box;
+            background:
+                radial-gradient(1200px 700px at 20% 15%, rgba(52,152,219,0.18), rgba(0,0,0,0) 55%),
+                radial-gradient(900px 600px at 80% 25%, rgba(175,82,222,0.16), rgba(0,0,0,0) 60%),
+                linear-gradient(180deg, rgba(10,10,12,1) 0%, rgba(0,0,0,1) 70%);
+        }
+        #uie-call-screen .call-top{
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            opacity: 0.95;
+            font-size: 12px;
+            color: rgba(255,255,255,0.9);
+        }
+        #uie-call-screen .call-top .call-top-left,
+        #uie-call-screen .call-top .call-top-right{
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        #uie-call-screen .call-identity{
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+        #uie-call-screen .call-avatar{
+            width: 104px;
+            height: 104px;
+            border-radius: 52px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.14);
+            box-shadow: 0 18px 50px rgba(0,0,0,0.55);
+            overflow: hidden;
+            display: grid;
+            place-items: center;
+            margin: 6px 0 14px 0;
+        }
+        #uie-call-screen .call-avatar img{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        #uie-call-screen #call-name-disp{
+            font-size: 28px;
+            line-height: 1.15;
+            margin: 0;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+        #uie-call-screen .call-status{
+            margin-top: 6px;
+            font-size: 14px;
+            color: rgba(255,255,255,0.78);
+        }
+        #uie-call-screen .call-timer{
+            margin-top: 6px;
+            font-size: 14px;
+            letter-spacing: 0.12em;
+            color: rgba(255,255,255,0.75);
+        }
+        #uie-call-screen .call-actions-wrap{
+            width: 100%;
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        #uie-call-screen .call-incoming-actions{
+            display: none;
+            width: 100%;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+        }
+        #uie-call-screen .call-incoming-actions .call-pill{
+            flex: 1;
+            height: 58px;
+            border-radius: 22px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.08);
+            color: rgba(255,255,255,0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        #uie-call-screen .call-incoming-actions .call-pill.call-accept{
+            background: rgba(46, 204, 113, 0.92);
+            border-color: rgba(46, 204, 113, 0.85);
+            color: #000;
+        }
+        #uie-call-screen .call-incoming-actions .call-pill.call-decline{
+            background: rgba(231, 76, 60, 0.92);
+            border-color: rgba(231, 76, 60, 0.85);
+            color: #000;
+        }
+        #uie-call-screen .call-incall-controls{
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        #uie-call-screen .call-ctrl{
+            height: 64px;
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.07);
+            color: rgba(255,255,255,0.92);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            cursor: pointer;
+            user-select: none;
+        }
+        #uie-call-screen .call-ctrl i{ font-size: 16px; opacity: 0.95; }
+        #uie-call-screen .call-ctrl span{ font-size: 11px; opacity: 0.85; }
+        #uie-call-screen .call-bottom{
+            width: 100%;
+            margin-top: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #uie-call-screen #call-transcript{
+            display: none;
+            width: 100%;
+            max-height: 28vh;
+            overflow-y: auto;
+            margin: 0;
+            font-size: 13px;
+            text-align: left;
+            color: rgba(255,255,255,0.84);
+            padding: 10px 10px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(0,0,0,0.22);
+            box-sizing: border-box;
+        }
+        #uie-call-screen .call-input-row{
+            width: 100%;
+            display: flex;
+            gap: 10px;
+            padding: 0;
+            margin: 0;
+            align-items: center;
+            box-sizing: border-box;
+        }
+        #uie-call-screen #call-input{
+            flex: 1;
+            min-width: 0;
+            height: 46px;
+            background: rgba(255,255,255,0.10);
+            border: 1px solid rgba(255,255,255,0.14);
+            color: rgba(255,255,255,0.95);
+            padding: 10px 14px;
+            border-radius: 18px;
+            outline: none;
+        }
+        #uie-call-screen #call-speak-btn{
+            flex: 0 0 auto;
+            width: 46px;
+            height: 46px;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.92);
+            color: #000;
+            cursor: pointer;
+            display: grid;
+            place-items: center;
+        }
+        #uie-call-screen .call-actions{
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 4px;
+        }
+        #uie-call-screen .call-btn-round{
+            width: 64px;
+            height: 64px;
+            border-radius: 32px;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        #uie-call-screen .call-btn-round.btn-end{
+            background: rgba(231, 76, 60, 0.95);
+            color: #000;
+        }
+
         /* Line Clamp Fix (Modular) */
         .browser-bm-title {
             display: -webkit-box; -webkit-line-clamp: 1; line-clamp: 1;
@@ -534,13 +741,52 @@
     </div>
 
     <div id="uie-call-screen" class="phone-app-window" style="display:none; z-index:150;">
-        <div class="call-avatar" id="call-avatar-img"></div><h2 id="call-name-disp">Unknown</h2><div class="call-status">Connected</div><div class="call-timer" id="call-timer-disp">00:00</div>
-        <div id="call-transcript" style="flex:1; width:90%; overflow-y:auto; margin:20px 0; font-size:0.9em; text-align:center; color:#ddd; padding:10px; border-top:1px solid rgba(255,255,255,0.1);"></div>
-        <div class="call-input-row" style="width:100%; display:flex; gap:8px; margin:0 0 20px 0; padding:0 16px; box-sizing:border-box; align-items:center;">
-            <input type="text" id="call-input" placeholder="Speak..." style="flex:1; min-width:0; background:rgba(255,255,255,0.1); border:none; color:white; padding:10px 12px; border-radius:18px;">
-            <button id="call-speak-btn" style="background:white; color:black; border:none; border-radius:14px; width:34px; height:34px; cursor:pointer; display:grid; place-items:center;"><i class="fa-solid fa-comment"></i></button>
+        <div class="call-top">
+            <div class="call-top-left">
+                <i class="fa-solid fa-signal"></i>
+                <span class="call-carrier">UIE</span>
+            </div>
+            <div class="call-top-right">
+                <i class="fa-solid fa-wifi"></i>
+                <i class="fa-solid fa-battery-three-quarters"></i>
+            </div>
         </div>
-        <div class="call-actions"><div class="call-btn-round btn-end" id="call-end-btn"><i class="fa-solid fa-phone-slash"></i></div></div>
+
+        <div class="call-identity">
+            <div class="call-avatar" id="call-avatar-img">
+                <i class="fa-solid fa-user" style="opacity:0.65;"></i>
+            </div>
+            <h2 id="call-name-disp">Unknown</h2>
+            <div class="call-status">Connected</div>
+            <div class="call-timer" id="call-timer-disp">00:00</div>
+        </div>
+
+        <div class="call-actions-wrap">
+            <div class="call-incoming-actions" id="call-incoming-actions">
+                <button class="call-pill call-decline" id="call-decline-btn"><i class="fa-solid fa-phone-slash"></i><span>Decline</span></button>
+                <button class="call-pill call-accept" id="call-accept-btn"><i class="fa-solid fa-phone"></i><span>Accept</span></button>
+            </div>
+
+            <div class="call-incall-controls" id="call-incall-controls">
+                <button class="call-ctrl" id="call-mute-btn"><i class="fa-solid fa-microphone-slash"></i><span>Mute</span></button>
+                <button class="call-ctrl" id="call-keypad-btn"><i class="fa-solid fa-grip"></i><span>Keypad</span></button>
+                <button class="call-ctrl" id="call-speaker-btn"><i class="fa-solid fa-volume-high"></i><span>Speaker</span></button>
+                <button class="call-ctrl" id="call-add-btn"><i class="fa-solid fa-user-plus"></i><span>Add</span></button>
+                <button class="call-ctrl" id="call-notes-btn"><i class="fa-solid fa-note-sticky"></i><span>Notes</span></button>
+                <button class="call-ctrl" id="call-transcript-btn"><i class="fa-solid fa-message"></i><span>Transcript</span></button>
+            </div>
+        </div>
+
+        <div class="call-bottom">
+            <div id="call-transcript"></div>
+            <div class="call-input-row">
+                <input type="text" id="call-input" placeholder="Speak...">
+                <button id="call-speak-btn"><i class="fa-solid fa-comment"></i></button>
+            </div>
+            <div class="call-actions">
+                <div class="call-btn-round btn-end" id="call-end-btn"><i class="fa-solid fa-phone-slash"></i></div>
+            </div>
+        </div>
     </div>
 
     <i class="fa-solid fa-xmark uie-close-btn" id="uie-phone-close" style="position:absolute; top:9px; right:5px; z-index:300; color:white; padding:5px; text-shadow:0 0 3px #000; cursor: pointer;"></i>

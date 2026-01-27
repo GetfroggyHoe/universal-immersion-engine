@@ -474,6 +474,8 @@
     #re-forge-card {
         width: min(640px, 96vw);
         max-height: calc(100dvh - 24px);
+        max-height: calc(100svh - 24px);
+        max-height: calc(100vh - 24px);
         overflow: auto;
         border-radius: 18px;
         border: 1px solid rgba(255,255,255,0.14);
@@ -511,6 +513,43 @@
         height: 100%;
         object-fit: cover;
         display: none;
+    }
+
+    #re-quick-modal,
+    #re-vn-settings-modal {
+        position: fixed !important;
+        inset: 0 !important;
+        height: 100dvh !important;
+        height: 100svh !important;
+        height: 100vh !important;
+        padding-top: max(12px, env(safe-area-inset-top)) !important;
+        padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+        padding-left: max(12px, env(safe-area-inset-left)) !important;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+        align-items: center !important;
+        justify-content: center !important;
+        pointer-events: auto !important;
+    }
+
+    #re-quick-modal > div,
+    #re-vn-settings-modal > div {
+        width: min(420px, 94vw) !important;
+        max-height: calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        max-height: calc(100svh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+        overflow: auto !important;
+    }
+
+    #re-forge-modal {
+        height: 100dvh !important;
+        height: 100svh !important;
+        height: 100vh !important;
+        padding-top: max(12px, env(safe-area-inset-top)) !important;
+        padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
+        padding-left: max(12px, env(safe-area-inset-left)) !important;
+        padding-right: max(12px, env(safe-area-inset-right)) !important;
+        align-items: center !important;
+        justify-content: center !important;
     }
 
     .re-forge-row {

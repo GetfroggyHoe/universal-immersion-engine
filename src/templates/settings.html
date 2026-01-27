@@ -1,6 +1,6 @@
 <div class="uie-settings-block">
     <style>
-        .uie-settings-drawer { display: flex !important; flex-direction: column !important; }
+        .uie-settings-drawer { flex-direction: column !important; }
         .uie-settings-drawer > div:first-child { flex: 0 0 auto !important; }
         .uie-settings-drawer > div[id^="uie-set-"] { flex: 1 1 auto !important; min-height: 0 !important; overflow-y: auto !important; -webkit-overflow-scrolling: touch !important; }
     </style>
@@ -9,7 +9,7 @@
             <b>Universal Immersion Engine</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
-        <div class="inline-drawer-content uie-settings-drawer" style="max-height:80vh !important; height:80vh !important; overflow-y:auto !important; overflow-x:hidden !important; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding-bottom:16px; min-height:0;">
+        <div class="inline-drawer-content uie-settings-drawer" style="max-height:80vh; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding-bottom:16px; min-height:0;">
             <div style="display:flex; gap:6px; border-bottom:1px solid #444; margin-bottom:10px; overflow-x:auto; overflow-y:hidden; white-space:nowrap;">
                 <div class="uie-set-tab active" data-tab="general" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; font-weight:bold; color:#fff; border-bottom:2px solid #cba35c; white-space:nowrap;">General</div>
                 <div class="uie-set-tab" data-tab="turbo" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Turbo API</div>

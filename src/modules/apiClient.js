@@ -1357,13 +1357,48 @@ export function initTurboUi() {
         .on("click.uieTurbo", "#uie-turbo-preset-apply", applyPreset)
         .on("change.uieTurbo", "#uie-turbo-preset", applyPreset);
 
+    $(document)
+        .off("change.uieTurboEnabled input.uieTurboFields change.uieTurboFields")
+        .on("change.uieTurboEnabled", "#uie-turbo-enable", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            if (!s.turbo) s.turbo = {};
+            s.turbo.enabled = $(this).prop("checked") === true;
+            saveSettings();
+        })
+        .on("input.uieTurboFields change.uieTurboFields", "#uie-turbo-url, #uie-turbo-key", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            if (!s.turbo) s.turbo = {};
+            s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
+            s.turbo.key = String($("#uie-turbo-key").val() || "").trim();
+            saveSettings();
+        })
+        .on("input.uieTurboFields change.uieTurboFields", "#uie-turbo-model", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            if (!s.turbo) s.turbo = {};
+            s.turbo.model = String($("#uie-turbo-model").val() || "").trim();
+            saveSettings();
+        })
+        .on("change.uieTurboFields", "#uie-turbo-model-select", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const val = String($(this).val() || "");
+            if (val && val !== "__custom__") {
+                $("#uie-turbo-model").val(val);
+            }
+            const s = getSettings();
+            if (!s.turbo) s.turbo = {};
+            s.turbo.model = String($("#uie-turbo-model").val() || "").trim();
+            saveSettings();
+        });
+
     // Refresh Models Logic
     $(document).off("click.uieTurboRef").on("click.uieTurboRef", "#uie-turbo-model-refresh", async function(e) {
         e.preventDefault();
         const btn = $(this);
         btn.addClass("fa-spin");
-        
-        // Save current settings first to ensure listTurboModels uses them
+
         const s = getSettings();
         if (!s.turbo) s.turbo = {};
         s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
@@ -1373,22 +1408,33 @@ export function initTurboUi() {
         try {
             const res = await listTurboModels();
             if (res.ok && res.models) {
-                const sel = $("#uie-turbo-model");
-                const current = sel.val() || s.turbo.model;
+                const sel = $("#uie-turbo-model-select");
+                const current = String($("#uie-turbo-model").val() || s.turbo.model || "").trim();
                 sel.empty();
-                
-                // Add current if not in list (preserve selection)
+                sel.append(`<option value="">(Refresh to load models)</option>`);
+
                 let found = false;
                 res.models.forEach(m => {
                     sel.append(`<option value="${m.id}">${m.label}</option>`);
                     if (m.id === current) found = true;
                 });
 
+                sel.append(`<option value="__custom__">Custom…</option>`);
+
                 if (current && !found) {
                     sel.prepend(`<option value="${current}">${current} (Saved)</option>`);
                 }
-                
-                if (current) sel.val(current);
+
+                if (current && found) {
+                    sel.val(current);
+                    $("#uie-turbo-model").val(current);
+                } else if (current) {
+                    sel.val(current);
+                    $("#uie-turbo-model").val(current);
+                } else {
+                    sel.val("");
+                }
+
                 notify("success", `Loaded ${res.models.length} models.`, "Turbo API");
             } else {
                 notify("warning", `Failed to load models: ${res.error || "Unknown error"}`, "Turbo API");
@@ -1398,6 +1444,34 @@ export function initTurboUi() {
             notify("error", "Error refreshing models.", "Turbo API");
         } finally {
             btn.removeClass("fa-spin");
+        }
+    });
+
+    $(document).off("click.uieTurboTest").on("click.uieTurboTest", "#uie-turbo-test", async function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const btn = $(this);
+        btn.prop("disabled", true);
+        const s = getSettings();
+        if (!s.turbo) s.turbo = {};
+        s.turbo.enabled = $("#uie-turbo-enable").prop("checked") === true;
+        s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
+        s.turbo.key = String($("#uie-turbo-key").val() || "").trim();
+        const pick = String($("#uie-turbo-model-select").val() || "").trim();
+        const typed = String($("#uie-turbo-model").val() || "").trim();
+        s.turbo.model = (pick && pick !== "__custom__") ? pick : typed;
+        saveSettings();
+
+        try {
+            const res = await testTurboConnection();
+            if (res?.ok) {
+                notify("success", `Turbo OK (${Number(res.ms || 0)}ms)`, "Turbo API");
+            } else {
+                notify("warning", `Turbo failed: ${String(res?.error || "Unknown error")}`, "Turbo API");
+            }
+        } catch (err) {
+            notify("error", `Turbo test error: ${String(err?.message || err || "Unknown")}`, "Turbo API");
+        } finally {
+            btn.prop("disabled", false);
         }
     });
 }
