@@ -4,11 +4,13 @@
 
 UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns chat into a playable RPG interface. It’s built to feel “real”, stay mobile-friendly, and keep your story coherent by driving features from the actual chat log (not random side-context).
 
-## What You Get
+To get started, see [Installation](#Installation)
+
+## Features
 
 ### Phone System (Modern Immersion)
 - Apps: Dial Pad, Contacts, Messages, Browser, Books, Calculator, Cookies
-- **Guidebook (Books App)**: Comprehensive user manual with direct links from every feature window (look for the <i class="fa-solid fa-circle-question"></i> icon).
+- **Guidebook (Books App)**: Comprehensive user manual with direct links from every feature window (look for the (❔) icon).
 - **Library (Books App)**: Generate and read in-world lore books.
 - Dial Pad is the default Phone dock action (Contacts stays as its own app)
 - Contacts: auto-injected from Social (Friends/Relationships/Family/Rivals) while phone-added contacts persist in Phone
@@ -68,26 +70,28 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Instant map mode: generates a terrain canvas in under a second (math/noise-based)
 - Optional AI naming for points of interest (text-only)
 
-## Token Safety & Control
+### Token Safety & Control
 - Generated content is stored locally and re-opened without re-spending tokens
 - Automation toggles exist per feature (phone browser pages/messages/calls, app builder, books, quests, databank scan, map, shop, loot/status)
 - UI scale + launcher customization (includes the Fantasy Scroll icon option)
 - Popup system is fully optional and customizable: master toggle, per-category toggles (quests/calls/messages/loot/xp/etc), and per-category popup CSS in the Settings “Popups” tab
 
-## Strong Recommendations (Speed + Cost)
+### Strong Recommendations (Speed + Cost)
 - Use Turbo API for fast, consistent generation routing.
 - Pair it with a fast, low-cost model for most features (chat-driven scanners, map naming, phone replies).
 - Good Turbo-model picks: Kimi K-2 Instruct, Gemini 2.5 Flash.
 - Enable image generation only when you want it (it can be pointed at a Turbo/OpenAI-compatible images endpoint).
 - Local image backends are supported: A1111/SD.Next (`/sdapi/v1/txt2img`) and ComfyUI (`:8188` / `/prompt` with a workflow JSON). UIE can detect the backend and populate Checkpoint / Sampler / Scheduler dropdowns.
 
-## Installation
+## Setup & Use
+
+### Installation
 1. In SillyTavern, open Extensions.
-2. Install from repository URL.
+2. Install from repository URL: `https://github.com/GetfroggyHoe/universal-immersion-engine`
 3. Reload SillyTavern.
 4. Click the launcher to open the UIE menu.
 
-## Quick Start
+### Quick Start
 - Phone → Cookies: clear stored data / saved numbers
 - Inventory → Gear: toggle tabs/functions, slot categories, leveling, UI bars
 - Inventory → Pencil: set per-tab backgrounds and character details
@@ -96,7 +100,7 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 
 Built to sell immersion: fast to use, hard to break, and story-consistent by design.
 
-## Dev / Tests
+### Dev / Tests
 - No formal test suite is bundled yet. Recommended smoke checks:
-- Load UIE and confirm launcher/menu render
-- Run Scan and confirm state updates (Inventory/War Room/Phone)
+  - Load UIE and confirm launcher/menu render
+  - Run Scan and confirm state updates (Inventory/War Room/Phone)
