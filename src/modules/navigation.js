@@ -29,7 +29,7 @@ function renderNavHud() {
 
     const layer = document.createElement("div");
     layer.id = "re-nav-arrows";
-    layer.style.cssText = "position:absolute; inset:0; pointer-events:none; z-index:100;"; // Lower z-index to avoid overlapping menus
+    layer.style.cssText = "position:absolute; inset:0; pointer-events:none; z-index:2147483646;";
 
     const isMobile = (() => {
         try { return window.matchMedia("(max-width: 768px), (pointer: coarse)").matches; } catch (_) { return window.innerWidth < 768; }
@@ -110,7 +110,12 @@ function renderNavHud() {
     layer.appendChild(tip);
 
     const bg = document.getElementById("re-bg");
-    if (bg) bg.parentElement.appendChild(layer);
+    if (bg && bg.parentElement) {
+        bg.parentElement.appendChild(layer);
+    } else {
+        // Fallback if re-bg is missing (e.g. World only mode)
+        document.body.appendChild(layer);
+    }
 }
 
 function updateNavVisibility() {

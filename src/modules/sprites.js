@@ -243,9 +243,9 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         if (!charName) console.warn(`[UIE] updateSpriteStage called without charName`);
         return;
     }
-    
+
     console.log(`[UIE] updateSpriteStage called for ${charName} with text: ${text?.substring(0, 50)}...`);
-    
+
     const s = getSettings();
 
     // Wait for reality stage to be ready (it's loaded from world.html template)
@@ -258,7 +258,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             return;
         }
     }
-    
+
     // If stage is currently hidden, do NOT force it visible just to show a sprite.
     // Forcing the stage visible is a major source of projection glitches.
     try {
@@ -267,19 +267,19 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             return;
         }
     } catch (_) {}
-    
+
     if (!stage) {
         console.error(`[UIE] Cannot proceed - reality-stage not available`);
         return;
     }
-    
+
     // Check if sprite layer exists, create if missing
     let spriteLayer = document.getElementById("re-sprites-layer");
     if (!spriteLayer) {
         // Also check if it's inside the stage
         spriteLayer = stage.querySelector("#re-sprites-layer");
     }
-    
+
     if (!spriteLayer) {
         console.log(`[UIE] Sprite layer (re-sprites-layer) not found - creating it`);
         spriteLayer = document.createElement("div");
@@ -303,7 +303,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         }
         console.log(`[UIE] ✅ Created sprite layer for ${charName} inside reality-stage`);
     }
-    
+
     // Force sprite layer to be visible with multiple methods
     spriteLayer.setAttribute("style", spriteLayer.getAttribute("style") + " display: block !important; visibility: visible !important; opacity: 1 !important;");
     spriteLayer.style.display = "block";
@@ -314,14 +314,14 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
     spriteLayer.style.position = "absolute";
     spriteLayer.style.inset = "0";
     spriteLayer.style.overflow = "visible";
-    
+
     // Allow sprite updates even if reality engine is not enabled (for character selection)
     // OR if Character Expressions extension is available (we can mirror those sprites)
     if (!s.realityEngine?.enabled) {
         // Check if we have sprite sets configured OR if Character Expressions extension exists
         const sets = s.realityEngine?.sprites?.sets || {};
         const hasCharacterExpressions = document.querySelector("#expression-holder, #expression-wrapper") !== null;
-        
+
         // Allow updates if we have sprite sets OR Character Expressions extension is present
         if (!Object.keys(sets).length && !hasCharacterExpressions) {
             // No sprite sets and no Character Expressions - skip
@@ -430,10 +430,10 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             }
         }
     }
-    
+
     // If no mood determined yet, default to neutral
     if (!mood) mood = "neutral";
-    
+
     // If no UIE sprite set data, we'll try Character Expressions extension API below
     // This allows mirroring Character Expressions sprites even without UIE sprite sets configured
 
@@ -449,7 +449,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                 const sprites = await spriteResponse.json();
                 if (Array.isArray(sprites) && sprites.length > 0) {
                     console.log(`[UIE] Received ${sprites.length} sprites from Character Expressions API for ${charName}`);
-                    
+
                     // Use same matching logic as Character Expressions extension
                     // First try exact match
                     const targetMood = (mood || "neutral").toLowerCase().trim();
@@ -457,7 +457,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                         const spriteLabel = String(s.label || "").toLowerCase().trim();
                         return spriteLabel === targetMood;
                     });
-                    
+
                     // Then try fuzzy match (partial match)
                     if (!matchingSprite) {
                         matchingSprite = sprites.find(s => {
@@ -465,7 +465,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                             return spriteLabel.includes(targetMood) || targetMood.includes(spriteLabel);
                         });
                     }
-                    
+
                     // If no match, try neutral as fallback
                     if (!matchingSprite && targetMood !== "neutral") {
                         matchingSprite = sprites.find(s => {
@@ -473,12 +473,12 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                             return spriteLabel === "neutral";
                         });
                     }
-                    
+
                     // Use first sprite if no match found
                     if (!matchingSprite && sprites.length > 0) {
                         matchingSprite = sprites[0];
                     }
-                    
+
                     if (matchingSprite && matchingSprite.path) {
                         // Convert to absolute URL using Character Expressions extension's helper if available
                         if (typeof window.getAbsoluteSpriteUrl === "function") {
@@ -515,7 +515,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             const customFolder = getCustomSpriteFolder();
             const charSlug = String(charName).toLowerCase().replace(/[^a-z0-9]+/g, "_");
             const moodSlug = String(mood || "neutral").toLowerCase().replace(/[^a-z0-9]+/g, "_");
-            
+
             // Method 2: Try custom sprite folder first (if configured)
             if (customFolder) {
                 const customPaths = [
@@ -529,7 +529,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                 // We'll test these paths in the image loader
                 dataUrl = customPaths[0];
             }
-            
+
             // Method 3: Check Character Expression extension API (if available)
             if (!dataUrl && window.CharacterExpression) {
                 try {
@@ -540,7 +540,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     } else if (typeof window.CharacterExpression.getCurrentExpression === "function") {
                         exprResult = window.CharacterExpression.getCurrentExpression(charName);
                     }
-                    
+
                     if (exprResult) {
                         if (typeof exprResult === "string") {
                             dataUrl = exprResult;
@@ -555,7 +555,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                         }
                     }
                 } catch (_) {}
-                
+
                 // Also check Character Expression extension's stored data
                 if (!dataUrl) {
                     try {
@@ -570,7 +570,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                                 const basePath = spriteFolderOverride && spriteFolderOverride.includes('/')
                                     ? spriteFolderOverride
                                     : `/characters/${charName}`;
-                                
+
                                 // Try expression files with variations (neutral-0, neutral-1, etc.)
                                 const exprVariations = [
                                     `${basePath}/${mood || "neutral"}.png`,
@@ -580,13 +580,13 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                                     `${basePath}/neutral.png`, // Fallback
                                     `${basePath}/neutral.webp`
                                 ];
-                                
+
                                 // Also try numbered variations (neutral-0, neutral-1, etc.)
                                 for (let i = 0; i < 10; i++) {
                                     exprVariations.push(`${basePath}/${mood || "neutral"}-${i}.png`);
                                     exprVariations.push(`${basePath}/${mood || "neutral"}-${i}.webp`);
                                 }
-                                
+
                                 // Convert to absolute URL
                                 dataUrl = new URL(exprVariations[0], window.location.origin).href;
                             }
@@ -594,7 +594,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     } catch (_) {}
                 }
             }
-            
+
             // Method 3: Direct DOM check - Mirror Character Expression extension's current sprite
             // Check the expression-holder directly (Character Expressions extension's main container)
             if (!dataUrl) {
@@ -612,7 +612,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                             console.log(`[UIE] ✅ Directly mirrored Character Expression sprite from expression-holder: ${dataUrl}`);
                         }
                     }
-                    
+
                     // Also check chat messages for injected sprites
                     if (!dataUrl) {
                         const chatEl = document.getElementById("chat");
@@ -631,12 +631,12 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                                     break;
                                 }
                             }
-                            
+
                             // If no character-specific message, use last message
                             if (!lastMsg) {
                                 lastMsg = chatEl.querySelector(".mes:last-child");
                             }
-                            
+
                             if (lastMsg) {
                                 // Character Expression extension injects images - look for them
                                 const exprImgSelectors = [
@@ -652,7 +652,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                                     "[class*='expression'] img",
                                     "img[class*='expression']"
                                 ];
-                                
+
                                 for (const selector of exprImgSelectors) {
                                     const exprImg = lastMsg.querySelector(selector) || document.querySelector(selector);
                                     if (exprImg && exprImg.src && !exprImg.src.includes("data:image/svg") && !exprImg.src.includes("default-expressions")) {
@@ -671,10 +671,10 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                                         break;
                                     }
                                 }
-                                
+
                                 // Also check for expression data attributes
                                 if (!dataUrl) {
-                                    const exprData = lastMsg.getAttribute("data-expression") || 
+                                    const exprData = lastMsg.getAttribute("data-expression") ||
                                                    lastMsg.getAttribute("data-char-expression") ||
                                                    lastMsg.querySelector?.("[data-expression]")?.getAttribute("data-expression");
                                     if (exprData) {
@@ -703,7 +703,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     console.warn("[UIE] Error checking Character Expression DOM:", e);
                 }
             }
-            
+
             // Method 4: Try Character Expression extension's standard folder structure
             // Character Expression uses: /characters/[character_name]/[expression].[ext]
             // With support for numbered variations: [expression]-0.png, [expression]-1.png, etc.
@@ -716,10 +716,10 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                         // Check for sprite folder override (Character Expression extension supports this)
                         const spriteFolderOverride = char.spriteFolderOverride || char.sprite_folder_override || "";
                         // Character Expression extension paths are always /characters/[name]/[file]
-                        const basePath = spriteFolderOverride && spriteFolderOverride.includes('/') 
-                            ? spriteFolderOverride 
+                        const basePath = spriteFolderOverride && spriteFolderOverride.includes('/')
+                            ? spriteFolderOverride
                             : `/characters/${charName}`;
-                        
+
                         // Try expression files - Character Expression extension pattern (absolute URLs)
                         const exprPaths = [
                             `${basePath}/${mood || "neutral"}.png`,
@@ -727,7 +727,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                             `${basePath}/${moodSlug}.png`,
                             `${basePath}/${moodSlug}.webp`
                         ];
-                        
+
                         // Try numbered variations (neutral-0, neutral-1, etc.) - Character Expression extension supports these
                         for (let i = 0; i < 10; i++) {
                             exprPaths.push(`${basePath}/${mood || "neutral"}-${i}.png`);
@@ -735,7 +735,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                             exprPaths.push(`${basePath}/${moodSlug}-${i}.png`);
                             exprPaths.push(`${basePath}/${moodSlug}-${i}.webp`);
                         }
-                        
+
                         // Fallback to neutral
                         exprPaths.push(`${basePath}/neutral.png`);
                         exprPaths.push(`${basePath}/neutral.webp`);
@@ -743,13 +743,13 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                             exprPaths.push(`${basePath}/neutral-${i}.png`);
                             exprPaths.push(`${basePath}/neutral-${i}.webp`);
                         }
-                        
+
                         // Convert first path to absolute URL
                         dataUrl = new URL(exprPaths[0], window.location.origin).href;
                     }
                 }
             }
-            
+
             // Method 5: Try direct path based on character name (custom folder first, then SillyTavern default)
             if (!dataUrl) {
                 // Character Expression extension uses /characters/[name]/[expression].png
@@ -784,7 +784,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         try { hideSprite(charName); } catch (_) {}
         return;
     }
-    
+
     console.log(`[UIE] Using sprite URL for ${charName}: ${dataUrl}`);
 
     // 3. Get or Create Image Element
@@ -795,27 +795,25 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
     // Calculate position for group chat (multiple sprites side-by-side)
     const calculateSpritePosition = (charName) => {
         if (!spriteLayer) return { left: "50%", transform: "translateX(-50%)" };
-        
+
         // Get all visible sprites
         const allSprites = Array.from(spriteLayer.querySelectorAll(".re-sprite, [id^='re-sprite-']"));
         const visibleSprites = allSprites.filter(s => {
             const style = window.getComputedStyle(s);
             return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
         });
-        
-        // Check if it's a group chat
-        let isGroupChat = false;
-        try {
-            if (typeof window.getContext === "function") {
-                const context = window.getContext();
-                isGroupChat = context && context.groupId !== null;
-            }
-        } catch (_) {}
-        
-        if (isGroupChat && visibleSprites.length > 1) {
+
+        // Check if it's a group chat (or simply multiple sprites)
+        // We now ignore isGroupChat check and simply distribute if > 1 sprite
+        if (visibleSprites.length > 1 || (visibleSprites.length > 0 && !visibleSprites.find(s => s.id === id))) {
             // Group chat: position sprites side-by-side
-            const currentIndex = visibleSprites.findIndex(s => s.id === id || s.getAttribute("data-char-name") === charName);
-            const totalSprites = visibleSprites.length;
+            let currentIndex = visibleSprites.findIndex(s => s.id === id || s.getAttribute("data-char-name") === charName);
+
+            // If new sprite (not in list), append to end
+            if (currentIndex === -1) currentIndex = visibleSprites.length;
+
+            // Re-calculate for all, including this one
+            const totalSprites = Math.max(visibleSprites.length, currentIndex + 1);
             const spacing = 100 / (totalSprites + 1); // Distribute across viewport
             const leftPercent = spacing * (currentIndex + 1);
             return { left: `${leftPercent}%`, transform: "translateX(-50%)" };
@@ -838,12 +836,12 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         img.alt = charName; // Set alt for interaction
         img.style.position = "absolute";
         img.style.bottom = "22dvh"; // Match CSS default
-        
+
         // Calculate position (will be updated after all sprites are loaded)
         const pos = calculateSpritePosition(charName);
         img.style.left = pos.left;
         img.style.transform = pos.transform;
-        
+
         img.style.height = "62dvh"; // Match CSS default
         img.style.width = "auto";
         img.style.maxWidth = "96vw";
@@ -859,12 +857,12 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         img.style.imageRendering = "auto";
         img.setAttribute("data-char-name", charName);
         img.setAttribute("data-sprite-loaded", "false");
-        
+
         // Force layer to be visible before appending
         spriteLayer.style.display = "block";
         spriteLayer.style.visibility = "visible";
         spriteLayer.style.opacity = "1";
-        
+
         // Ensure sprite layer is in the DOM and visible before appending
         if (!spriteLayer.parentNode) {
             const reUi = stage.querySelector("#re-ui");
@@ -875,7 +873,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             }
             console.log(`[UIE] Sprite layer inserted into reality-stage`);
         }
-        
+
         spriteLayer.appendChild(img);
         console.log(`[UIE] ✅ Sprite element created and added to layer for ${charName}`);
         console.log(`[UIE] Layer parent: ${spriteLayer.parentNode?.id || 'none'}, display: ${window.getComputedStyle(spriteLayer).display}, visibility: ${window.getComputedStyle(spriteLayer).visibility}`);
@@ -890,32 +888,34 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
 
     // Helper function to convert relative paths to absolute URLs
     const toAbsoluteUrl = (path) => {
-        if (!path) return path;
+        if (!path) return "";
+        let p = String(path).trim();
+        if (!p) return "";
+
         // If already absolute, return as-is
-        if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
-            return path;
+        if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:')) {
+            return p;
         }
+
+        // Handle filesystem paths (backslashes) -> convert to forward slashes
+        p = p.replace(/\\/g, '/');
+
         // Convert relative path to absolute URL
         try {
             // Handle paths starting with / (absolute from root)
-            if (path.startsWith('/')) {
-                return new URL(path, window.location.origin).href;
+            if (p.startsWith('/')) {
+                return new URL(p, window.location.origin).href;
             }
-            // Handle paths like "user/images/..." - convert to /characters/... if it's a character sprite
-            if (path.includes('/characters/') || path.includes('characters/')) {
-                // Extract the character path part
-                const match = path.match(/(?:characters\/|characters\/)([^\/]+)\/(.+)/);
-                if (match) {
-                    const charName = match[1];
-                    const fileName = match[2];
-                    return new URL(`/characters/${charName}/${fileName}`, window.location.origin).href;
-                }
+            // Handle paths like "user/images/..." - ensure they are treated as relative to root if they look like system paths
+            if (p.startsWith('user/') || p.startsWith('characters/') || p.startsWith('scripts/')) {
+                return new URL('/' + p, window.location.origin).href;
             }
-            // For other relative paths, try to resolve them
-            return new URL(path, window.location.origin).href;
+
+            // Handle paths that might be relative to current page (which is root)
+            return new URL(p, window.location.origin).href;
         } catch (e) {
-            console.warn('[UIE] Failed to convert sprite path to absolute URL:', path, e);
-            return path;
+            console.warn('[UIE] Failed to convert sprite path to absolute URL:', p, e);
+            return p;
         }
     };
 
@@ -925,7 +925,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         if (dataUrl && !dataUrl.startsWith("data:") && !dataUrl.startsWith("http")) {
             dataUrl = toAbsoluteUrl(dataUrl);
         }
-        
+
         // Validation: Don't try to load if URL is empty or just root
         if (!dataUrl || dataUrl === window.location.origin + "/") {
             console.warn(`[UIE] Invalid sprite URL for ${charName}: ${dataUrl}`);
@@ -946,7 +946,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             const customFolder = getCustomSpriteFolder();
             const charSlug = String(charName).toLowerCase().replace(/[^a-z0-9]+/g, "_");
             const moodSlug = String(mood || "neutral").toLowerCase().replace(/[^a-z0-9]+/g, "_");
-            
+
             // Get Character Expression extension folder override if available
             let charExprFolder = null;
             try {
@@ -962,14 +962,14 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     }
                 }
             } catch (_) {}
-            
+
             if (charExprFolder) {
                 // Character Expression extension paths first (with numbered variations)
                 // Convert to absolute URLs - Character Expression uses /characters/[name]/[expression].png
-                const charExprBase = charExprFolder.includes('/characters/') 
-                    ? charExprFolder 
+                const charExprBase = charExprFolder.includes('/characters/')
+                    ? charExprFolder
                     : `/characters/${charName}`;
-                
+
                 attempts = [
                     dataUrl, // Original path (already converted to absolute)
                     dataUrl.replace(".png", ".webp"), // Same path, different extension
@@ -1020,11 +1020,11 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                 ];
             }
         }
-        
+
         let attemptIndex = 0;
         // Filter out empty or invalid URLs from attempts
         attempts = attempts.filter(url => url && url.trim() !== "" && url !== window.location.origin + "/");
-        
+
         const tryNext = () => {
             if (attemptIndex >= attempts.length) {
                 img.style.display = "none";
@@ -1035,7 +1035,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             img.src = attempts[attemptIndex];
             attemptIndex++;
         };
-        
+
         img.onerror = function() {
             console.warn(`[UIE] Failed to load sprite image (attempt ${attemptIndex}/${attempts.length}): ${this.src}`);
             if (attemptIndex >= attempts.length) {
@@ -1045,7 +1045,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         };
         img.onload = function() {
             console.log(`[UIE] Image onload fired for ${charName}`);
-            
+
             // Force visibility with !important via setAttribute and style
             const currentStyle = this.getAttribute("style") || "";
             this.setAttribute("style", currentStyle + " display: block !important; visibility: visible !important; opacity: 1 !important;");
@@ -1057,7 +1057,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
             this.style.opacity = "1";
             this.setAttribute("data-sprite-loaded", "true");
             this.onerror = null; // Clear error handler once loaded
-            
+
             // Ensure parent layer is visible and in DOM
             if (spriteLayer) {
                 if (!spriteLayer.parentNode && stage) {
@@ -1076,7 +1076,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                 spriteLayer.style.visibility = "visible";
                 spriteLayer.style.opacity = "1";
             }
-            
+
             // Ensure stage is visible
             if (stage) {
                 const stageStyle = window.getComputedStyle(stage);
@@ -1088,7 +1088,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     stage.style.display = "block";
                     stage.style.visibility = "visible";
                     stage.style.opacity = "1";
-                    
+
                     // Also enable in settings
                     try {
                         const s = getSettings();
@@ -1099,7 +1099,7 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     } catch (_) {}
                 }
             }
-            
+
             // Reposition all sprites for group chat (side-by-side layout)
             if (spriteLayer) {
                 const allSprites = Array.from(spriteLayer.querySelectorAll(".re-sprite, [id^='re-sprite-']"));
@@ -1107,17 +1107,9 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     const style = window.getComputedStyle(s);
                     return style.display !== "none" && style.visibility !== "hidden" && style.opacity !== "0";
                 });
-                
-                // Check if it's a group chat
-                let isGroupChat = false;
-                try {
-                    if (typeof window.getContext === "function") {
-                        const context = window.getContext();
-                        isGroupChat = context && context.groupId !== null;
-                    }
-                } catch (_) {}
-                
-                if (isGroupChat && visibleSprites.length > 1) {
+
+                // Reposition if multiple sprites
+                if (visibleSprites.length > 1) {
                     // Reposition all sprites side-by-side
                     visibleSprites.forEach((sprite, index) => {
                         const spacing = 100 / (visibleSprites.length + 1);
@@ -1132,17 +1124,17 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                     visibleSprites[0].style.transform = "translateX(-50%)";
                 }
             }
-            
+
             // Force a reflow to ensure rendering
             void this.offsetWidth;
-            
+
             console.log(`[UIE] ✅ Sprite loaded successfully: ${charName} (${this.src})`);
             console.log(`[UIE] Sprite computed: display=${window.getComputedStyle(this).display}, visibility=${window.getComputedStyle(this).visibility}, opacity=${window.getComputedStyle(this).opacity}`);
             console.log(`[UIE] Sprite dimensions: ${this.naturalWidth}x${this.naturalHeight}, displayed: ${this.offsetWidth}x${this.offsetHeight}`);
             console.log(`[UIE] Sprite position: left=${this.style.left}, bottom=${this.style.bottom}, z-index=${window.getComputedStyle(this).zIndex}`);
             console.log(`[UIE] Sprite parent: ${this.parentNode?.id || 'none'}, parent display: ${this.parentNode ? window.getComputedStyle(this.parentNode).display : 'N/A'}`);
         };
-        
+
         tryNext();
     } else {
         // Image already exists, just ensure it's visible
@@ -1150,14 +1142,14 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
         img.style.display = "block";
         img.style.visibility = "visible";
         img.style.opacity = "1";
-        
+
         // Force parent layer visibility
         if (spriteLayer) {
             spriteLayer.style.display = "block";
             spriteLayer.style.visibility = "visible";
             spriteLayer.style.opacity = "1";
         }
-        
+
         // If image is already loaded, ensure it's showing
         if (img.complete && img.naturalHeight > 0) {
             img.style.display = "block";
@@ -1258,14 +1250,14 @@ export function clearAllSprites({ remove = false } = {}) {
 export function initSprites() {
     if (bound) return;
     bound = true;
-    
+
     // Set up automatic sprite updates on message events
     try {
         if (typeof window.eventSource !== "undefined" && window.eventSource) {
             // Listen for character messages to update sprites automatically
             window.eventSource.on(window.event_types?.CHARACTER_MESSAGE_RENDERED || "character_message_rendered", (messageId, type) => {
                 if (type === 'impersonate') return;
-                
+
                 // Get the message from chat array
                 if (typeof window.chat !== "undefined" && Array.isArray(window.chat)) {
                     const message = window.chat.find(m => m.mesId === messageId);
@@ -1279,11 +1271,11 @@ export function initSprites() {
                     }
                 }
             });
-            
+
             // Also listen for MESSAGE_RECEIVED as backup
             window.eventSource.on(window.event_types?.MESSAGE_RECEIVED || "message_received", (messageId, type) => {
                 if (type === 'impersonate') return;
-                
+
                 // Get the message from chat array
                 if (typeof window.chat !== "undefined" && Array.isArray(window.chat)) {
                     const message = window.chat.find(m => m.mesId === messageId);
@@ -1297,7 +1289,7 @@ export function initSprites() {
                     }
                 }
             });
-            
+
             // Mirror Character Expressions extension sprites in real-time (NON-INTRUSIVE)
             // Only watch for changes, don't interfere with Character Expressions' own functionality
             const setupExpressionMirror = () => {
@@ -1360,23 +1352,23 @@ export function initSprites() {
                             }
                         }, 300); // Debounce 300ms
                     });
-                    
+
                     exprObserver.observe(expressionHolder, {
                         attributes: true,
                         attributeFilter: ['src'],
                         subtree: true,
                         childList: true
                     });
-                    
+
                     console.log("[UIE] ✅ Character Expressions mirror observer initialized (non-intrusive)");
                     return exprObserver;
                 }
                 return null;
             };
-            
+
             // Try to set up observer immediately
             let exprObserver = setupExpressionMirror();
-            
+
             // If expression-holder doesn't exist yet, wait for it (Character Expressions loads after page load)
             if (!exprObserver) {
                 const checkInterval = setInterval(() => {
@@ -1385,11 +1377,11 @@ export function initSprites() {
                         clearInterval(checkInterval);
                     }
                 }, 500);
-                
+
                 // Stop checking after 10 seconds
                 setTimeout(() => clearInterval(checkInterval), 10000);
             }
-            
+
             console.log("[UIE] Sprite auto-update listeners initialized");
         }
     } catch (e) {
@@ -1412,7 +1404,7 @@ export function initSprites() {
     if ($w.length) bindWindow($w[0]);
 
     console.log("[UIE] Living Sprite System Initialized");
-    
+
     // Also set up a periodic check to ensure sprites are visible (in case they get hidden)
     setInterval(() => {
         try {
@@ -1421,7 +1413,7 @@ export function initSprites() {
             if (layer && stage) {
                 const layerStyle = window.getComputedStyle(layer);
                 const stageStyle = window.getComputedStyle(stage);
-                
+
                 // If layer is hidden but stage is visible, force layer visible
                 if (stageStyle.display !== "none" && (layerStyle.display === "none" || layerStyle.visibility === "hidden")) {
                     console.log("[UIE] Sprite layer was hidden, forcing visibility");
@@ -1429,7 +1421,7 @@ export function initSprites() {
                     layer.style.visibility = "visible";
                     layer.style.opacity = "1";
                 }
-                
+
                 // Ensure all sprites in layer are visible
                 const sprites = layer.querySelectorAll(".re-sprite, [id^='re-sprite-']");
                 sprites.forEach(sprite => {
@@ -1540,7 +1532,7 @@ function bindWindow(win) {
         saveSetExpression(activeSet, key, "", "");
         renderList();
     });
-    
+
     // Load and display custom sprite folder path
     const folderInput = document.getElementById("uie-sprites-custom-folder");
     if (folderInput) {
@@ -1548,7 +1540,7 @@ function bindWindow(win) {
         ensureSpriteStore(s);
         folderInput.value = s.realityEngine.sprites.customSpriteFolder || "";
     }
-    
+
     // Save custom sprite folder path
     $w.on("click.uieSprites", "#uie-sprites-save-folder", function (e) {
         e.preventDefault();

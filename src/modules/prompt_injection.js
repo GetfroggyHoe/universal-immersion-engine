@@ -1,7 +1,7 @@
 
 import { extension_prompt_types, setExtensionPrompt, event_types, eventSource } from '/script.js';
 import { rootProtocolBlock } from './apiClient.js';
-import { flushHiddenEvents } from './features/rp_log.js';
+import { flushHiddenEvents, peekHiddenEvents } from './features/rp_log.js';
 
 const PROMPT_ID = 'universal_immersion_engine_prompt';
 
@@ -15,6 +15,9 @@ export function initPromptInjection() {
 
     // Update when a message is generated (to clear buffer if any events happened during generation?)
     eventSource.on(event_types.GENERATION_ENDED, async () => {
+        // Drain any buffered RP-log events after a generation completes so they don't
+        // repeat forever in later prompts.
+        try { flushHiddenEvents(); } catch (_) {}
         await updateUiePrompt();
     });
 
@@ -35,8 +38,9 @@ export async function updateUiePrompt() {
     if (isUpdating) return;
     isUpdating = true;
     try {
-        // Flush any buffered events (e.g. "You equipped Sword")
-        const events = flushHiddenEvents();
+        // Do NOT flush here. We want buffered RP events to be available for the next
+        // generation call (either SillyTavern chat generation or UIE module generation).
+        const events = peekHiddenEvents();
 
         // Generate the full UIE context (Inventory, Status, etc.)
         const context = await rootProtocolBlock("");

@@ -145,7 +145,7 @@ Output JSON: { "title": "Specific Title", "summary": "Detailed summary..." }`;
     doc.off("click", "#uie-db-state-scan").on("click", "#uie-db-state-scan", async function() {
         const btn = $(this).find("i");
         btn.addClass("fa-spin");
-        try { await scanEverything(); } catch (_) {}
+        try { await scanEverything({ force: true }); } catch (_) {}
         try { renderState(); } catch (_) {}
         btn.removeClass("fa-spin");
     });

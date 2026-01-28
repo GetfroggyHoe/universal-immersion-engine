@@ -1346,6 +1346,15 @@ ${chat}`.slice(0, 6000);
     $win.on("click.phone", "#contact-add-manual", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
     $win.on("click.phone", "#contact-add-fab", (e) => { e.preventDefault(); e.stopPropagation(); promptAddContact(); });
 
+    // --- MESSAGE SHORTCUT (Contacts) ---
+    $win.off("click.phoneMsgTrigger", ".phone-msg-trigger");
+    $win.on("click.phoneMsgTrigger", ".phone-msg-trigger", function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const nm = String($(this).data("name") || "").trim();
+        if (!nm) return;
+        openThread(nm);
+    });
+
     // --- CALL LOGIC ---
     $win.off("click.phoneCallTrigger", ".phone-call-trigger");
     $win.on("click.phoneCallTrigger", ".phone-call-trigger", function(e) {

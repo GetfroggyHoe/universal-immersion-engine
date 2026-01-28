@@ -3,8 +3,15 @@
     #uie-map-window{ top: 80px; left: 80px; transform: none; }
     @media (max-width: 700px), (pointer: coarse) {
         #uie-map-window {
-            width: 94vw;
-            max-height: 80vh;
+            position: fixed !important;
+            inset: auto !important;
+            top: 12vh !important;
+            left: 3vw !important;
+            transform: none !important;
+            width: 94vw !important;
+            height: 80vh !important;
+            max-width: 94vw !important;
+            max-height: 80vh !important;
         }
     }
 </style>
@@ -52,86 +59,3 @@
     </div>
 </div>
 <input type="file" id="uie-map-bg-file" accept="image/*" style="display:none;">
-
-<template id="uie-template-map-image-mode">
-    <div class="uie-map-root" style="width:100%; height:100%; position:relative; overflow:hidden; background:#000;">
-        <img class="uie-map-img" style="width:100%; height:100%; object-fit:contain; pointer-events:none;">
-        <div style="position:absolute; left:18px; top:16px; padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#fff; font-weight:900; letter-spacing:1px;">
-            <div style="font-size:12px; opacity:0.85;">AI GENERATED MAP</div>
-            <div class="uie-map-prompt-label" style="font-size:11px; opacity:0.65; font-weight:700; margin-top:4px;"></div>
-        </div>
-    </div>
-</template>
-
-<template id="uie-template-map-empty">
-    <div style="padding:16px;color:#666;text-align:center;">No map cached. Use Generate.</div>
-</template>
-
-<template id="uie-template-map-blob">
-    <div class="uie-map-blob" style="position:absolute;"></div>
-</template>
-
-<template id="uie-template-map-scatter">
-    <div class="uie-map-scatter" style="position:absolute; pointer-events:none;"></div>
-</template>
-
-<template id="uie-template-map-poi">
-    <div class="uie-map-poi" style="position:absolute; transform:translate(-50%,-50%); z-index:10; cursor:pointer;">
-        <div class="uie-poi-icon-container" style="width:28px; height:28px; border-radius:50%; background:#2c3e50; border:2px solid; box-shadow:0 4px 8px rgba(0,0,0,0.6); display:grid; place-items:center; font-size:14px; pointer-events:none;">
-            <i class="fa-solid"></i>
-        </div>
-        <div class="uie-poi-label" style="position:absolute; top:32px; left:50%; transform:translateX(-50%); white-space:nowrap; padding:4px 10px; border-radius:6px; background:rgba(10,10,15,0.85); border:1px solid rgba(225,193,122,0.3); color:#fff; font-size:12px; font-weight:900; text-shadow:0 2px 4px rgba(0,0,0,0.9); box-shadow:0 4px 12px rgba(0,0,0,0.5); pointer-events:none;"></div>
-    </div>
-</template>
-
-<template id="uie-template-map-region">
-    <div class="uie-map-region" style="position:absolute; transform:translate(-50%,-50%); color:rgba(255,255,255,0.25); font-weight:900; letter-spacing:2px; font-size:24px; text-transform:uppercase; text-shadow:0 4px 12px rgba(0,0,0,0.8); pointer-events:none; font-family:serif; text-align:center;"></div>
-</template>
-
-<template id="uie-template-map-procedural-root">
-    <div id="uie-map-root" style="position:relative; overflow:hidden; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;">
-        <div class="uie-map-overlay" style="position:absolute; inset:0; background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.06), transparent 55%), radial-gradient(circle at 70% 60%, rgba(241,196,15,0.05), transparent 60%); opacity:1;"></div>
-        <div class="uie-map-river-container"></div>
-        <div class="uie-map-blobs-container"></div>
-        <div class="uie-map-roads-container"></div>
-        <div style="position:absolute; inset:0; pointer-events:none; background: linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.55));"></div>
-        <div class="uie-map-grid" style="position:absolute; inset:0; pointer-events:none; opacity:0.08; background-image: repeating-linear-gradient(0deg, rgba(255,255,255,0.25) 0, rgba(255,255,255,0.25) 1px, transparent 1px, transparent 36px), repeating-linear-gradient(90deg, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 1px, transparent 1px, transparent 36px);"></div>
-        <div style="position:absolute; left:18px; top:16px; padding:10px 12px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#fff; font-weight:900; letter-spacing:1px;">
-            <div class="uie-map-title" style="font-size:12px; opacity:0.85;"></div>
-            <div class="uie-map-subtitle" style="font-size:11px; opacity:0.65; font-weight:700; margin-top:4px;"></div>
-        </div>
-        <div class="uie-map-regions-container"></div>
-        <div class="uie-map-locations-container"></div>
-        <div id="uie-map-info-card" style="display:none; position:absolute; bottom:20px; left:50%; transform:translateX(-50%); width:90%; max-width:320px; background:rgba(10,8,6,0.95); border:1px solid rgba(225,193,122,0.4); border-radius:12px; padding:16px; color:#fff; box-shadow:0 10px 40px rgba(0,0,0,0.9); z-index:100; font-family:serif;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-                <h3 id="uie-map-card-title" style="margin:0; font-size:18px; color:#f1c40f;">Location</h3>
-                <i class="fa-solid fa-xmark" id="uie-map-card-close" style="cursor:pointer; opacity:0.6; padding:4px;"></i>
-            </div>
-            <div id="uie-map-card-type" style="font-size:11px; text-transform:uppercase; color:rgba(255,255,255,0.6); font-weight:900; letter-spacing:1px; margin-bottom:8px;">TYPE</div>
-            <div id="uie-map-card-desc" style="font-size:13px; line-height:1.4; color:rgba(255,255,255,0.9);">Description goes here...</div>
-        </div>
-    </div>
-</template>
-
-<template id="uie-template-map-river-svg">
-    <svg style="position:absolute; inset:0; opacity:0.8; pointer-events:none;">
-        <defs>
-            <linearGradient id="r" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stop-color="#4fc3f7" stop-opacity="0.0"/>
-                <stop offset="0.25" stop-color="#4fc3f7" stop-opacity="0.8"/>
-                <stop offset="0.75" stop-color="#4fc3f7" stop-opacity="0.6"/>
-                <stop offset="1" stop-color="#4fc3f7" stop-opacity="0.0"/>
-            </linearGradient>
-            <filter id="g" x="-10%" y="-10%" width="120%" height="120%">
-                <feGaussianBlur stdDeviation="3" />
-                <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="goo" />
-            </filter>
-        </defs>
-        <path class="uie-river-path-main" fill="none" stroke="url(#r)" stroke-linecap="round" stroke-linejoin="round"></path>
-        <path class="uie-river-path-highlight" fill="none" stroke="#b3e5fc" stroke-opacity="0.6" stroke-linecap="round" stroke-linejoin="round"></path>
-    </svg>
-</template>
-
-<template id="uie-template-map-roads-svg">
-    <svg style="position:absolute; inset:0; pointer-events:none; opacity:0.4;"></svg>
-</template>

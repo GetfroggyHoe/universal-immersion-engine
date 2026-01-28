@@ -110,13 +110,16 @@ jQuery(async () => {
         // These modules should self-initialize their event listeners
         await safeImport(`./src/modules/dragging.js?v=${uieBuildV}`, "initDragging", true);
         await safeImport(`./src/modules/interaction.js?v=${uieBuildV}`, "initInteractions", true);
+        await safeImport(`./src/modules/navigation.js?v=${uieBuildV}`, "initNavigation", false);
         await safeImport(`./src/modules/prompt_injection.js?v=${uieBuildV}`, "initPromptInjection", false);
+        await safeImport(`./src/modules/features/generation.js?v=${uieBuildV}`, "init", false);
         await safeImport(`./src/modules/inventory.js?v=${uieBuildV}`, "initInventory", true);
         await safeImport(`./src/modules/features/activities.js?v=${uieBuildV}`, "initActivities", false);
         await safeImport(`./src/modules/diary.js?v=${uieBuildV}`, "initDiary", false);
         await safeImport(`./src/modules/diagnostics.js?v=${uieBuildV}`, "initDiagnostics", false);
         await safeImport(`./src/modules/calendar.js?v=${uieBuildV}`, "initCalendar", false);
         await safeImport(`./src/modules/databank.js?v=${uieBuildV}`, "initDatabank", false);
+        await safeImport(`./src/modules/journal.js?v=${uieBuildV}`, "initJournal", false);
         // Do not init War Room at startup; only init when the user explicitly opens it.
         await safeImport(`./src/modules/map.js?v=${uieBuildV}`, "initMap", false);
         await safeImport(`./src/modules/party.js?v=${uieBuildV}`, "initParty", false);

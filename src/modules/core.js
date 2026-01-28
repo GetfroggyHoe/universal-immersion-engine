@@ -723,6 +723,22 @@ export function updateLayout() {
         $("#uie-sw-systemchecks-enable").prop("checked", s.generation?.allowSystemChecks === true);
     } catch (_) {}
     try {
+        const ai = (s.ai && typeof s.ai === "object") ? s.ai : {};
+        $("#uie-ai-journal-gen").prop("checked", ai.journalQuestGen !== false);
+        $("#uie-ai-map-gen").prop("checked", ai.map !== false);
+
+        $("#uie-sw-ai-phone-browser").prop("checked", ai.phoneBrowser !== false);
+        $("#uie-sw-ai-phone-messages").prop("checked", ai.phoneMessages !== false);
+        $("#uie-sw-ai-phone-calls").prop("checked", ai.phoneCalls !== false);
+        $("#uie-sw-ai-app-builder").prop("checked", ai.appBuilder !== false);
+        $("#uie-sw-ai-books").prop("checked", ai.books !== false);
+        $("#uie-sw-ai-journal-quests").prop("checked", ai.journalQuestGen !== false);
+        $("#uie-sw-ai-databank").prop("checked", ai.databankScan !== false);
+        $("#uie-sw-ai-map").prop("checked", ai.map !== false);
+        $("#uie-sw-ai-shop").prop("checked", ai.shop !== false);
+        $("#uie-sw-ai-loot").prop("checked", ai.loot !== false);
+    } catch (_) {}
+    try {
         const img = (s.image && typeof s.image === "object") ? s.image : {};
         $("#uie-sw-img-enable").prop("checked", img.enabled === true);
         if (typeof img.url === "string") $("#uie-sw-img-url").val(img.url);
@@ -1736,6 +1752,45 @@ $("body").on("change", ".uie-settings-block #uie-systemchecks-enable, #uie-sw-sy
     const s = getSettings();
     s.generation.allowSystemChecks = $(this).prop("checked") === true;
     saveSettings();
+});
+
+$("body").on("change", "#uie-ai-journal-gen, #uie-sw-ai-journal-quests", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.ai || typeof s.ai !== "object") s.ai = {};
+    s.ai.journalQuestGen = $(this).prop("checked") === true;
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});
+
+$("body").on("change", "#uie-ai-map-gen, #uie-sw-ai-map", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.ai || typeof s.ai !== "object") s.ai = {};
+    s.ai.map = $(this).prop("checked") === true;
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
+});
+
+$("body").on("change", "#uie-sw-ai-phone-browser, #uie-sw-ai-phone-messages, #uie-sw-ai-phone-calls, #uie-sw-ai-app-builder, #uie-sw-ai-books, #uie-sw-ai-databank, #uie-sw-ai-shop, #uie-sw-ai-loot", function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const s = getSettings();
+    if (!s.ai || typeof s.ai !== "object") s.ai = {};
+    const id = String(this.id || "");
+    const on = $(this).prop("checked") === true;
+    if (id === "uie-sw-ai-phone-browser") s.ai.phoneBrowser = on;
+    if (id === "uie-sw-ai-phone-messages") s.ai.phoneMessages = on;
+    if (id === "uie-sw-ai-phone-calls") s.ai.phoneCalls = on;
+    if (id === "uie-sw-ai-app-builder") s.ai.appBuilder = on;
+    if (id === "uie-sw-ai-books") s.ai.books = on;
+    if (id === "uie-sw-ai-databank") s.ai.databankScan = on;
+    if (id === "uie-sw-ai-shop") s.ai.shop = on;
+    if (id === "uie-sw-ai-loot") s.ai.loot = on;
+    saveSettings();
+    try { updateLayout(); } catch (_) {}
 });
 
 $("body").on("change", "#uie-sw-img-enable", function(e) {

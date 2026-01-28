@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from "../core.js";
 import { generateContent } from "../apiClient.js";
-import { getContext } from "../../../../../../extensions.js";
+import { getContext } from "/scripts/extensions.js";
 import { SLOT_TYPES_CORE } from "../slot_types_core.js";
 import { inferItemType } from "../slot_types_infer.js";
 import { injectRpEvent } from "./rp_log.js";
@@ -9,6 +9,18 @@ let mounted = false;
 let activeIdx = null;
 let viewMode = "items";
 let genNeedsConfirm = false;
+
+export function init() {
+  const $root = $("#uie-items-root");
+  if (!$root.length) return;
+  if (mounted) {
+    try { render(); } catch (_) {}
+    return;
+  }
+  mounted = true;
+  try { bind(); } catch (_) {}
+  try { render(); } catch (_) {}
+}
 
 function ensureModel(s) {
   if (!s) return;
@@ -235,15 +247,6 @@ function renderCategoryUi(viewMode) {
   });
 }
 
-export async function init() {
-  const $root = $("#uie-items-root");
-  if (!$root.length) return;
-  if (mounted) return;
-  mounted = true;
-  bind();
-  render();
-}
-
 export function render() {
   const s = getSettings();
   if (!s) return;
@@ -385,6 +388,17 @@ function bind() {
 
   doc.off("click.uieItemUse", "#uie-item-use").on("click.uieItemUse", "#uie-item-use", () => actOnItem("use"));
   doc.off("click.uieItemCustomUse", "#uie-item-custom-use").on("click.uieItemCustomUse", "#uie-item-custom-use", () => actOnItem("custom_use"));
+  doc.off("click.uieItemUseChat", "#uie-item-use-chat").on("click.uieItemUseChat", "#uie-item-use-chat", () => actOnItem("use_chat"));
+
+  doc.off("click.uieCtxItem", ".uie-ctx-item").on("click.uieCtxItem", ".uie-ctx-item", function(e) {
+      e.preventDefault(); e.stopPropagation();
+      const act = $(this).data("action");
+      const idx = Number($(this).data("idx"));
+      if (Number.isFinite(idx)) activeIdx = idx;
+      if (act) actOnItem(act);
+      $(".uie-ctx-menu-overlay").remove();
+  });
+
   doc.off("click.uieItemEquip", "#uie-item-equip").on("click.uieItemEquip", "#uie-item-equip", () => actOnItem("equip"));
   doc.off("click.uieItemCustomEquip", "#uie-item-custom-equip").on("click.uieItemCustomEquip", "#uie-item-custom-equip", () => actOnItem("custom_equip"));
   doc.off("click.uieItemDiscard", "#uie-item-discard").on("click.uieItemDiscard", "#uie-item-discard", () => actOnItem("discard"));
@@ -504,6 +518,7 @@ function openItemContextMenu(idx, x, y) {
 
   menu.append(mkBtn("Inspect", "inspect", "fa-circle-info"));
   menu.append(mkBtn("Use", "use", "fa-hand-sparkles"));
+  menu.append(mkBtn("Use (Chat)", "use_chat", "fa-comment-dots"));
 
   if (isEquippable(it)) {
       menu.append(mkBtn("Equip", "equip", "fa-shield-halved"));
@@ -609,6 +624,37 @@ async function actOnItem(kind) {
   if (!it) return;
 
   const name = String(it.name || "Item");
+
+  if (kind === "use_chat") {
+    const consumes = !!it?.use?.consumes;
+    const eff = String(it?.use?.desc || it?.desc || it?.effect || it?.description || "").trim().slice(0, 220) || "";
+    let msg = `*uses ${name}*`;
+    if (consumes && eff) msg += `\n(Effect: ${eff})`;
+
+    // Log internally
+    logAction(s, { action: "use_chat", item: name, note: consumes ? "consumed" : "" });
+
+    // Consume
+    if (consumes) {
+        const q = Number(it.qty || 1);
+        it.qty = Math.max(0, q - 1);
+        if (it.qty <= 0) list.splice(idx, 1);
+    }
+
+    saveSettings();
+    closeItemModal();
+    render();
+
+    // Send to Chat
+    const textarea = document.getElementById("send_textarea");
+    if (textarea) {
+        textarea.value = msg;
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        const sendBtn = document.getElementById("send_but");
+        if (sendBtn) sendBtn.click();
+    }
+    return;
+  }
 
   if (kind === "custom_use") {
     const note = prompt("Custom Use (what happened?)") || "";

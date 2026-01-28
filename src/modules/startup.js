@@ -23,7 +23,7 @@ export async function loadTemplates() {
                     const st = document.createElement("style");
                     st.id = "uie-launcher-fallback-style";
                     st.textContent = `
-#uie-launcher{position:fixed;width:54px;height:54px;z-index:2147483645;cursor:pointer;background:transparent;}
+#uie-launcher{position:fixed;bottom:20px;left:20px;width:54px;height:54px;z-index:2147483645;cursor:pointer;background:transparent;}
 #uie-launcher .uie-launcher-fallback{display:block; filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));}
 `;
                     document.head.appendChild(st);

@@ -4,6 +4,7 @@ import { getContext } from "/scripts/extensions.js";
 import { buildSystemPrompt, consumePendingSystemEvents, validateResponse } from "./logicEnforcer.js";
 import { notify } from "./notifications.js";
 import { getChatTranscriptText } from "./chatLog.js";
+import { flushHiddenEvents } from "./features/rp_log.js";
 
 function ensureConfirmModal() {
     if ($("#uie-ai-confirm").length) return;
@@ -1025,6 +1026,14 @@ export async function generateContent(prompt, type) {
 
     if (type === "Logic" || type === "JSON") type = "System Check";
     if ((type === "System Check" || type === "Unified State Scan") && s?.generation?.allowSystemChecks === false) {
+        try {
+            const last = String(window.UIE_lastSystemCheckBlockedType || "");
+            const cur = String(type || "System Check");
+            if (last !== cur) {
+                window.UIE_lastSystemCheckBlockedType = cur;
+                notify("warning", "Blocked by settings: enable 'Allow System Checks (AI)' in UIE Settings → Generation.", "UIE", "api");
+            }
+        } catch (_) {}
         return null;
     }
 
@@ -1111,7 +1120,15 @@ export async function generateContent(prompt, type) {
     })();
     const pending = String(consumePendingSystemEvents ? consumePendingSystemEvents() : "").trim();
     const baseWithCustom = `${prefixes}${base}`.trim();
-    const finalPrompt = `${await rootProtocolBlock(baseWithCustom)}\n\n${baseWithCustom}${pending ? `\n\n[SYSTEM EVENT]\n${pending}` : ""}`.slice(0, 12000);
+
+    // Drain buffered RP-log events so UI actions (items, phone, etc.) become AI-visible
+    // to THIS generation call. This is the authoritative path for UIE module generation.
+    let rpEvents = "";
+    try { rpEvents = String(flushHiddenEvents ? flushHiddenEvents() : "").trim(); } catch (_) { rpEvents = ""; }
+
+    const finalPrompt = `${await rootProtocolBlock(baseWithCustom)}\n\n${baseWithCustom}`
+        + `${pending ? `\n\n[SYSTEM EVENT]\n${pending}` : ""}`
+        + `${rpEvents ? `\n\n[RECENT_ACTIVITY_LOG]\n${rpEvents}` : ""}`;
 
     if (type === "Webpage") {
         const ok = await confirmAICall({
@@ -1255,9 +1272,30 @@ export async function generateContent(prompt, type) {
                 return null;
             }
             out = await generateRaw({ prompt: `${system}\n\n${finalPrompt}`, quietToLoud: false, skip_w_info: true });
-        } catch (e) { return null; }
+        } catch (e) {
+            try {
+                window.UIE_lastGenError = {
+                    at: Date.now(),
+                    type: String(type || ""),
+                    message: String(e?.message || e || "Unknown error").slice(0, 800),
+                    stack: String(e?.stack || "").slice(0, 3000)
+                };
+            } catch (_) {}
+            try { notify("error", "Generation failed. Check console for details.", "UIE", "api"); } catch (_) {}
+            try { console.error("[UIE] generateRaw failed", { type, error: e }); } catch (_) {}
+            return null;
+        }
     }
-    if (!out) return null;
+    if (!out) {
+        try {
+            const t = Number(window.UIE_lastGenEmptyToastAt || 0);
+            if (!t || Date.now() - t > 3000) {
+                window.UIE_lastGenEmptyToastAt = Date.now();
+                notify("warning", "AI returned no output.", "UIE", "api");
+            }
+        } catch (_) {}
+        return null;
+    }
     if (wantsJson) {
         const fixed = normalizeJsonOut(out);
         if (fixed) out = fixed;

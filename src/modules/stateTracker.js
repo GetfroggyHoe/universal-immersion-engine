@@ -125,8 +125,8 @@ function stripCssBlocks(text) {
 export async function scanEverything(opts = {}) {
     const s = getSettings();
     if (s.enabled === false) return;
-    if (s.generation?.scanAllEnabled === false) return;
     const force = !!opts?.force;
+    if (!force && s.generation?.scanAllEnabled === false) return;
     ensureState(s);
     const gate = (() => {
         try {
@@ -252,7 +252,12 @@ ${chatSnippet}
 `;
 
     const res = await generateContent(prompt, "Unified State Scan");
-    if (!res) return;
+    if (!res) {
+        if (force) {
+            try { notify("warning", "Scan blocked: enable 'Allow System Checks (AI)' in UIE Settings.", "Scan", "scanBlocked"); } catch (_) {}
+        }
+        return;
+    }
 
     try {
         const data = safeJsonParseObject(res);

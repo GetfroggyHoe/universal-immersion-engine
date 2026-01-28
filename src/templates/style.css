@@ -636,12 +636,17 @@ textarea.uie-edit-field { resize: vertical; min-height: 60px; }
 /* Focus Mode */
 .re-focus-mode #re-sprites-layer,
 .re-focus-mode #re-objects,
-.re-focus-mode #re-action-grid,
-.re-focus-mode #re-hud,
 .re-focus-mode #re-trophies {
     display: none !important;
 }
 .re-focus-mode #re-bg { opacity: 0.3; filter: blur(4px); }
+
+@media (min-width: 769px) and (pointer: fine) {
+    .re-focus-mode #re-action-grid,
+    .re-focus-mode #re-hud {
+        display: none !important;
+    }
+}
 
 /* Visual Trophies */
 #re-trophies {

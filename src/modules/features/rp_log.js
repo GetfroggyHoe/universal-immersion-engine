@@ -10,6 +10,11 @@
 // Buffer for events that should be hidden from UI but sent to AI
 export const hiddenEventBuffer = [];
 
+export function peekHiddenEvents() {
+    if (hiddenEventBuffer.length === 0) return "";
+    return hiddenEventBuffer.join("\n");
+}
+
 export function flushHiddenEvents() {
     if (hiddenEventBuffer.length === 0) return "";
     const events = [...hiddenEventBuffer];

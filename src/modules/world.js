@@ -1808,7 +1808,7 @@ export function initWorld() {
         const btn = $("#uie-world-update");
         btn.addClass("fa-spin");
         try {
-            await scanEverything();
+            await scanEverything({ force: true });
             render();
         } catch(e) {}
         finally { btn.removeClass("fa-spin"); }

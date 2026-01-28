@@ -48,6 +48,8 @@
 /* --- LAUNCHER BUTTON --- */
 #uie-launcher {
     position: fixed;
+    bottom: 20px;
+    left: 20px;
     width: 60px;
     height: 60px;
     z-index: 2147483645;
@@ -269,11 +271,12 @@
 #re-phone, #re-journal {
     /* Hidden per user request for "projection environment" if they meant on stage */
     /* User said "get rid of those phone and journal buttons on the projectione nviornment" */
-    display: none !important; 
+    display: none !important;
 }
 
 /* Ensure UIE Windows are on top of stage and arrows */
 .uie-window {
+    position: fixed;
     z-index: 2147483655 !important;
 }
 
@@ -300,19 +303,27 @@
 }
 
 /* Ensure content is not covered */
-#uie-map-window,
 #uie-journal-window,
 #uie-diary-window {
     flex-direction: column;
     overflow: hidden;
 }
 
-#uie-map-window > :not(.uie-header),
 #uie-journal-window > :not(.uie-header),
 #uie-diary-window > :not(.uie-diary-header) {
     flex: 1 !important;
     min-height: 0 !important;
     overflow-y: auto !important;
+}
+
+/* Specific Map Handling */
+#uie-map-window {
+    flex-direction: column;
+    overflow: hidden;
+}
+#uie-map-window #uie-map-canvas {
+    flex: 1 !important;
+    min-height: 0 !important;
 }
 
 /* Specific Fix for Databank Title overlap */
@@ -328,7 +339,7 @@
     .uie-window {
         border-radius: 12px !important;
     }
-    
+
     /* Ensure menus aren't stuck at top */
     #re-st-menu {
         top: 50%;
@@ -339,5 +350,24 @@
         width: min(320px, 86vw) !important;
         max-height: 80vh;
         overflow: auto;
+    }
+
+    .re-focus-mode #re-hud {
+        display: flex !important;
+    }
+    .re-focus-mode #re-action-grid {
+        display: flex !important;
+    }
+
+    #re-composer-wrap {
+        position: fixed !important;
+        left: 50% !important;
+        bottom: max(10px, env(safe-area-inset-bottom)) !important;
+        transform: translateX(-50%) !important;
+        width: min(820px, 96vw) !important;
+        z-index: 2147483644 !important;
+    }
+    #re-hud {
+        padding-top: max(12px, env(safe-area-inset-top)) !important;
     }
 }
