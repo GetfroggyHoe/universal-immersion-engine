@@ -18,7 +18,10 @@
     </style>
     <div class="uie-header" style="border-color:#00f0ff;">
         <span style="color:#00f0ff; font-weight:bold;">SYSTEM DIAGNOSTICS</span>
-        <i class="fa-solid fa-xmark uie-close-btn" id="uie-debug-close" style="color:#00f0ff;"></i>
+        <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+            <i class="fa-solid fa-circle-question" onclick="uie.phone.openBooksGuide('guide-debug')" title="Help / Guide" style="color:#00f0ff; cursor:pointer;"></i>
+            <i class="fa-solid fa-xmark uie-close-btn" id="uie-debug-close" style="color:#00f0ff;"></i>
+        </div>
     </div>
     <div id="uie-debug-log" class="custom-scroll">Open this window again if it ever goes blank. Use COPY REPORT to share errors.</div>
     <div id="uie-debug-toolbar">

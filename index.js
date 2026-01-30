@@ -58,7 +58,8 @@ jQuery(async () => {
 
     // 1. Styles
     $("<link>").attr({rel: "stylesheet", type: "text/css", href: `${baseUrl}style.css?v=${uieBuildV}`}).appendTo("head");
-    
+    $("<link>").attr({rel: "stylesheet", type: "text/css", href: `${baseUrl}src/styles/overrides.css?v=${uieBuildV}`}).appendTo("head");
+
     // 2. Cleanup Old Elements
     $("#uie-launcher, #uie-main-menu, .uie-window, .uie-book-overlay, .uie-phone").remove();
 
@@ -87,7 +88,7 @@ jQuery(async () => {
         };
         await ensureSanitized();
         try { (await import(`./src/modules/stateSubscriptions.js?v=${uieBuildV}`)).initStateSubscriptions?.(); } catch (_) {}
-        
+
         const Startup = await import(`./src/modules/startup.js?v=${uieBuildV}`);
         Startup.patchToastr();
         try {
@@ -105,7 +106,7 @@ jQuery(async () => {
             }
         } catch (_) {}
         Startup.injectSettingsUI();
-        
+
         // 4. Load Features (Modules)
         // These modules should self-initialize their event listeners
         await safeImport(`./src/modules/dragging.js?v=${uieBuildV}`, "initDragging", true);
@@ -129,7 +130,7 @@ jQuery(async () => {
         await safeImport(`./src/modules/chatbox.js?v=${uieBuildV}`, "initChatbox", false);
         await safeImport(`./src/modules/sprites.js?v=${uieBuildV}`, "initSprites", false);
         await safeImport(`./src/modules/features/stats.js?v=${uieBuildV}`, "initStats", false);
-        
+
         // Phone placeholder
         await safeImport(`./src/modules/phone.js?v=${uieBuildV}`, "initPhone", false);
 
@@ -137,7 +138,7 @@ jQuery(async () => {
         Core.updateLayout();
         try { $("#uie-battle-window").hide().css("display", "none"); } catch (_) {}
         console.log("[UIE] Ready.");
-        
+
     } catch (e) {
         console.error("[UIE] Critical Initialization Error:", e);
         markInitError("critical", e);

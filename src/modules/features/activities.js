@@ -479,6 +479,23 @@ function createCustomActivity() {
 
 export function initActivities() {
     const $win = $("#uie-activities-window");
+    // Force hide on init
+    $win.hide();
+
+    // 1. Navigation
+    $("body").off("click", ".uie-nav-item").on("click", ".uie-nav-item", function() {
+        $(".uie-nav-item").removeClass("active");
+        $(this).addClass("active");
+        activeTab = $(this).data("tab");
+        setActiveTab(activeTab);
+    });
+
+    // Close Button
+    $("body").off("click", "#uie-activities-close-btn").on("click", "#uie-activities-close-btn", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $win.hide();
+    });
 
     $win.off("click.uieActTabs").on("click.uieActTabs", "#uie-activity-tab-user, #uie-activity-tab-party", (e) => {
         try { e?.preventDefault?.(); } catch (_) {}

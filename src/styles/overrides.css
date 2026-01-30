@@ -33,7 +33,7 @@
 /* CRITICAL FIX: Override any conflicting styles that put headers on the side */
 #uie-stats-window,
 #uie-activities-window {
-    display: flex !important;
+    /* display: flex !important; */
     flex-direction: column !important;
 }
 

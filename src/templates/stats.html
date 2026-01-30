@@ -3,7 +3,7 @@
         .uie-rpg-theme ::-webkit-scrollbar { width: 6px; }
         .uie-rpg-theme ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
         .uie-rpg-theme ::-webkit-scrollbar-thumb { background: #cba35c; border-radius: 3px; }
-        
+
         /* CRITICAL: Force header to be at top, horizontal, normal size */
         #uie-stats-window {
             flex-direction: column !important;
@@ -14,7 +14,7 @@
             height: min(600px, 70vh);
             position: fixed;
         }
-        
+
         /* Full menu on desktop, normal size on mobile */
         @media (max-width: 700px), (pointer: coarse) {
             #uie-stats-window {
@@ -26,7 +26,7 @@
                 max-height: 87vh;
             }
         }
-        
+
         .uie-rpg-header,
         #uie-stats-window .uie-rpg-header,
         #uie-stats-window > .uie-rpg-header {
@@ -57,7 +57,7 @@
             cursor: move !important;
             pointer-events: auto !important;
         }
-        
+
         .uie-rpg-header button,
         .uie-rpg-header .uie-rpg-close {
             cursor: pointer !important;
@@ -65,7 +65,7 @@
             position: relative !important;
             z-index: 10 !important;
         }
-        
+
         .uie-rpg-title,
         #uie-stats-window .uie-rpg-title,
         #uie-stats-window .uie-rpg-header .uie-rpg-title {
@@ -266,8 +266,9 @@
     <div class="uie-rpg-header" style="position:relative !important; top:0 !important; left:0 !important; width:100% !important; height:auto !important; flex-direction:row !important; display:flex !important; align-items:center !important; justify-content:space-between !important; writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important;">
         <div class="uie-rpg-title" style="writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important; display:flex !important; flex-direction:row !important; align-items:center !important;"><i class="fa-solid fa-chart-bar"></i> Character Stats</div>
         <div style="display:flex; align-items:center; gap:10px;">
+            <button class="uie-rpg-close" onclick="UIE_openGuide('guide-stats')" title="Help / Guide"><i class="fa-solid fa-circle-question" style="color:#cba35c;"></i></button>
             <button class="uie-rpg-close" id="uie-stats-edit-toggle" title="Edit Stats"><i class="fa-solid fa-pencil"></i></button>
-            <button class="uie-rpg-close" onclick="$('#uie-stats-window').hide();"><i class="fa-solid fa-xmark"></i></button>
+            <button class="uie-rpg-close" id="uie-stats-close-btn"><i class="fa-solid fa-xmark"></i></button>
         </div>
     </div>
 

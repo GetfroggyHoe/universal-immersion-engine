@@ -14,7 +14,7 @@
             height: min(600px, 70vh);
             position: fixed;
         }
-        
+
         /* Full menu on desktop, normal size on mobile */
         @media (max-width: 700px), (pointer: coarse) {
             #uie-activities-window {
@@ -59,7 +59,7 @@
             cursor: move !important;
             pointer-events: auto !important;
         }
-        
+
         .uie-sim-header button,
         .uie-sim-header .uie-sim-close {
             cursor: pointer !important;
@@ -67,7 +67,7 @@
             position: relative !important;
             z-index: 10 !important;
         }
-        
+
         .uie-sim-title,
         #uie-activities-window .uie-sim-title,
         #uie-activities-window .uie-sim-header .uie-sim-title {
@@ -292,12 +292,13 @@
     <div class="uie-sim-header" style="position:relative !important; top:0 !important; left:0 !important; width:100% !important; height:auto !important; flex-direction:row !important; display:flex !important; align-items:center !important; justify-content:space-between !important; writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important;">
         <div class="uie-sim-title" style="writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important; display:flex !important; flex-direction:row !important; align-items:center !important;"><i class="fa-solid fa-calendar-check"></i> Daily Schedule</div>
         <div style="display:flex; gap:8px;">
+            <button class="uie-sim-sparkle" onclick="uie.phone.openBooksGuide('guide-activities')" title="Help / Guide"><i class="fa-solid fa-circle-question" style="color:#1e1e24;"></i></button>
             <button class="uie-sim-sparkle" id="uie-activity-sparkle" title="New Activity"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
             <div class="uie-dropdown" id="uie-activity-menu" style="position:absolute; top:44px; right:44px; background:#111; border:1px solid rgba(162,210,255,0.55); border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px;">
                 <div class="uie-dd-item" id="uie-activity-act-add" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-plus" style="width:18px; color:#a2d2ff;"></i> Add Routine</div>
                 <div class="uie-dd-item" id="uie-activity-act-station" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-wand-magic-sparkles" style="width:18px; color:#a2d2ff;"></i> Open Create Station</div>
             </div>
-            <button class="uie-sim-close" onclick="$('#uie-activities-window').hide();"><i class="fa-solid fa-xmark"></i></button>
+            <button class="uie-sim-close" id="uie-activities-close-btn"><i class="fa-solid fa-xmark"></i></button>
         </div>
     </div>
 

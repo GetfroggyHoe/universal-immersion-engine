@@ -139,30 +139,36 @@ export function renderStats() {
 
     // Settings has: str, dex, con, int, wis, cha, per, luk, agi, vit, end, spi
     const keys = ["str", "dex", "con", "int", "wis", "cha", "per", "luk", "agi", "vit", "end", "spi"];
-    const STAT_NAMES = {
+    const STAT_DEFAULTS = {
         str: "Strength", dex: "Dexterity", con: "Constitution",
         int: "Intelligence", wis: "Wisdom", cha: "Charisma",
         per: "Perception", luk: "Luck", agi: "Agility",
         vit: "Vitality", end: "Endurance", spi: "Spirit"
     };
+    const labels = s.statLabels || {};
 
     keys.forEach(key => {
         const val = s.character.stats[key] || 0;
-        const label = STAT_NAMES[key] || key.toUpperCase();
+        const defaultLabel = STAT_DEFAULTS[key] || key.toUpperCase();
+        const label = labels[key] || defaultLabel;
 
         let btnHtml = "";
+        let labelHtml = "";
+
         if (isEditing) {
             btnHtml = `<input type="number" class="uie-stat-input" data-key="${key}" data-type="stat" value="${val}" style="width:50px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:center;">`;
+            labelHtml = `<input type="text" class="uie-stat-input" data-key="${key}" data-type="label" value="${label}" style="width:80px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#cba35c; font-size:0.8em;">`;
         } else {
             btnHtml = `<div class="uie-stat-val">${val}</div>`;
             if (pts > 0) {
                 btnHtml += `<div class="uie-stat-up-btn" data-stat="${key}">+</div>`;
             }
+            labelHtml = `<div class="uie-stat-label">${label}</div>`;
         }
 
         const html = `
             <div class="uie-stat-card">
-                <div class="uie-stat-label">${label}</div>
+                ${labelHtml}
                 <div style="display:flex; align-items:center;">
                     ${btnHtml}
                 </div>

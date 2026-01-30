@@ -40,7 +40,8 @@ function ensureSpriteStore(s) {
 function getCustomSpriteFolder() {
     const s = getSettings();
     ensureSpriteStore(s);
-    return String(s.realityEngine.sprites.customSpriteFolder || "").trim();
+    // Sanitize path: replace backslashes with forward slashes and remove trailing slashes
+    return String(s.realityEngine.sprites.customSpriteFolder || "").trim().replace(/\\/g, "/").replace(/\/+$/, "");
 }
 
 function getSets() {
@@ -790,11 +791,38 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
     // 3. Get or Create Image Element
     const slug = (s) => String(s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
     const id = `re-sprite-${slug(charName)}`;
+
+    // Fix for stacking: If NOT a group chat, hide all other sprites first
+    const context = (typeof window.getContext === "function") ? window.getContext() : null;
+    // Robust group chat detection: checks for non-empty groupId
+    const isGroupChat = !!(context && context.groupId && String(context.groupId).trim() !== "");
+
+    if (!isGroupChat && spriteLayer) {
+        // Aggressively hide other sprites
+        const otherSprites = Array.from(spriteLayer.querySelectorAll(".re-sprite"));
+        otherSprites.forEach(s => {
+            if (s.id !== id) {
+                s.style.display = "none";
+                s.style.visibility = "hidden";
+                s.style.opacity = "0";
+                // Also remove them from flow to prevent spacing issues
+                s.style.position = "absolute";
+            }
+        });
+    }
+
     let img = document.getElementById(id);
 
     // Calculate position for group chat (multiple sprites side-by-side)
     const calculateSpritePosition = (charName) => {
         if (!spriteLayer) return { left: "50%", transform: "translateX(-50%)" };
+
+        const ctx = (typeof window.getContext === "function") ? window.getContext() : null;
+        const isGroup = !!(ctx && ctx.groupId && String(ctx.groupId).trim() !== "");
+
+        if (!isGroup) {
+             return { left: "50%", transform: "translateX(-50%)" };
+        }
 
         // Get all visible sprites
         const allSprites = Array.from(spriteLayer.querySelectorAll(".re-sprite, [id^='re-sprite-']"));
@@ -1013,6 +1041,12 @@ export async function updateSpriteStage(text, charName, isInScene = true) {
                 attempts = [
                     dataUrl,
                     dataUrl.replace(".png", ".webp"),
+                    // Try assets/sprites as requested by user
+                    toAbsoluteUrl(`/assets/sprites/${charSlug}/${moodSlug}.png`),
+                    toAbsoluteUrl(`/assets/sprites/${charName}/${mood || "neutral"}.png`),
+                    toAbsoluteUrl(`/assets/sprites/${charSlug}/${moodSlug}.webp`),
+                    toAbsoluteUrl(`/assets/sprites/${charName}/${mood || "neutral"}.webp`),
+                    // Standard paths
                     toAbsoluteUrl(`/characters/${charSlug}/${moodSlug}.png`),
                     toAbsoluteUrl(`/characters/${charSlug}/${moodSlug}.webp`),
                     toAbsoluteUrl(`/characters/${charName}/${mood || "neutral"}.png`),

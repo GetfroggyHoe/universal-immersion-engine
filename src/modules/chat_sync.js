@@ -57,6 +57,8 @@ function initChatObserver() {
                 mutation.addedNodes.forEach((node) => {
                     if (node.nodeType === 1 && node.classList.contains("mes")) {
                         cloneMessage(node, reChatLog);
+                        // Auto-save on every new message
+                        saveSettings();
                     }
                 });
             }

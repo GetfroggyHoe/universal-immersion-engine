@@ -15,16 +15,16 @@
 }
 
 @media (max-width: 900px), (pointer: coarse) {
-  #uie-inventory-window{ 
-    padding: 0 !important; 
+  #uie-inventory-window{
+    padding: 0 !important;
     top: 0 !important;
     left: 0 !important;
     transform: none !important;
   }
-  #uie-inventory-window .uie-inv-panel{ 
-    width:100vw !important; 
-    height:100vh !important; 
-    border-radius:0 !important; 
+  #uie-inventory-window .uie-inv-panel{
+    width:100vw !important;
+    height:100vh !important;
+    border-radius:0 !important;
   }
   /* Reduce black overlay on mobile */
   #uie-inventory-window::after {
@@ -983,6 +983,7 @@
       </div>
       <div class="uie-inv-currency">150 G</div>
       <div class="uie-inv-actions">
+        <div class="uie-inv-icon" onclick="UIE_openGuide('guide-inventory')" title="Help"><i class="fa-solid fa-circle-question"></i></div>
         <div class="uie-inv-icon" id="uie-inv-pencil" title="Edit Mode"><i class="fa-solid fa-pencil"></i></div>
         <div class="uie-inv-icon" id="uie-inv-sparkle" title="Creation Station"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
         <div id="uie-inv-sparkle-menu" class="uie-create-menu" style="display:none; position:absolute; top:70px; right:40px; z-index:2147483646;">

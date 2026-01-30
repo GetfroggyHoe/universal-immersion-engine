@@ -30,12 +30,19 @@ export async function loadTemplates() {
                 } catch (_) {}
             }, 550);
         } catch (_) {}
-        // SVG Icon fallback
+        // Launcher Button Logic
+        const s = getSettings();
+        // Default to Adventure Pack if no icon is set
+        const defaultIcon = "https://user.uploads.dev/file/b3fc92e1b70f0c8f0c200b544f7a4cce.png";
+        const customIcon = s?.launcher?.src || s?.launcherIcon || defaultIcon;
+        const launcherHidden = s?.launcher?.hidden === true;
+
+        // Always use image logic now since default is an image
+        const innerContent = `<div class="uie-launcher-img" style="width:100%; height:100%; background:url('${customIcon}') center/cover no-repeat; border-radius:12px; box-shadow:0 4px 6px rgba(0,0,0,0.5);"></div>`;
+
         const launcherHtml = `
-            <div id="uie-launcher" title="Open Menu">
-                <svg viewBox="0 0 24 24" style="width:100%;height:100%;fill:none;stroke:#cba35c;stroke-width:2;" class="uie-launcher-fallback">
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-                </svg>
+            <div id="uie-launcher" title="Open Menu" style="display:${launcherHidden ? 'none' : 'flex'}; align-items:center; justify-content:center;">
+                ${innerContent}
             </div>`;
         $("body").append(launcherHtml);
         try { updateLayout(); } catch(_) {}
@@ -80,7 +87,7 @@ export async function loadTemplates() {
         optional.map(async (f) => {
             const url = `${baseUrl}src/templates/${f}.html?v=${ts}`;
             const html = await fetchTemplateHtml(url);
-            
+
             // SPECIAL HANDLING: Chatbox needs to go into #reality-stage if possible, others to body
             if (f === "chatbox") {
                  const stage = document.getElementById("reality-stage");
@@ -151,14 +158,18 @@ export function injectSettingsUI() {
     };
     inject();
 
-    // Add Drawer Listener - DISABLED (Conflicts with core SillyTavern drawer listener)
-    /*
-    $(document).on("click", ".inline-drawer-toggle", function(e) {
+    // Add Drawer Listener - Use specific class to avoid double-binding if ST already handles general drawers
+    // Bind to BODY to catch events that might bubble up, but use stopImmediatePropagation to claim them
+    $("body").off("click.uieDrawer").on("click.uieDrawer", ".uie-settings-block .inline-drawer-toggle", function(e) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
+
         const root = $(this).closest(".inline-drawer");
         const content = root.find(".inline-drawer-content");
         const icon = root.find(".inline-drawer-icon");
+
+        if (content.is(":animated")) return;
 
         if (content.is(":visible")) {
             content.slideUp(200);
@@ -168,7 +179,6 @@ export function injectSettingsUI() {
             icon.css("transform", "rotate(0deg)");
         }
     });
-    */
 }
 
 try {

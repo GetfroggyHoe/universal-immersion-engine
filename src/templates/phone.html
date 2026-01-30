@@ -21,29 +21,29 @@
             color: white;
         }
 
-        #uie-phone-window .phone-app-header { 
-            padding: 8px 10px !important; 
+        #uie-phone-window .phone-app-header {
+            padding: 8px 10px !important;
             min-height: 44px !important;
             height: auto !important;
-            border-bottom: 1px solid rgba(255,255,255,0.15) !important; 
-            background: rgba(20, 25, 40, 0.86) !important; 
+            border-bottom: 1px solid rgba(255,255,255,0.15) !important;
+            background: rgba(20, 25, 40, 0.86) !important;
             backdrop-filter: blur(10px);
             color: #fff;
-            display: flex; 
-            align-items: center; 
+            display: flex;
+            align-items: center;
             gap: 10px;
         }
-        #uie-phone-window .phone-app-header > span { 
-            font-weight: 700; 
+        #uie-phone-window .phone-app-header > span {
+            font-weight: 700;
             font-size: 0.80em !important;
-            flex: 1; 
+            flex: 1;
             text-align: center;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        #uie-phone-window .phone-app-content { 
-            padding-top: 6px; 
+        #uie-phone-window .phone-app-content {
+            padding-top: 6px;
             flex: 1;
             overflow-y: auto;
             position: relative;
@@ -128,8 +128,8 @@
         #uie-phone-window #p-browser-save { color: #f1c40f; }
         #uie-phone-window #p-browser-go { color: #8e8e93; font-size: 14px; width: 24px; height: 24px; }
 
-        #uie-phone-homescreen{ 
-            overflow: hidden !important; 
+        #uie-phone-homescreen{
+            overflow: hidden !important;
             display: flex;
             flex-direction: column;
             height: 100%;
@@ -142,14 +142,14 @@
             position: relative;
         }
         #uie-phone-window .phone-grid-scroll::-webkit-scrollbar{ width: 0; height: 0; }
-        
+
         #uie-phone-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
             gap: 15px 10px;
             padding: 20px;
         }
-        
+
         .phone-app-icon {
             width: 52px;
             height: 52px;
@@ -173,7 +173,7 @@
                 box-sizing: border-box;
             }
         }
-        
+
         #uie-call-screen{
             width: 100%;
             height: 100%;
@@ -388,12 +388,12 @@
             white-space: normal;
         }
     </style>
-    
+
     <div class="phone-status-bar" style="display:flex; justify-content:space-between; padding:5px 15px; font-size:12px; font-weight:bold;">
         <span class="uie-phone-clock">12:00</span>
         <span><i class="fa-solid fa-wifi"></i> 5G</span>
     </div>
-    
+
     <div id="uie-phone-lockscreen" class="phone-screen" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding: 20px; background-color: #000 !important; z-index: 50;">
         <h1 class="uie-phone-clock-lg" style="font-size:3.5em; margin:0; font-weight:100; color:white; display:flex; align-items:baseline; justify-content:center; gap:10px;">
             <span class="uie-phone-clock-time-lg">12:00</span>
@@ -552,7 +552,7 @@
         <div class="p-browser-bar">
             <button id="p-browser-back" class="p-browser-btn" title="Back"><i class="fa-solid fa-chevron-left"></i></button>
             <button id="p-browser-fwd" class="p-browser-btn" title="Forward"><i class="fa-solid fa-chevron-right"></i></button>
-            
+
             <div class="p-browser-input-wrapper">
                 <i class="fa-solid fa-lock" style="font-size:12px; color:#8e8e93;"></i>
                 <input type="text" id="p-browser-url" placeholder="Search or enter location...">
@@ -602,98 +602,100 @@
                 <div class="books-card" style="background:rgba(0,0,0,0.22); margin-bottom:15px;">
                     <div style="font-weight:900; font-size:1.4em; margin-bottom:12px; color:#cba35c; text-align:center; border-bottom:1px solid rgba(225,193,122,0.3); padding-bottom:8px;">UIE User Manual</div>
                     <div style="opacity:0.92; color:#e5e5e5; line-height:1.6; font-size:0.95em;">
-                        <p>Welcome to the Universal Immersion Engine. Tap a section below or use the "Help" buttons in apps to jump here.</p>
+                        <p>Welcome to the Universal Immersion Engine (UIE). This extension transforms your roleplay into a dynamic RPG experience. Tap a section below or use the "Help" buttons (?) found in various windows to jump to specific instructions.</p>
                     </div>
                 </div>
 
-                <div id="guide-map" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#f1c40f; margin-top:0;">World Map</h3>
-                    <p>The Map allows you to travel between locations. Areas are procedurally generated or defined by your chat.</p>
-                    <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Travel:</strong> Click a node to move. Consumes time.</li>
-                        <li><strong>Biomes:</strong> Different areas affect encounter rates and resources.</li>
-                        <li><strong>Fast Travel:</strong> You can teleport to previously visited safe zones.</li>
+                <div id="guide-inventory" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#3498db; margin-top:0;">Inventory & Equipment</h3>
+                    <p>The Inventory is your central hub for managing items, stats, and character progression.</p>
+                    <h4 style="color:#fff; margin:10px 0 5px;">Managing Items</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Viewing:</strong> Use the tabs (Items, Skills, Assets, Equip) to filter your inventory.</li>
+                        <li><strong>Equipping:</strong> Click an item and select "Equip" to wear it. It must match a valid slot (e.g., Head, Body).</li>
+                        <li><strong>Using:</strong> Consumables like potions or food can be "Used" to restore health or apply buffs.</li>
                     </ul>
-                </div>
-
-                <div id="guide-social" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#e74c3c; margin-top:0;">Social & Relationships</h3>
-                    <p>Track your standing with NPCs. Relationships are dynamic and affect how characters treat you.</p>
-                    <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Affinity:</strong> 0-100 scale. Determines friendliness.</li>
-                        <li><strong>Disposition:</strong> Current mood (e.g., Hostile, Warm, Devoted).</li>
-                        <li><strong>Social Memory:</strong> Important interactions are recorded here.</li>
+                    <h4 style="color:#fff; margin:10px 0 5px;">Character Stats</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Vitals:</strong> Track HP (Health), MP (Mana), AP (Action Points), and XP (Experience).</li>
+                        <li><strong>Attributes:</strong> STR (Strength), DEX (Dexterity), INT (Intelligence), VIT (Vitality), LUK (Luck), CHA (Charisma).</li>
+                        <li><strong>Editing:</strong> Click the Pencil icon to manually edit your Name, Class, Level, or Stats.</li>
                     </ul>
-                </div>
-
-                <div id="guide-party" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#2ecc71; margin-top:0;">Party Management</h3>
-                    <p>Manage your followers and companions.</p>
-                    <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Recruit:</strong> Ask friendly NPCs to join you.</li>
-                        <li><strong>Roles:</strong> Assign roles like Healer or Tank for bonuses.</li>
-                        <li><strong>Chat:</strong> Party members will participate in group chats automatically.</li>
+                    <h4 style="color:#fff; margin:10px 0 5px;">Creation Station</h4>
+                    <p>Click the Sparkle icon to open the Creation Station. Here you can:</p>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Fabricate:</strong> Create custom items, skills, or assets from scratch.</li>
+                        <li><strong>Scan Loot:</strong> Automatically detect items mentioned in the recent chat history and add them to your inventory.</li>
                     </ul>
                 </div>
 
                 <div id="guide-shop" class="books-card" style="margin-bottom:15px;">
                     <h3 style="color:#f39c12; margin-top:0;">Shops & Economy</h3>
-                    <p>Buy and sell items using Gold (GP).</p>
+                    <p>Trade with NPCs to acquire gear and earn gold.</p>
                     <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Buy:</strong> Purchase equipment, consumables, and materials.</li>
-                        <li><strong>Sell:</strong> Trade your loot for gold. Prices vary by shop keeper affinity.</li>
-                        <li><strong>Haggling:</strong> High charisma can lower prices.</li>
-                    </ul>
-                </div>
-
-                <div id="guide-inventory" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#3498db; margin-top:0;">Inventory & Items</h3>
-                    <p>Manage your gear and resources.</p>
-                    <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Equip:</strong> Wear armor and weapons to boost stats.</li>
-                        <li><strong>Use:</strong> Consume potions or food for health and buffs.</li>
-                        <li><strong>Weight:</strong> Carrying too much will slow you down.</li>
-                    </ul>
-                </div>
-
-                <div id="guide-crafting" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#9b59b6; margin-top:0;">Crafting</h3>
-                    <p>Create new items from raw materials.</p>
-                    <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Alchemy:</strong> Brew potions and poisons.</li>
-                        <li><strong>Forge:</strong> Create weapons and armor.</li>
-                        <li><strong>Cooking:</strong> Prepare meals for buffs.</li>
-                        <li><strong>Enchanting:</strong> Add magical properties to gear.</li>
-                    </ul>
-                </div>
-
-                <div id="guide-warroom" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#c0392b; margin-top:0;">Battle System</h3>
-                    <p>Turn-based combat engagements.</p>
-                    <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Actions:</strong> Attack, Defend, or use Skills.</li>
-                        <li><strong>Initiative:</strong> Determines turn order.</li>
-                        <li><strong>Victory:</strong> Defeating enemies grants XP and loot.</li>
+                        <li><strong>Generating Stock:</strong> If a shop is empty, click the "Wand" icon or "Refresh" button. The system will read the current chat context (location, NPC type) and generate appropriate items.</li>
+                        <li><strong>Buying:</strong> Click an item to purchase it. Ensure you have enough Gold (G).</li>
+                        <li><strong>Selling:</strong> (Coming Soon) You will be able to sell items from your inventory to merchants.</li>
+                        <li><strong>Currency:</strong> Your Gold balance is tracked globally. You can adjust it in the Settings window if needed.</li>
                     </ul>
                 </div>
 
                 <div id="guide-journal" class="books-card" style="margin-bottom:15px;">
                     <h3 style="color:#1abc9c; margin-top:0;">Journal & Databank</h3>
-                    <p>Your record of the world.</p>
+                    <p>Keep track of your adventures, quests, and world knowledge.</p>
+                    <h4 style="color:#fff; margin:10px 0 5px;">Quests</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Active:</strong> Current objectives you are pursuing.</li>
+                        <li><strong>Pending:</strong> Potential leads or quests not yet accepted.</li>
+                        <li><strong>Completed/Failed:</strong> A history of your past deeds.</li>
+                    </ul>
+                    <h4 style="color:#fff; margin:10px 0 5px;">Codex (Databank)</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Lore:</strong> Information about locations, history, and factions.</li>
+                        <li><strong>Bestiary:</strong> Details on creatures and enemies you've encountered.</li>
+                        <li><strong>Auto-Add:</strong> Use the "Extract" or "Generate" features in the menu to automatically populate entries based on the story.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-party" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#2ecc71; margin-top:0;">Party System</h3>
+                    <p>Manage your companions and followers.</p>
                     <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Quests:</strong> Track active missions and objectives.</li>
-                        <li><strong>Lore:</strong> Information about the world, factions, and history.</li>
-                        <li><strong>Bestiary:</strong> Details on creatures you've encountered.</li>
+                        <li><strong>Recruiting:</strong> You can register NPCs as party members. This allows you to view their stats and inventory.</li>
+                        <li><strong>Roles:</strong> Assign roles (e.g., Healer, Tank, Scout) to party members. This may provide passive bonuses in combat.</li>
+                        <li><strong>Group Chat:</strong> Party members are automatically included in group chats when relevant.</li>
+                        <li><strong>Status:</strong> Monitor the health and mana of your entire team from the Party window.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-social" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#e74c3c; margin-top:0;">Social & Relationships</h3>
+                    <p>Understanding how NPCs perceive you is key to survival and persuasion.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Affinity (0-100):</strong> Represents how much an NPC likes you. High affinity unlocks better prices and special interactions.</li>
+                        <li><strong>Disposition:</strong> The NPC's current mood or attitude (e.g., Friendly, Hostile, Neutral).</li>
+                        <li><strong>Social Memory:</strong> The system tracks key interactions, so NPCs "remember" past events, gifts, or insults.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-map" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#f1c40f; margin-top:0;">World Map & Travel</h3>
+                    <p>Explore the world using the dynamic map system.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Navigation:</strong> Click on adjacent nodes to travel. Travel takes time and may trigger random encounters.</li>
+                        <li><strong>Biomes:</strong> Different areas (Forest, Desert, City) have different visual themes and encounter tables.</li>
+                        <li><strong>Locations:</strong> Special points of interest (POI) like Dungeons, Towns, or Shops are marked with icons.</li>
+                        <li><strong>Fast Travel:</strong> Once discovered, major hubs can be revisited instantly using Fast Travel (if enabled).</li>
                     </ul>
                 </div>
 
                 <div id="guide-calendar" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#e67e22; margin-top:0;">Time & Calendar</h3>
-                    <p>Track the passage of time.</p>
+                    <h3 style="color:#e67e22; margin-top:0;">Calendar & Time</h3>
+                    <p>Time flows as you chat and travel.</p>
                     <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Day/Night:</strong> Affects encounters and shop opening hours.</li>
-                        <li><strong>Events:</strong> Holidays and scheduled occurrences.</li>
-                        <li><strong>Seasons:</strong> Weather changes with the season.</li>
+                        <li><strong>Clock:</strong> The in-game time advances based on message length and actions taken.</li>
+                        <li><strong>Day/Night Cycle:</strong> Affects visuals and NPC behavior. Some shops close at night; some monsters only appear in the dark.</li>
+                        <li><strong>Events:</strong> Holidays or scheduled world events may trigger on specific dates.</li>
                     </ul>
                 </div>
 
@@ -708,13 +710,77 @@
                     </ul>
                 </div>
 
+                <div id="guide-warroom" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#c0392b; margin-top:0;">War Room (Combat)</h3>
+                    <p>Engage in tactical turn-based battles.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Initiative:</strong> Combat order is determined by Speed/Dexterity.</li>
+                        <li><strong>Actions:</strong> Choose to Attack, Defend, use a Skill, or use an Item.</li>
+                        <li><strong>The Grid:</strong> (If enabled) Combat takes place on a tactical grid where positioning matters.</li>
+                        <li><strong>Victory/Defeat:</strong> Winning grants XP and Loot. Defeat may result in capture or loss of resources depending on settings.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-activities" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#a2d2ff; margin-top:0;">Activities & Schedule</h3>
+                    <p>Manage your daily routine to improve stats and earn resources.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Schedule:</strong> Assign tasks to perform during downtime (e.g., Training, Working).</li>
+                        <li><strong>Rewards:</strong> completing activities grants XP, Stat points, or Gold.</li>
+                        <li><strong>Party:</strong> You can also assign activities to your party members to help them grow.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-chatbox" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#f1c40f; margin-top:0;">Immersive Chatbox</h3>
+                    <p>A specialized chat interface for roleplay immersion.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Themes:</strong> Switch between Visual Novel, RPG, and other styles.</li>
+                        <li><strong>Tools:</strong> Quick access to Inventory and Map directly from the chat header.</li>
+                        <li><strong>Options:</strong> Adjust text size, contrast, and background images.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-stats" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#9b59b6; margin-top:0;">Character Sheet (Stats)</h3>
+                    <p>View and manage your character's vital statistics and attributes.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Vitals:</strong> HP (Health), MP (Mana), AP (Action), XP (Experience). Bars update in real-time.</li>
+                        <li><strong>Attributes:</strong> Core stats like Strength, Dexterity, Intelligence. These influence combat and skill checks.</li>
+                        <li><strong>Editing:</strong> Click the Pencil icon to manually adjust values if the automated tracking misses something or for initial setup.</li>
+                        <li><strong>Portrait:</strong> Click the portrait frame to upload or change your character image.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-diary" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#e056fd; margin-top:0;">Personal Diary</h3>
+                    <p>A private space to record your thoughts, separate from the Quest Journal.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Entries:</strong> Write daily logs or roleplay reflections.</li>
+                        <li><strong>Stickers:</strong> Decorate your pages with collectible stickers.</li>
+                        <li><strong>Photos:</strong> Attach images to your entries to remember key moments.</li>
+                    </ul>
+                </div>
+
+                <div id="guide-debug" class="books-card" style="margin-bottom:15px;">
+                    <h3 style="color:#7f8c8d; margin-top:0;">System Diagnostics</h3>
+                    <p>Tools for troubleshooting and data management.</p>
+                    <ul style="padding-left:20px; margin:10px 0;">
+                        <li><strong>Run Scan:</strong> Checks for common issues with data integrity or broken links.</li>
+                        <li><strong>Copy Report:</strong> Generates a text summary of the current state for bug reporting.</li>
+                        <li><strong>Download Data:</strong> Exports your entire UIE save state as a JSON file.</li>
+                        <li><strong>Clear:</strong> Wipes the debug log.</li>
+                    </ul>
+                </div>
+
                 <div id="guide-settings" class="books-card" style="margin-bottom:50px;">
                     <h3 style="color:#7f8c8d; margin-top:0;">Settings</h3>
-                    <p>Configure the Universal Immersion Engine.</p>
+                    <p>Customize your UIE experience.</p>
                     <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>AI Options:</strong> Toggle specific AI features on/off.</li>
-                        <li><strong>Visuals:</strong> Customize the phone look and UI themes.</li>
-                        <li><strong>Data:</strong> Manage save data and backups.</li>
+                        <li><strong>Modules:</strong> Enable or disable specific features (e.g., turn off the Hunger system if you prefer a lighter game).</li>
+                        <li><strong>UI Theme:</strong> Change the look and feel of the windows.</li>
+                        <li><strong>Data Management:</strong> Reset your progress, manage save files, or clear the cache.</li>
+                        <li><strong>Economy:</strong> Adjust the "Save Economy" settings to persist your currency between sessions.</li>
                     </ul>
                 </div>
             </div>
@@ -902,7 +968,7 @@
     </div>
 
     <i class="fa-solid fa-xmark uie-close-btn" id="uie-phone-close" style="position:absolute; top:9px; right:5px; z-index:300; color:white; padding:5px; text-shadow:0 0 3px #000; cursor: pointer;"></i>
-    
+
     <!-- Templates -->
     <template id="uie-template-dial-recent">
         <div class="dial-recent-row" style="display:flex; align-items:center; gap:10px; padding:10px; border-bottom:1px solid #333; cursor:pointer;">
@@ -914,7 +980,7 @@
             <div style="color:#888; font-size:12px;">Yesterday</div>
         </div>
     </template>
-    
+
     <template id="uie-template-msg-contact">
         <div class="contact-row" style="display:flex; align-items:center; gap:15px; padding:10px 0; cursor:pointer;">
             <div class="contact-avatar" style="width:50px; height:50px; border-radius:50%; background:#555; display:grid; place-items:center; font-weight:600; color:white; font-size:18px;"></div>
@@ -927,7 +993,7 @@
             </div>
         </div>
     </template>
-    
+
     <template id="uie-template-msg-bubble">
         <div class="p-bubble" style="margin-bottom:10px; max-width:75%; padding:10px 14px; border-radius:18px; font-size:16px; line-height:1.4; position:relative;">
             <div class="p-bubble-img-container" style="display:none; margin-bottom:5px;"><img class="p-bubble-img" style="width:100%; border-radius:10px;"></div>
@@ -941,7 +1007,7 @@
             <div class="bm-url" style="font-size:0.8em; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
         </div>
     </template>
-    
+
     <template id="uie-template-book-row">
         <div class="book-row" style="margin-bottom:8px;">
             <div class="book-title" style="font-weight:bold; font-size:1.1em; color:#f1c40f;"></div>

@@ -56,21 +56,20 @@
             <i class="fa-solid fa-xmark uie-close-btn" id="uie-settings-close"></i>
         </div>
     </div>
-    
+
     <div id="uie-settings-tabs-wrap" style="border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2);">
         <div id="uie-settings-tabs">
             <div class="uie-set-tab active" data-tab="general" style="padding:12px 16px; cursor:pointer; color:#fff; border-bottom:2px solid #cba35c; font-weight:700;">General</div>
             <div class="uie-set-tab" data-tab="menu" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Menu</div>
             <div class="uie-set-tab" data-tab="features" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Features</div>
             <div class="uie-set-tab" data-tab="automation" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Automation</div>
-            <div class="uie-set-tab" data-tab="profiles" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Profiles</div>
             <div class="uie-set-tab" data-tab="rpg" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">RPG</div>
             <div class="uie-set-tab" data-tab="style" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Style</div>
         </div>
     </div>
 
     <div class="uie-content" style="padding:15px; overflow-y:auto; flex:1; min-height:0; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;">
-        
+
         <!-- GENERAL TAB -->
         <div id="uie-sw-general">
             <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
@@ -91,7 +90,7 @@
 
             <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
                 <div style="font-weight:bold; color:#f1c40f; margin-bottom:10px; font-size:1.1em;">💰 Economy Calculator</div>
-                
+
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
                     <div style="flex:1;">
                         <label style="font-size:0.8em; color:#888;">Symbol</label>
@@ -101,6 +100,9 @@
                         <label style="font-size:0.8em; color:#888;">Real Value ($)</label>
                         <input type="number" id="uie-set-currency-rate" placeholder="0 = Off" style="width:100%; background:#111; border:1px solid #444; color:white; padding:5px; border-radius:4px;">
                     </div>
+                </div>
+                <div style="text-align:right; margin-bottom:5px;">
+                     <button id="uie-currency-save-btn" style="padding:6px 12px; background:#2ecc71; color:#000; font-weight:bold; border:none; border-radius:6px; cursor:pointer;">Save Economy</button>
                 </div>
                 <div style="font-size:0.8em; color:#666; font-style:italic;">
                     Example: Rate 10 means 1 Gold = $10.
@@ -154,15 +156,15 @@
                 <label style="display:flex; gap:8px; align-items:center; color:#ccc; margin-bottom:8px;">
                     <input type="checkbox" id="uie-ai-map-gen" checked> Allow Map Auto-Gen
                 </label>
-                
+
                 <hr style="border-color:rgba(255,255,255,0.1); margin:15px 0;">
                 <div style="font-weight:bold; color:#ff00ff; margin-bottom:10px;">Image Generation API</div>
                 <div style="font-size:0.9em; color:#ccc; margin-bottom:10px;">Generates actual images via DALL-E/API.</div>
-                
+
                 <label style="display:flex; gap:8px; align-items:center; color:#ccc; margin-bottom:12px;">
                     <input type="checkbox" id="uie-sw-img-enable"> Enable Image Gen
                 </label>
-                
+
                 <div style="display:flex; gap:10px; margin-bottom:10px;">
                     <div style="flex:1;">
                         <label style="font-size:0.8em; color:#888;">Endpoint</label>
@@ -177,7 +179,7 @@
                     <label style="font-size:0.8em; color:#888;">API Key</label>
                     <input type="password" id="uie-sw-img-key" placeholder="sk-..." style="width:100%; background:#111; border:1px solid #444; color:white; padding:6px; border-radius:6px;">
                 </div>
-                
+
                 <div style="font-size:0.8em; color:#888; margin-bottom:5px;">Enabled Features:</div>
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
                      <label style="display:flex; gap:6px; align-items:center; color:#bbb; font-size:0.85em;"><input type="checkbox" id="uie-sw-img-map"> Map</label>
@@ -196,7 +198,7 @@
             <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
                 <div style="font-weight:bold; color:#00f0ff; margin-bottom:10px;">AI Automation</div>
                 <div style="font-size:0.9em; color:#ccc; margin-bottom:12px;">Toggle which features the AI can control.</div>
-                
+
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
                     <label style="display:flex; gap:8px; align-items:center; color:#ccc;"><input type="checkbox" id="uie-sw-ai-phone-browser"> Phone Browser</label>
                     <label style="display:flex; gap:8px; align-items:center; color:#ccc;"><input type="checkbox" id="uie-sw-ai-phone-messages"> Phone Messages</label>
@@ -341,7 +343,7 @@
         </div>
 
     </div>
-    
+
     <div style="text-align:center; padding:10px; color:#444; font-size:0.7em; border-top:1px solid rgba(255,255,255,0.05);">
         Universal Immersion Engine V21
     </div>

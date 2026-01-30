@@ -201,11 +201,36 @@ function initLauncher() {
             $("#uie-launcher-opt-hide").prop("checked", hidden);
             $("#uie-launcher-opt-name").val(name);
 
+            // Populate Saved Icons
             const sel = document.getElementById("uie-launcher-opt-icon");
             if (sel) {
+                // Clear old custom options (keeping the hardcoded ones)
+                // We identify hardcoded ones by their value not starting with data: or custom
+                // Actually easier: remove options with class 'uie-custom-opt'
+                $(sel).find(".uie-custom-opt").remove();
+
+                const saved = Array.isArray(s?.launcher?.savedIcons) ? s.launcher.savedIcons : [];
+                if (saved.length > 0) {
+                    // Add separator
+                    const sep = document.createElement("option");
+                    sep.textContent = "--- Saved Icons ---";
+                    sep.disabled = true;
+                    sep.className = "uie-custom-opt";
+                    sel.appendChild(sep);
+
+                    saved.forEach((iconUrl, idx) => {
+                        const opt = document.createElement("option");
+                        opt.value = iconUrl;
+                        opt.textContent = `Custom Icon ${idx + 1}`;
+                        opt.className = "uie-custom-opt";
+                        sel.appendChild(opt);
+                    });
+                }
+
                 const has = Array.from(sel.options || []).some(o => String(o.value || "") === src);
                 sel.value = has ? src : "custom";
             }
+
             const prev = document.getElementById("uie-launcher-opt-preview");
             if (prev && src) {
                 prev.style.backgroundImage = `url("${src}")`;
@@ -313,7 +338,7 @@ function initLauncher() {
                 // Strict Clamping to Viewport
                 if (left < margin) left = margin;
                 if (left + mw > vw - margin) left = vw - mw - margin;
-                
+
                 if (top < margin) top = margin;
                 if (top + mh > vh - margin) top = vh - mh - margin;
 
@@ -372,20 +397,68 @@ function initLauncherOptionsHandlers(openLauncherOptions) {
         updateLayout();
     });
 
+    const updateLauncherButton = (src) => {
+        const btn = document.getElementById("uie-launcher");
+        if (!btn) return;
+
+        const defaultIcon = "https://user.uploads.dev/file/b3fc92e1b70f0c8f0c200b544f7a4cce.png";
+        let iconUrl = (src && src.trim() !== "" && src !== "custom") ? src : defaultIcon;
+
+        // Handle custom fallback
+        if (src === "custom") {
+             const s = getSettings();
+             if (s?.launcher?.src && s.launcher.src !== "custom") {
+                 iconUrl = s.launcher.src;
+             }
+        }
+
+        // Try to update existing inner div first to preserve state/animations
+        let imgDiv = btn.querySelector(".uie-launcher-img");
+        if (!imgDiv) {
+            btn.innerHTML = ""; // Clear fallback icons if any
+            imgDiv = document.createElement("div");
+            imgDiv.className = "uie-launcher-img";
+            imgDiv.style.width = "100%";
+            imgDiv.style.height = "100%";
+            imgDiv.style.borderRadius = "12px";
+            imgDiv.style.boxShadow = "0 4px 6px rgba(0,0,0,0.5)";
+            imgDiv.style.backgroundPosition = "center";
+            imgDiv.style.backgroundSize = "cover";
+            imgDiv.style.backgroundRepeat = "no-repeat";
+            btn.appendChild(imgDiv);
+        }
+
+        // Update background image safely
+        imgDiv.style.backgroundImage = `url('${iconUrl}')`;
+        imgDiv.style.backgroundPosition = "center";
+        imgDiv.style.backgroundSize = "cover";
+        imgDiv.style.backgroundRepeat = "no-repeat";
+
+        console.log("[UIE] Launcher icon updated to:", iconUrl);
+    };
+
     $("body").off("change.uieLauncherOptIcon").on("change.uieLauncherOptIcon", "#uie-launcher-opt-icon", function (e) {
         e.preventDefault();
         e.stopPropagation();
         const val = String($(this).val() || "");
+        console.log("[UIE] Icon selection changed to:", val);
+
         if (val === "custom") {
             document.getElementById("uie-launcher-opt-file")?.click();
             return;
         }
+
         const s = getSettings();
         if (!s.launcher) s.launcher = {};
         s.launcher.src = val;
         saveSettings();
+
+        // Update layout might move the button but we need to ensure the icon is correct
         updateLayout();
+
+        // Sync preview and button
         syncIcon(val);
+        updateLauncherButton(val);
     });
 
     $("body").off("change.uieLauncherOptFile").on("change.uieLauncherOptFile", "#uie-launcher-opt-file", function (e) {
@@ -406,6 +479,7 @@ function initLauncherOptionsHandlers(openLauncherOptions) {
             saveSettings();
             updateLayout();
             syncIcon(src);
+            updateLauncherButton(src);
         };
         r.readAsDataURL(file);
         try { this.value = ""; } catch (_) {}
@@ -499,18 +573,18 @@ function openWindow(selector) {
 
     // Show this window
     win.show();
-    
+
     // Dynamic Z-Index Handling: Bring to front
     const visibleWins = $(".uie-window").filter(":visible").toArray();
     const highestZ = Math.max(2147483650, ...visibleWins.map(el => Number(getComputedStyle(el).zIndex) || 0));
-    
+
     win.css("z-index", highestZ + 1);
-    
+
     // Ensure it's a direct child of body to avoid stacking context traps
     if (win[0].parentElement !== document.body) {
         document.body.appendChild(win[0]);
     }
-    
+
     win.css("display", "flex"); // Most windows use flex
 
     // Mobile: always center newly opened windows (prevents "stuck at top")
@@ -529,7 +603,7 @@ function openWindow(selector) {
             placeCenteredClamped(win);
         }
     }
-    
+
     // Ensure on-screen: clamp pixel position, never force translate centering
     try {
         const rect = win[0].getBoundingClientRect();
@@ -553,10 +627,10 @@ function initWindowLayering() {
     $("body").off("mousedown.uieWindowLayering pointerdown.uieWindowLayering").on("mousedown.uieWindowLayering pointerdown.uieWindowLayering", ".uie-window", function() {
         const visibleWins = $(".uie-window:visible").toArray();
         const highestZ = Math.max(2147483650, ...visibleWins.map(el => Number(getComputedStyle(el).zIndex) || 0));
-        
+
         const current = Number($(this).css("z-index")) || 0;
         const isPhone = $(this).is("#uie-phone-window");
-        
+
         // Phone always wins
         if (isPhone) {
             $(this).css("z-index", 2147483670);
@@ -570,7 +644,7 @@ function initWindowLayering() {
 function initMenuButtons() {
     initWindowLayering();
     const $menu = $("#uie-main-menu");
-    
+
     // Inventory
     $menu.off("click.uieMenuInv").on("click.uieMenuInv", "#uie-btn-inventory", function() {
         openWindow("#uie-inventory-window");
@@ -626,10 +700,10 @@ function initMenuButtons() {
     // Phone
     $menu.off("click.uieMenuPhone").on("click.uieMenuPhone", "#uie-btn-open-phone", async function() {
         // Phone usually has its own toggle
-        try { 
+        try {
             const mod = await import("./phone.js");
             if (mod.initPhone) mod.initPhone(); // Ensure logic is bound and visuals loaded
-            mod.togglePhone?.(); 
+            mod.togglePhone?.();
         } catch (e) { console.error("Phone load error:", e); }
         $("#uie-main-menu").hide();
     });
@@ -696,18 +770,25 @@ function initMenuButtons() {
 }
 
 function initMenuTabs() {
+    // Menu Tabs Logic (For Main Menu)
     const $menu = $("#uie-main-menu");
     let lastPointerTime = 0;
-    $menu.off("click.uieMenuTabs pointerup.uieMenuTabs").on("click.uieMenuTabs pointerup.uieMenuTabs", ".uie-menu-tab", function(e) {
-        // De-dupe pointerup vs click on mobile
-        if (e?.type === "pointerup") {
+
+    // Unbind specific namespace first
+    $menu.off("click.uieMenuTabs pointerup.uieMenuTabs");
+
+    // Bind to the MENU container directly for delegation
+    $(document).on("click.uieMenuTabs pointerup.uieMenuTabs", "#uie-main-menu .uie-menu-tab", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        // De-dupe pointerup vs click
+        if (e.type === "pointerup") {
             lastPointerTime = Date.now();
-        } else if (e?.type === "click" && Date.now() - lastPointerTime < 300) {
-            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        } else if (e.type === "click" && Date.now() - lastPointerTime < 300) {
             return;
         }
-
-        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
 
         const tab = $(this).data("tab");
         const target = $("#uie-tab-" + tab);
@@ -718,6 +799,336 @@ function initMenuTabs() {
 
         $(".uie-menu-page").hide();
         target.show();
+    });
+
+    // Settings Tabs Logic
+    const $settingsTabs = $("#uie-settings-tabs");
+
+    // Unbind specific namespace first
+    $(document).off("click.uieSettingsTabs pointerup.uieSettingsTabs");
+
+    // Bind to the SETTINGS TABS container directly for delegation
+    $(document).on("click.uieSettingsTabs pointerup.uieSettingsTabs", "#uie-settings-tabs .uie-set-tab", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        // De-dupe pointerup vs click
+        if (e.type === "pointerup") {
+            lastPointerTime = Date.now();
+        } else if (e.type === "click" && Date.now() - lastPointerTime < 300) {
+            return;
+        }
+
+        const tab = $(this).data("tab");
+        const target = $("#uie-set-" + tab);
+
+        // Hide all setting pages
+        $("[id^='uie-set-']").hide();
+
+        // Reset all tabs
+        $(".uie-set-tab").removeClass("active").css({ "border-bottom-color": "transparent", "color": "#888", "font-weight": "normal" });
+
+        // Activate clicked tab
+        $(this).addClass("active").css({ "border-bottom-color": "#cba35c", "color": "#fff", "font-weight": "bold" });
+
+        // Show target page
+        if (target.length) target.show();
+
+        // Profiles tab: attempt to sync SillyTavern main-API presets into UIE selector.
+        // (UIE selector mirrors ST's own preset/profile selector; best-effort discovery.)
+        if (String(tab || "") === "profiles") {
+            setTimeout(() => {
+                try { syncStMainApiPresetsToUie(true); } catch (_) {}
+            }, 60);
+        }
+    });
+
+    // --- SillyTavern Connection Presets (Main API) ---
+    function findStMainApiPresetSelect() {
+        try {
+            const candidates = [
+                "#connection_profile",
+                "#connection-profile",
+                "#connection_preset",
+                "#connection-preset",
+                "#api_connection_profile",
+                "#api-connection-profile",
+                "#api_connection_preset",
+                "#api-connection-preset",
+                "#main_api_profile",
+                "#main-api-profile",
+                "select[name='connection_profile']",
+                "select[name='connection_preset']",
+                "select[id*='connection'][id*='profile']",
+                "select[id*='connection'][id*='preset']",
+                "select[id*='api'][id*='profile']",
+                "select[id*='api'][id*='preset']"
+            ];
+
+            for (const sel of candidates) {
+                const el = document.querySelector(sel);
+                if (!el) continue;
+                if (!(el instanceof HTMLSelectElement)) continue;
+                const opts = Array.from(el.options || []);
+                // Heuristic: must have at least 2 choices to be a real preset selector.
+                if (opts.length < 2) continue;
+                return el;
+            }
+        } catch (_) {}
+        return null;
+    }
+
+    function syncStMainApiPresetsToUie(selectSaved = false) {
+        const uieSel = document.getElementById("uie-st-preset-select");
+        if (!uieSel) return;
+
+        const stSel = findStMainApiPresetSelect();
+        if (!stSel) {
+            // Leave whatever is currently there; only replace if we have real data.
+            if (uieSel.options.length <= 1) {
+                uieSel.innerHTML = "";
+                const opt = document.createElement("option");
+                opt.value = "";
+                opt.textContent = "(Open ST API settings to load presets)";
+                uieSel.appendChild(opt);
+            }
+            return;
+        }
+
+        const prev = String(uieSel.value || "");
+        const stOpts = Array.from(stSel.options || []).map(o => ({ value: String(o.value || ""), text: String(o.textContent || o.label || o.value || "").trim() }));
+
+        // Rebuild UIE select.
+        uieSel.innerHTML = "";
+        for (const o of stOpts) {
+            const opt = document.createElement("option");
+            opt.value = o.value;
+            opt.textContent = o.text || o.value;
+            uieSel.appendChild(opt);
+        }
+
+        const s = getSettings();
+        const saved = String(s?.connections?.stMainPreset || "");
+        const hasSaved = saved && Array.from(uieSel.options).some(o => String(o.value || "") === saved);
+        const hasPrev = prev && Array.from(uieSel.options).some(o => String(o.value || "") === prev);
+
+        if (selectSaved && hasSaved) uieSel.value = saved;
+        else if (hasPrev) uieSel.value = prev;
+    }
+
+    // Refresh button
+    $(document).off("click.uieStPresetRefresh").on("click.uieStPresetRefresh", "#uie-st-preset-refresh", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        try { syncStMainApiPresetsToUie(true); } catch (_) {}
+        try { notify("info", "Refreshed connection presets.", "UIE", "settings"); } catch (_) {}
+    });
+
+    // Apply on selection change
+    $(document).off("change.uieStPreset").on("change.uieStPreset", "#uie-st-preset-select", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const val = String($(this).val() || "");
+        const s = getSettings();
+        if (!s.connections || typeof s.connections !== "object") s.connections = {};
+        s.connections.stMainPreset = val;
+        saveSettings();
+
+        const stSel = findStMainApiPresetSelect();
+        if (!stSel) {
+            try { notify("warning", "Could not find SillyTavern's preset selector. Open ST API settings then refresh.", "UIE", "settings"); } catch (_) {}
+            return;
+        }
+
+        // Apply to ST selector and trigger its native handler.
+        try {
+            stSel.value = val;
+            stSel.dispatchEvent(new Event("input", { bubbles: true }));
+            stSel.dispatchEvent(new Event("change", { bubbles: true }));
+        } catch (_) {}
+
+        // Force a save after ST handlers apply settings.
+        setTimeout(() => {
+            try {
+                if (window.saveSettingsDebounced) window.saveSettingsDebounced();
+                else {
+                    const ctx = getContext?.();
+                    if (ctx?.saveSettings) ctx.saveSettings();
+                }
+            } catch (_) {}
+        }, 120);
+
+        try { notify("success", "Applied preset.", "UIE", "settings"); } catch (_) {}
+    });
+
+    // Initial sync (best effort). The ST preset selector may not be present until the user opens ST settings.
+    setTimeout(() => {
+        try { syncStMainApiPresetsToUie(true); } catch (_) {}
+    }, 900);
+
+    // --- General Settings Listeners ---
+
+    // Save State
+    $(document).off("click.uieStateSave").on("click.uieStateSave", ".uie-state-save-btn", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const name = $(".uie-state-name").val() || "Manual Save " + new Date().toLocaleString();
+
+        const s = getSettings();
+        if (!s.savedStates) s.savedStates = {};
+
+        // Deep clone current state
+        const state = JSON.parse(JSON.stringify(s));
+        // Remove savedStates from the clone to prevent recursion
+        delete state.savedStates;
+
+        s.savedStates[name] = state;
+        saveSettings();
+
+        // Refresh dropdown
+        refreshStateDropdown();
+
+        // Notify
+        try { window.toastr?.success?.(`State '${name}' saved!`, "UIE"); } catch (_) {}
+    });
+
+    // Load State
+    $(document).off("click.uieStateLoad").on("click.uieStateLoad", ".uie-state-load-btn", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const name = $(".uie-state-select").val();
+        if (!name) return;
+
+        const s = getSettings();
+        if (s.savedStates && s.savedStates[name]) {
+            const loaded = s.savedStates[name];
+
+            // Restore keys
+            Object.keys(loaded).forEach(k => {
+                s[k] = loaded[k];
+            });
+
+            saveSettings();
+
+            // Reload UI
+            try {
+                updateLayout();
+                // Refresh specific modules if possible
+                import("./inventory.js").then(m => m.initInventory?.());
+                import("./features/stats.js").then(m => m.initStats?.());
+            } catch (_) {}
+
+            try { window.toastr?.success?.(`State '${name}' loaded!`, "UIE"); } catch (_) {}
+        }
+    });
+
+    // Delete State
+    $(document).off("click.uieStateDel").on("click.uieStateDel", ".uie-state-del-btn", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const name = $(".uie-state-select").val();
+        if (!name) return;
+
+        const s = getSettings();
+        if (s.savedStates && s.savedStates[name]) {
+            delete s.savedStates[name];
+            saveSettings();
+            refreshStateDropdown();
+            try { window.toastr?.info?.(`State '${name}' deleted.`, "UIE"); } catch (_) {}
+        }
+    });
+
+    function refreshStateDropdown() {
+        const s = getSettings();
+        const $sel = $(".uie-state-select");
+        $sel.empty();
+        $sel.append('<option value="">(Select Save...)</option>');
+
+        if (s.savedStates) {
+            Object.keys(s.savedStates).forEach(k => {
+                $sel.append(`<option value="${k}">${k}</option>`);
+            });
+        }
+    }
+
+    // Expose for external refresh
+    window.UIE_refreshStateSaves = refreshStateDropdown;
+
+    // Initial refresh on open (handled by openWindow but also here for safety)
+    // We'll hook into the tab click or window open
+
+    $(document).off("input.uieScale change.uieScale").on("input.uieScale change.uieScale", "#uie-scale-slider", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const val = parseFloat($(this).val());
+        $("#uie-scale-display").text(val.toFixed(1));
+        const s = getSettings();
+        s.ui = s.ui || {};
+        s.ui.scale = val;
+        saveSettings();
+
+        // Update root variable - CSS handles the rest
+        document.documentElement.style.setProperty("--uie-scale", val);
+
+        console.log("[UIE] Scale updated to:", val);
+    });
+
+    $(document).off("input.uieLauncherName change.uieLauncherName").on("input.uieLauncherName change.uieLauncherName", "#uie-launcher-name", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const val = $(this).val();
+        const s = getSettings();
+        s.launcher = s.launcher || {};
+        s.launcher.name = val;
+        saveSettings();
+    });
+
+    $(document).off("change.uieLauncherIcon").on("change.uieLauncherIcon", "#uie-launcher-icon", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const val = $(this).val();
+        if (val === "custom") {
+             $("#uie-launcher-file").click();
+             return;
+        }
+        const s = getSettings();
+        s.launcher = s.launcher || {};
+        s.launcher.src = val;
+        saveSettings();
+
+        // Update live preview
+        const btn = document.getElementById("uie-launcher");
+        if (btn) {
+            let imgDiv = btn.querySelector(".uie-launcher-img");
+            if (imgDiv) imgDiv.style.backgroundImage = `url('${val}')`;
+        }
+    });
+
+    $(document).off("change.uieLauncherFile").on("change.uieLauncherFile", "#uie-launcher-file", function(e) {
+        const file = this.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const res = evt.target.result;
+            const s = getSettings();
+            s.launcher = s.launcher || {};
+            s.launcher.src = res;
+            saveSettings();
+
+            // Update live preview
+            const btn = document.getElementById("uie-launcher");
+            if (btn) {
+                let imgDiv = btn.querySelector(".uie-launcher-img");
+                if (imgDiv) imgDiv.style.backgroundImage = `url('${res}')`;
+            }
+
+            // Update select to show custom is active (visual only)
+            const sel = document.getElementById("uie-launcher-icon");
+            if(sel) sel.value = "custom";
+        };
+        reader.readAsDataURL(file);
     });
 
     // Menu Buttons - Delegate
@@ -794,12 +1205,12 @@ export function spawnScavengeNodes() {
         `;
         document.head.appendChild(style);
     }
-    
+
     // Smart Context Notification
     const s = getSettings();
     const loc = s.worldState?.location || "Unknown";
     notify("info", `Searching ${loc}...`, "Scavenge");
-    
+
     setTimeout(() => {
         document.querySelectorAll(".div-sparkle").forEach(e => e.remove());
     }, 8000);
@@ -808,9 +1219,9 @@ export function spawnScavengeNodes() {
 async function handleLoot() {
     const s = getSettings();
     const loc = s.worldState?.location || "Unknown Place";
-    
+
     let item = "Strange Pebble";
-    
+
     try {
         // Dynamic Story-Based Loot
         const { generateContent } = await import("./apiClient.js");
@@ -818,7 +1229,7 @@ async function handleLoot() {
 The user searches the area. Generate ONE small, tangible item name that fits this specific story location.
 Examples: "Rusty Key", "Cyberdeck Chip", "Dragon Scale", "Metro Ticket".
 Return ONLY the item name. No punctuation.`;
-        
+
         const res = await generateContent(prompt, "Loot");
         if (res) {
             item = res.replace(/["\.]/g, "").trim();
@@ -829,7 +1240,7 @@ Return ONLY the item name. No punctuation.`;
         console.warn("Loot Gen Failed", e);
         // Fallback logic
         const isLifeSim = s.rpg?.mode === "life_sim";
-        const items = isLifeSim 
+        const items = isLifeSim
             ? ["Lost Coin", "Grocery Coupon", "Shiny Marble", "Wild Flower", "Old Ticket", "Cool Rock", "Pen", "Lighter"]
             : ["Old Coin", "Strange Pebble", "Rusty Key", "Medicinal Herb", "Scrap Metal", "Gemstone", "Lost Note", "Small Potion"];
         item = items[Math.floor(Math.random() * items.length)];
@@ -854,10 +1265,10 @@ export function initSpriteInteraction() {
     $("body").on("pointerup.reSprite", ".re-sprite", function (e) {
         e.preventDefault();
         e.stopPropagation();
-        
+
         const el = this;
         const charName = el.getAttribute("alt") || "Character";
-        
+
         spawnContextMenu(e.clientX, e.clientY, charName, [
             {
                 label: "Look",
@@ -898,14 +1309,14 @@ export function initBackgroundInteraction() {
     $("body").off("contextmenu.reBg").on("contextmenu.reBg", function(e) {
         // Exclude ST UI and our UI
         if ($(e.target).closest(".re-sprite, .re-btn, .re-qbtn, .uie-window, .mes, .drawer-content, #chat, textarea, input, button, a").length) return;
-        
-        // Only active if Reality Engine is enabled? 
+
+        // Only active if Reality Engine is enabled?
         // Or if we are just in the global scope? User wants interactivity.
         // Let's assume always active but maybe check if RE is enabled if we want to be strict.
         // For now, allow it as a general feature since it injects RP events.
 
         e.preventDefault();
-        
+
         spawnContextMenu(e.clientX, e.clientY, "Area", [
             {
                 label: "Look Around",
@@ -937,17 +1348,17 @@ export function initBackgroundInteraction() {
 function spawnContextMenu(x, y, title, options) {
     // Remove existing
     $(".re-context-menu").remove();
-    
+
     const menu = document.createElement("div");
     menu.className = "re-context-menu";
     menu.style.left = x + "px";
     menu.style.top = y + "px";
-    
+
     const header = document.createElement("div");
     header.className = "re-ctx-header";
     header.textContent = title;
     menu.appendChild(header);
-    
+
     options.forEach(opt => {
         const item = document.createElement("div");
         item.className = "re-ctx-item";
@@ -959,14 +1370,14 @@ function spawnContextMenu(x, y, title, options) {
         };
         menu.appendChild(item);
     });
-    
+
     document.body.appendChild(menu);
-    
+
     // Close on click outside
     setTimeout(() => {
         $(document).one("click.reCtx", () => menu.remove());
     }, 10);
-    
+
     // Bounds check
     const rect = menu.getBoundingClientRect();
     if (rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 10) + "px";

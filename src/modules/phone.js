@@ -1,6 +1,6 @@
 import { getSettings, saveSettings } from "./core.js";
 import { generateContent } from "./apiClient.js";
-import { getContext } from "../../../../../extensions.js"; 
+import { getContext } from "../../../../../extensions.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { notify } from "./notifications.js";
 import { checkAndGenerateImage } from "./imageGen.js";
@@ -178,7 +178,7 @@ function cleanOutput(text, type) {
         const end = clean.lastIndexOf("}");
         if (start > -1 && end > -1) clean = clean.substring(start, end + 1);
         else clean = "{}";
-    } 
+    }
     return clean;
 }
 
@@ -192,7 +192,7 @@ export function initPhone() {
     const $win = $("#uie-phone-window");
     $win.off("click.phone change.phone input.phone keypress.phone");
     $(document).off("click.phone change.phone input.phone keypress.phone");
-    
+
     // BIND OPEN BUTTON (Fix for "Can't Open")
     $(document).off("click", "#btn-phn").on("click", "#btn-phn", () => {
         const $p = $("#uie-phone-window");
@@ -394,7 +394,7 @@ export function initPhone() {
         arrivalObserver = new MutationObserver(async () => {
             const last = chatEl.querySelector(".mes:last-child") || chatEl.lastElementChild;
             if (!last) return;
-            
+
             // Run Arrival Logic
             const isUser =
                 last.classList?.contains("is_user") ||
@@ -412,7 +412,7 @@ export function initPhone() {
     const loadPhoneVisuals = () => {
         const s = getSettings();
         if(!s.phone) s.phone = { bg: "", lockBg: "", pin: "", deviceSkin: "classic", unlockedDevices: ["classic"], customApps: [], bookmarks: [], browser: { pages: {}, history: [], index: -1 }, smsThreads: {}, arrivals: [], blockedContacts: [], numberBook: [] };
-        if(!s.social) s.social = { friends: [], stats: {} }; 
+        if(!s.social) s.social = { friends: [], stats: {} };
         if(!s.phone.browser) s.phone.browser = { pages: {}, history: [], index: -1 };
         if(!s.phone.browser.pages) s.phone.browser.pages = {};
         if(!Array.isArray(s.phone.browser.history)) s.phone.browser.history = [];
@@ -437,7 +437,7 @@ export function initPhone() {
                 $("#uie-phone-window").css({ left: clampedX, top: clampedY, transform: "none" });
             }
         } catch (_) {}
-        
+
         if(s.phone.bg) $("#uie-phone-window").css("background-image", `url('${s.phone.bg}')`);
         if(s.phone.lockBg) $("#uie-phone-lockscreen").css("background-image", `url('${s.phone.lockBg}')`).css("background-size","cover").css("background-position","center");
         else $("#uie-phone-lockscreen").css("background-image", "");
@@ -474,16 +474,16 @@ export function initPhone() {
             #uie-phone-window #msg-block{ color: rgba(255,255,255,0.85); }
             #uie-phone-window #msg-block.blocked{ color: #f38ba8; }
         `);
-        
+
         if(s.phone.pin && s.phone.pin.length > 0) {
-            $("#uie-phone-pin").show().val(""); 
+            $("#uie-phone-pin").show().val("");
             $("#uie-phone-unlock-btn").text("Enter PIN");
         } else {
             $("#uie-phone-pin").hide();
             $("#uie-phone-unlock-btn").text("Swipe / Tap to Unlock");
         }
-        
-        $(".custom-app-icon").remove(); 
+
+        $(".custom-app-icon").remove();
         if(s.phone.customApps) {
             s.phone.customApps.forEach(app => {
                 $("#uie-phone-grid").append(`
@@ -519,7 +519,7 @@ export function initPhone() {
         $(".phone-app-window").hide();
         $("#uie-phone-homescreen").hide();
         $(id).css("display", "flex").hide().fadeIn(150);
-        
+
         if(id === "#uie-app-contacts-view") renderContacts();
         if(id === "#uie-app-dial-view") {
             try { renderDialRecents(); } catch (_) {}
@@ -848,14 +848,14 @@ export function initPhone() {
         });
         container.scrollTop(container.prop("scrollHeight"));
     };
-    
+
     $win.off("click.phoneMsgSend", "#msg-send-btn");
     $win.on("click.phoneMsgSend", "#msg-send-btn", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const t = String($("#msg-input").val() || "");
         if(!t.trim()) return;
-        
+
         // If no contact selected, check Social for a default or prompt
         let targetName = activeContact;
         if(!targetName) {
@@ -1296,17 +1296,17 @@ ${chat}`.slice(0, 6000);
             ...socialPeople.map(p => ({ kind: "social", name: p.name, number: formatNumber(p?.phone || p?.phoneNumber || ""), avatar: p.avatar || "" })),
             ...phoneOnly.map(p => ({ kind: "phone", name: p.name, number: formatNumber(p.number), avatar: "" }))
         ].filter(p => p?.name).filter(p => !isBlocked(s, p.name));
-        
+
         if(!combined.length) {
             l.html('<div style="padding:30px; text-align:center; color:#aaa;">No contacts found.<br>Tap + to add one.</div>');
         } else {
             combined.forEach(p => {
                 const num = String(p.number || "—");
                 const av = String(p.avatar || "").trim();
-                const avatarHtml = av 
-                    ? `<img src="${esc(av)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">` 
+                const avatarHtml = av
+                    ? `<img src="${esc(av)}" style="width:100%; height:100%; object-fit:cover; border-radius:50%;">`
                     : `${String(p.name || "?").charAt(0)}`;
-                
+
                 l.append(`
                     <div class="contact-row" data-name="${esc(p.name)}" style="display:flex; align-items:center; padding:15px; border-bottom:1px solid #eee; cursor:pointer;">
                         <div class="contact-avatar" style="width:40px; height:40px; background:#ddd; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:15px; font-weight:bold; color:#555; overflow:hidden;">${avatarHtml}</div>
@@ -1314,9 +1314,9 @@ ${chat}`.slice(0, 6000);
                             <div style="font-weight:bold; color:#333; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</div>
                             <div style="font-size:0.78em; opacity:0.65; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(num)}</div>
                         </div>
-                        
+
                         <i class="fa-solid fa-comment phone-msg-trigger" data-name="${p.name}" style="color:#3498db; padding:10px; cursor:pointer; font-size:1.2em; margin-right:10px;" title="Message"></i>
-                        
+
                         <i class="fa-solid fa-phone phone-call-trigger" data-name="${p.name}" style="color:#2ecc71; padding:10px; cursor:pointer; font-size:1.2em;" title="Call"></i>
                     </div>
                 `);
@@ -1726,7 +1726,7 @@ ${chat}`.slice(0, 6000), "System Check");
     $win.on("click.phone", "#app-books", () => openApp("#uie-app-books-view"));
     $win.on("click.phone", "#app-calc", () => openApp("#uie-app-calc-view"));
     $win.on("click.phone", "#app-cookies", () => openApp("#uie-app-cookies-view"));
-    
+
     const setDialDisplay = () => {
         try { $("#dial-display").text(dialBuf ? dialBuf : "—"); } catch (_) {}
     };
@@ -1789,16 +1789,9 @@ ${chat}`.slice(0, 6000), "System Check");
         goHome();
     };
 
-    let uiePhoneBackLastPointer = 0;
     $win
-        .off("click.phoneBack pointerup.phoneBack", "#uie-phone-window .phone-back-btn, #uie-phone-window #p-browser-home")
-        .on("click.phoneBack pointerup.phoneBack", "#uie-phone-window .phone-back-btn, #uie-phone-window #p-browser-home", function(e){
-            if (e?.type === "pointerup") {
-                uiePhoneBackLastPointer = Date.now();
-            } else if (e?.type === "click" && Date.now() - uiePhoneBackLastPointer < 300) {
-                try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-                return;
-            }
+        .off("click.phoneBack", ".phone-back-btn, #p-browser-home")
+        .on("click.phoneBack", ".phone-back-btn, #p-browser-home", function(e){
             e.preventDefault();
             e.stopPropagation();
             smartBack(this);
@@ -2159,7 +2152,7 @@ ${chat}`.slice(0, 6000), "System Check");
             const href = String(target.attr("href") || "").trim();
             if (href && !href.startsWith("#")) return;
         }
-        
+
         const appId = $("#uie-app-browser-view").data("active-app");
         const app = getSettings().phone.customApps.find(a => a.id == appId);
         if(!app) return;
@@ -2167,13 +2160,13 @@ ${chat}`.slice(0, 6000), "System Check");
         e.stopPropagation();
         notify("info", "Processing...", "Phone", "api");
 
-        const prompt = `User clicked "${target.text().substring(0,30)}" in app "${app.name}". 
+        const prompt = `User clicked "${target.text().substring(0,30)}" in app "${app.name}".
         Return JSON action: {"action": "navigate"|"message"|"alert", "content": "..."}`;
-        
+
         try {
             const res = await generateContent(prompt, "System Check");
             const logic = JSON.parse(cleanOutput(res, "json"));
-            
+
             if(logic.action === "navigate") {
                 if (logic.content.length < 50 && !logic.content.includes("<")) {
                     $("#p-browser-content").html('<div style="text-align:center;margin-top:50px;">Loading...</div>');
@@ -2183,9 +2176,9 @@ ${chat}`.slice(0, 6000), "System Check");
                     $("#p-browser-content").html(cleanOutput(logic.content, "web"));
                 }
             }
-            else if (logic.action === "message") { 
+            else if (logic.action === "message") {
                 activeContact = String(app.name || "App");
-                openApp("#uie-app-msg-view"); 
+                openApp("#uie-app-msg-view");
                 const th = getThread(activeContact);
                 th.list.push({ isUser: false, text: String(logic.content || ""), ts: Date.now() });
                 saveSettings();
@@ -2324,12 +2317,12 @@ Requirements:
             btn.text("INSTALL DRAFT").prop("disabled", false);
         }
     });
-    
+
     const renderCookies = () => {
         const s = getSettings();
         if (!s.phone) s.phone = {};
         if (!Array.isArray(s.phone.numberBook)) s.phone.numberBook = [];
-        
+
         // Calculate sizes
         const getBytes = (obj) => new Blob([JSON.stringify(obj)]).size;
         const fmtSize = (bytes) => {
@@ -2378,7 +2371,7 @@ Requirements:
         const s = getSettings();
         $("#cookies-detail-view").css("display", "flex").hide().fadeIn(150);
         $("#cookies-detail-title").text(cat === "browser" ? "Saved Web Data" : cat === "maps" ? "Maps" : cat === "books" ? "Books" : cat === "numbers" ? "Saved Numbers" : cat === "state" ? "World State" : "Logs");
-        
+
         const $list = $("#cookies-detail-list").empty();
         let items = [];
 
@@ -2457,7 +2450,7 @@ Requirements:
 
     const renderAppStore = () => {
         const s = ensurePhoneState();
-        const list = $("#store-installed-list"); 
+        const list = $("#store-installed-list");
         if(!list.length) return;
         list.empty();
         if (s.phone.draftApp && s.phone.draftApp.name) setDraftStatus(`Draft ready: ${s.phone.draftApp.name}`);
@@ -2482,7 +2475,7 @@ Requirements:
             saveSettings(); loadPhoneVisuals(); renderAppStore();
         }
     });
-    
+
     $win.on("click.phone", ".custom-app-icon", function(e) {
         if($(e.target).hasClass("custom-app-delete")) return;
         const id = $(this).data("id");
@@ -2536,18 +2529,18 @@ export function openBooksGuide(sectionId) {
         const $p = $("#uie-phone-window");
         // Force open phone if closed
         $p.show().css("display", "flex");
-        
+
         // Hide other screens
         $("#uie-phone-lockscreen").hide();
         $("#uie-phone-homescreen").hide();
         $(".phone-app-window").hide();
-        
+
         // Show Books App
         $("#uie-app-books-view").css("display", "flex").show();
-        
+
         // Ensure render
         renderBooks();
-        
+
         // Force Switch to Guide Tab
         $("#books-view-guide").show();
         $("#books-view-library").hide();
