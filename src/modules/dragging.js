@@ -193,11 +193,6 @@ export function initDragging() {
         const mobile = isMobileUI();
         const allowDragStart = inMenuDrag || inDragHeader || (mobile && inMainMenu && !inMenuContent && !inMenuTabs);
 
-        // If the user is grabbing a real drag handle, prevent the browser from treating it as scroll.
-        if (allowDragStart && e.cancelable) {
-            try { e.preventDefault(); } catch (_) {}
-        }
-
         dragLog("start", {
             type: String(e?.type || ""),
             target: String(t?.[0]?.id || t?.[0]?.className || ""),
@@ -212,6 +207,12 @@ export function initDragging() {
             t.closest("button").length ||
             t.closest(".uie-close-btn, .uie-rpg-close, .uie-sim-close, .uie-inv-close, #uie-phone-close, #uie-settings-close, #uie-party-member-close, #uie-party-member-bg-edit, .phone-back-btn, .uie-controls, .uie-dropdown, .uie-dd-item, .uie-menu-tab, .uie-inv-icon, .fa-wand-magic-sparkles, [id*='sparkle'], #uie-activity-sparkle, input, select, textarea, option, optgroup, a, label, .tab, .uie-tab, .uie-set-tab, .uie-settings-tab, [onclick], [role='button'], .uie-btn-accept, .uie-btn-deny, .uie-btn-complete, .uie-btn-fail, .uie-codex-add, .uie-codex-edit, .uie-codex-del, #re-st-menu, #re-q-menu, #uie-journal-menu, .menu, .popup, .dropdown-menu, .range-slider, .checkbox, .radio, .toggle, .re-qbtn, .re-menu-item, .re-forge-btn, .vn-dialogue-box, .re-bar, .re-hud-btn, .uie-social-card, .uie-p-close, .uie-inv-tabs, .uie-journal-sidebar, .uie-journal-list, #uie-world-content, .no-drag, .clickable, .re-actbtn, #re-action-grid, #re-composer, .re-obj, #re-phone, #re-journal, #re-ui button, #re-ui input, #re-ui textarea, #uie-stats-window .uie-rpg-close, #uie-activities-window .uie-sim-close").length)) {
             return;
+        }
+
+        // If the user is grabbing a real drag handle, prevent the browser from treating it as scroll.
+        // IMPORTANT: Do this only after we have ruled out interactive elements, otherwise touch/pointer clicks get canceled.
+        if (allowDragStart && e.cancelable) {
+            try { e.preventDefault(); } catch (_) {}
         }
 
         // Allow dragging when clicking the stats/activities header background.
@@ -307,8 +308,10 @@ export function initDragging() {
             
             // For desktop full-screen windows, ensure we use pixel values from current position
             // Don't reset position if it's already correctly positioned
-            const scale = Math.max(0.5, Math.min(2, Number(getSettings()?.uiScale || 1)));
-            const useScale = isMobileUI() && scale !== 1;
+            const s = getSettings();
+            const rawScale = Number(s?.ui?.scale ?? s?.uiScale ?? 1);
+            const scale = Math.max(0.5, Math.min(1.5, Number.isFinite(rawScale) ? rawScale : 1));
+            const useScale = (winId === "uie-main-menu") ? (scale !== 1) : (isMobileUI() && scale !== 1);
             if (isFullScreenWindow) {
                 // Get current computed position
                 const currentLeft = rect.left;
@@ -320,6 +323,8 @@ export function initDragging() {
                 windowState.target.css({ 
                     left: `${currentLeft}px`, 
                     top: `${currentTop}px`, 
+                    right: "auto",
+                    bottom: "auto",
                     position: "fixed",
                     transformOrigin: "top left",
                     transform: useScale ? `scale(${scale})` : "none"
@@ -327,7 +332,7 @@ export function initDragging() {
             } else {
                 windowState.ox = pos.clientX - rect.left;
                 windowState.oy = pos.clientY - rect.top;
-                windowState.target.css({ left: rect.left, top: rect.top, position: "fixed", transformOrigin: "top left" });
+                windowState.target.css({ left: rect.left, top: rect.top, right: "auto", bottom: "auto", position: "fixed", transformOrigin: "top left" });
                 windowState.target.css({ transform: useScale ? `scale(${scale})` : "none" });
             }
         }
@@ -346,8 +351,10 @@ export function initDragging() {
         const h = r.height || windowState.target.outerHeight() || 320;
         const rawLeft = pos.clientX - windowState.ox;
         const rawTop = pos.clientY - windowState.oy;
-        const clamped = clampToViewport(rawLeft, rawTop, w, h, 0);
-        windowState.target.css({ left: `${clamped.x}px`, top: `${clamped.y}px`, position: "fixed" });
+        const winId = windowState.target.attr("id") || "";
+        const pad = winId === "uie-main-menu" ? 8 : 0;
+        const clamped = clampToViewport(rawLeft, rawTop, w, h, pad);
+        windowState.target.css({ left: `${clamped.x}px`, top: `${clamped.y}px`, right: "auto", bottom: "auto", position: "fixed" });
     };
 
     const onWinEnd = () => {
@@ -363,6 +370,10 @@ export function initDragging() {
             const id = windowState.target.attr("id") || "";
             const isDesktop = window.innerWidth >= 768;
             const isFullScreenWindow = isDesktop && (id === "uie-stats-window" || id === "uie-activities-window");
+
+            const rawScale = Number(s?.ui?.scale ?? s?.uiScale ?? 1);
+            const scale = Math.max(0.5, Math.min(1.5, Number.isFinite(rawScale) ? rawScale : 1));
+            const useScale = (id === "uie-main-menu") ? (scale !== 1) : (isMobileUI() && scale !== 1);
             
             if (id === "uie-inventory-window") {
                 s.posX = rect.left;
@@ -385,9 +396,25 @@ export function initDragging() {
             if (isFullScreenWindow) {
                 // Save the dragged position but don't force it on next open - let CSS media query handle initial position
                 // The inline style from dragging will persist until window is closed/reopened
-                windowState.target.css({ transform: "none", transformOrigin: windowState.prevOrigin || "" });
+                windowState.target.css({
+                    left: `${rect.left}px`,
+                    top: `${rect.top}px`,
+                    right: "auto",
+                    bottom: "auto",
+                    position: "fixed",
+                    transformOrigin: "top left",
+                    transform: useScale ? `scale(${scale})` : "none"
+                });
             } else {
-                windowState.target.css({ transform: "none", transformOrigin: windowState.prevOrigin || "" });
+                windowState.target.css({
+                    left: `${rect.left}px`,
+                    top: `${rect.top}px`,
+                    right: "auto",
+                    bottom: "auto",
+                    position: "fixed",
+                    transformOrigin: "top left",
+                    transform: useScale ? `scale(${scale})` : "none"
+                });
             }
             updateLayout();
         }

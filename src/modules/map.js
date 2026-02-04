@@ -438,29 +438,89 @@ function renderFromState() {
     const render = document.getElementById("uie-map-render");
     if (!render) return;
 
-    // Clear container
-    while (render.firstChild) {
-        render.removeChild(render.firstChild);
-    }
+    const m = window.UIE_MAP;
+    const renderer = m?.renderer;
+    const builder = m?.builder;
+    const atlas = m?.atlas;
 
-    if (s.map.mode === "image" && s.map.image) {
-        const tmpl = document.getElementById("uie-template-map-image-mode");
-        if (tmpl) {
-            const clone = tmpl.content.cloneNode(true);
-            const img = clone.querySelector(".uie-map-img");
-            const label = clone.querySelector(".uie-map-prompt-label");
-            if (img) img.src = s.map.image;
-            if (label) label.textContent = s.map.prompt || "";
-            render.appendChild(clone);
+    const hasCanvasPipeline = !!(renderer && builder && atlas && renderer.canvas && renderer.iconLayer);
+
+    if (!hasCanvasPipeline) {
+        // Fallback: minimal image rendering (templates may not be present)
+        while (render.firstChild) render.removeChild(render.firstChild);
+        if (s.map.mode === "image" && s.map.image) {
+            const img = document.createElement("img");
+            img.src = String(s.map.image || "");
+            img.style.width = "100%";
+            img.style.height = "100%";
+            img.style.objectFit = "contain";
+            img.style.display = "block";
+            render.appendChild(img);
         }
-    } else if (s.map.mode === "procedural") {
-        const data = s.map.data || null;
-        const dom = buildProceduralMapDOM({ scope: s.map.scope || "local", prompt: s.map.prompt || "", seed: s.map.seed || "", names: data || null, grid: s.map.grid === true });
-        render.appendChild(dom);
     } else {
-        const tmpl = document.getElementById("uie-template-map-empty");
-        if (tmpl) {
-            render.appendChild(tmpl.content.cloneNode(true));
+        // Canvas pipeline: keep renderer DOM intact and render content
+        const playerPos = { x: clamp01(s.map.marker.x) * 100, y: clamp01(s.map.marker.y) * 100 };
+
+        if (s.map.mode === "image" && s.map.image) {
+            try {
+                // Hide canvas drawing (keep icons on top)
+                renderer.canvas.style.display = "none";
+
+                // Ensure/replace a single image element under the icon layer
+                const root = renderer.root || renderer.canvas?.parentElement;
+                if (root) {
+                    let img = root.querySelector("img.uie-map-img");
+                    if (!img) {
+                        img = document.createElement("img");
+                        img.className = "uie-map-img";
+                        img.style.display = "block";
+                        img.style.position = "absolute";
+                        img.style.left = "0";
+                        img.style.top = "0";
+                        img.style.maxWidth = "none";
+                        img.style.maxHeight = "none";
+                        img.style.pointerEvents = "none";
+                        root.insertBefore(img, renderer.iconLayer);
+                    }
+                    const src = String(s.map.image || "");
+                    if (img.src !== src) img.src = src;
+                    img.onload = () => {
+                        try {
+                            const w = img.naturalWidth || img.width || 1200;
+                            const h = img.naturalHeight || img.height || 800;
+                            img.style.width = `${w}px`;
+                            img.style.height = `${h}px`;
+                            if (root) {
+                                root.style.width = `${w}px`;
+                                root.style.height = `${h}px`;
+                            }
+                            if (renderer.iconLayer) {
+                                renderer.iconLayer.style.width = `${w}px`;
+                                renderer.iconLayer.style.height = `${h}px`;
+                            }
+                        } catch (_) {}
+                    };
+                }
+
+                // Render icons from lore/custom nodes even in image mode
+                const baseNodes = builder.scanLore?.() || [];
+                const nodes = atlas.mergeNodes ? atlas.mergeNodes(baseNodes) : baseNodes;
+                renderer.renderIcons(nodes, playerPos);
+            } catch (_) {}
+        } else {
+            // Procedural map via WorldBuilder + Atlas
+            try {
+                // Remove any image element and show canvas
+                const root = renderer.root || renderer.canvas?.parentElement;
+                try { root?.querySelector?.("img.uie-map-img")?.remove?.(); } catch (_) {}
+                renderer.canvas.style.display = "block";
+
+                const mapData = builder.generate(120, 80);
+                if (mapData && mapData.nodes && atlas.mergeNodes) {
+                    mapData.nodes = atlas.mergeNodes(mapData.nodes);
+                }
+                renderer.render(mapData, playerPos, atlas?.data?.revealed_fog_tiles);
+            } catch (_) {}
         }
     }
 
@@ -479,6 +539,15 @@ function renderFromState() {
 }
 
 async function generateMap({ prompt, scope, forceProcedural = false }) {
+    try {
+        const g = (window.UIE_mapGenGate = window.UIE_mapGenGate || { inFlight: false, key: "", at: 0 });
+        const k = `${String(scope || "")}::${String(prompt || "").trim()}::${forceProcedural ? "proc" : "auto"}`;
+        if (g.inFlight && g.key === k && Date.now() - Number(g.at || 0) < 8000) return;
+        g.inFlight = true;
+        g.key = k;
+        g.at = Date.now();
+    } catch (_) {}
+
     const s = getSettings();
     ensureMap(s);
 
@@ -514,6 +583,17 @@ Rules: no text, no labels, no UI, no borders, no compass rose, no watermark.`;
     saveSettings();
     renderFromState();
     viewDraft = { tx: Number(getSettings()?.map?.view?.tx || 0), ty: Number(getSettings()?.map?.view?.ty || 0), scale: Number(getSettings()?.map?.view?.scale || 1) };
+    try {
+        const g = window.UIE_mapGenGate;
+        if (g) g.inFlight = false;
+    } catch (_) {}
+}
+
+function releaseMapGenGate() {
+    try {
+        const g = window.UIE_mapGenGate;
+        if (g) g.inFlight = false;
+    } catch (_) {}
 }
 
 export function initMap() {
@@ -542,14 +622,14 @@ export function initMap() {
         r.readAsDataURL(file);
     });
 
-    $win.on("pointerup.mapBg click.mapBg", "#uie-map-bg-pick", function(e){
+    $win.on("click.mapBg", "#uie-map-bg-pick", function(e){
         e.preventDefault();
         e.stopPropagation();
         const inp = document.getElementById("uie-map-bg-file");
         if (inp) inp.click();
     });
 
-    $win.on("pointerup.mapSparkle click.mapSparkle", "#uie-map-sparkle", function(e){
+    $win.on("click.mapSparkle", "#uie-map-sparkle", function(e){
         e.preventDefault();
         e.stopPropagation();
         try { e.stopImmediatePropagation(); } catch (_) {}
@@ -559,7 +639,7 @@ export function initMap() {
         m.style.display = isOpen ? "none" : "block";
     });
 
-    $win.on("pointerup.mapMenu click.mapMenu", "#uie-map-menu .uie-dd-item", async function(e){
+    $win.on("click.mapMenu", "#uie-map-menu .uie-dd-item", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const id = String(this && this.id || "");
@@ -576,7 +656,7 @@ export function initMap() {
             const scope = String(scopeSel?.value || "local");
             const prompt = String(p?.value || "").trim();
             if (!prompt) return;
-            await generateMap({ prompt, scope, forceProcedural: true });
+            try { await generateMap({ prompt, scope, forceProcedural: true }); } finally { releaseMapGenGate(); }
         }
         if (id === "uie-map-act-location") {
             const i = document.getElementById("uie-map-location-input");
@@ -596,7 +676,7 @@ export function initMap() {
     });
 
     // Close menu if clicked elsewhere in the window
-    $win.on("pointerup.mapMenuClose click.mapMenuClose", function(e){
+    $win.on("click.mapMenuClose", function(e){
         if ($(e.target).closest("#uie-map-sparkle, #uie-map-menu").length) return;
         const m = document.getElementById("uie-map-menu");
         if (m) m.style.display = "none";
@@ -612,7 +692,7 @@ export function initMap() {
     // But since it's an input change event, it's not affected by the "Nuclear Blocker" (which blocks clicks).
     // So I can leave it global or scope it to `body`.
     // Let's stick to `$(document)` for the file input change as it's safe from click blockers.
-    $win.on("change.mapBg", "#uie-map-bg-file", async function(e){
+    $(document).off("change.mapBg").on("change.mapBg", "#uie-map-bg-file", async function(e){
         e.preventDefault();
         e.stopPropagation();
         const f = e.target && e.target.files ? e.target.files[0] : null;
@@ -626,21 +706,21 @@ export function initMap() {
         try { (await import("./core.js")).updateLayout?.(); } catch (_) {}
     });
 
-    $win.on("pointerup.map click.map", "#uie-btn-open-map", (e) => {
+    $win.on("click.map", "#uie-btn-open-map", (e) => {
         e.preventDefault();
         e.stopPropagation();
     });
 
-    $win.on("pointerup.map click.map", "#uie-map-generate", async (e) => {
+    $win.on("click.map", "#uie-map-generate", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const scope = String($("#uie-map-scope").val() || "local");
         const prompt = String($("#uie-map-prompt").val() || "").trim();
         if (!prompt) return;
-        await generateMap({ prompt, scope });
+        try { await generateMap({ prompt, scope }); } finally { releaseMapGenGate(); }
     });
 
-    $win.on("pointerup.map click.map", "#uie-map-refresh", async (e) => {
+    $win.on("click.map", "#uie-map-refresh", async (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();
@@ -648,10 +728,10 @@ export function initMap() {
         const prompt = String(s2.map.prompt || "").trim();
         const scope = String(s2.map.scope || "local");
         if (!prompt) return;
-        await generateMap({ prompt, scope });
+        try { await generateMap({ prompt, scope }); } finally { releaseMapGenGate(); }
     });
 
-    $win.on("pointerup.map click.map", "#uie-map-set-location", (e) => {
+    $win.on("click.map", "#uie-map-set-location", (e) => {
         e.preventDefault();
         e.stopPropagation();
         const s2 = getSettings();

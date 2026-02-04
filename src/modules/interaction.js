@@ -3,6 +3,41 @@ import { getSettings, saveSettings, updateLayout, isMobileUI } from "./core.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { notify } from "./notifications.js";
 
+async function ensureSettingsWindowLoaded() {
+    try {
+        if (document.getElementById("uie-settings-window")) return true;
+        const baseUrl = String(window.UIE_BASEURL || "/scripts/extensions/third-party/universal-immersion-engine/").trim();
+        const mod = await import("./templateFetch.js");
+        const fetchTemplateHtml = mod?.fetchTemplateHtml;
+        if (typeof fetchTemplateHtml !== "function") return false;
+
+        const ts = (() => {
+            try {
+                const v = Number(window.UIE_BUILD);
+                if (Number.isFinite(v) && v > 0) return v;
+            } catch (_) {}
+            return Date.now();
+        })();
+
+        const urls = [
+            `${baseUrl}src/templates/settings_window.html?v=${ts}`,
+            `${baseUrl}templates/settings_window.html?v=${ts}`,
+            `/scripts/extensions/third-party/universal-immersion-engine/src/templates/settings_window.html?v=${ts}`
+        ];
+        let html = "";
+        for (const u of urls) {
+            try { html = await fetchTemplateHtml(u); } catch (_) { html = ""; }
+            if (html) break;
+        }
+        if (!html) return false;
+        $("body").append(html);
+        try { (await import("./i18n.js")).applyI18n?.(document); } catch (_) {}
+        return !!document.getElementById("uie-settings-window");
+    } catch (_) {
+        return false;
+    }
+}
+
 // --- SCAVENGE & INTERACTION MODULE ---
 
 export function initInteractions() {
@@ -167,6 +202,125 @@ function clampToViewportPx(left, top, w, h, pad = 8) {
     return { x, y, vw, vh };
 }
 
+function ensureVisibleOnScreen($el, pad = 8) {
+    if (!$el || !$el.length) return;
+    const el = $el.get(0);
+    if (!el) return;
+    try {
+        const rect = el.getBoundingClientRect();
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        const minVisible = 40;
+
+        const badRect =
+            !Number.isFinite(rect.left) ||
+            !Number.isFinite(rect.top) ||
+            !Number.isFinite(rect.right) ||
+            !Number.isFinite(rect.bottom) ||
+            rect.width <= 1 ||
+            rect.height <= 1;
+
+        if (badRect) {
+            placeCenteredClamped($el);
+            return;
+        }
+
+        // If it's completely (or almost completely) off-screen, snap it back.
+        const fullyOff =
+            rect.right < minVisible ||
+            rect.bottom < minVisible ||
+            rect.left > vw - minVisible ||
+            rect.top > vh - minVisible;
+
+        if (fullyOff) {
+            placeCenteredClamped($el);
+            return;
+        }
+
+        // If partially off-screen, clamp pixel position.
+        if (rect.top < 0 || rect.left < 0 || rect.bottom > vh || rect.right > vw) {
+            const w = rect.width || $el.outerWidth() || 320;
+            const h = rect.height || $el.outerHeight() || 420;
+            const pos = clampToViewportPx(rect.left, rect.top, w, h, pad);
+            $el.css({ left: `${pos.x}px`, top: `${pos.y}px`, right: "auto", bottom: "auto", transform: "none", position: "fixed" });
+        }
+    } catch (_) {
+        try { placeCenteredClamped($el); } catch (_) {}
+    }
+}
+
+function getMenuHidden() {
+    const s = getSettings();
+    const hid = s?.menuHidden;
+    return (hid && typeof hid === "object") ? hid : {};
+}
+
+function applyMenuHiddenToButtons() {
+    try {
+        const hid = getMenuHidden();
+        const set = (btnSel, key) => {
+            try {
+                const $b = $(btnSel);
+                if (!$b.length) return;
+                const hide = hid?.[key] === true;
+                $b.toggle(!hide);
+            } catch (_) {}
+        };
+
+        // Main tab
+        set("#uie-btn-inventory", "inventory");
+        set("#uie-btn-shop", "shop");
+        set("#uie-btn-journal", "journal");
+        set("#uie-btn-diary", "diary");
+        set("#uie-btn-social", "social");
+        set("#uie-btn-party", "party");
+        set("#uie-btn-stats", "stats");
+        set("#uie-btn-activities", "activities");
+
+        // Misc/Apps tab
+        set("#uie-btn-open-phone", "phone");
+        set("#uie-btn-open-map", "map");
+        set("#uie-btn-open-world", "world");
+        set("#uie-btn-open-calendar", "calendar");
+        set("#uie-btn-databank", "databank");
+        set("#uie-btn-battle", "battle");
+
+        // System tab
+        set("#uie-btn-open-settings", "settings");
+        set("#uie-btn-debug", "debug");
+        set("#uie-btn-help", "help");
+    } catch (_) {}
+}
+
+function syncMenuVisibilityCheckboxes() {
+    try {
+        const hid = getMenuHidden();
+        const map = {
+            "uie-hide-inventory": "inventory",
+            "uie-hide-shop": "shop",
+            "uie-hide-journal": "journal",
+            "uie-hide-diary": "diary",
+            "uie-hide-social": "social",
+            "uie-hide-party": "party",
+            "uie-hide-battle": "battle",
+            "uie-hide-phone": "phone",
+            "uie-hide-map": "map",
+            "uie-hide-calendar": "calendar",
+            "uie-hide-databank": "databank",
+            "uie-hide-world": "world",
+            "uie-hide-settings": "settings",
+            "uie-hide-debug": "debug",
+            "uie-hide-help": "help",
+        };
+        for (const id of Object.keys(map)) {
+            const key = map[id];
+            const el = document.getElementById(id);
+            if (!el) continue;
+            try { $(el).prop("checked", hid?.[key] === true); } catch (_) {}
+        }
+    } catch (_) {}
+}
+
 function placeCenteredClamped($el) {
     if (!$el || !$el.length) return;
     const el = $el.get(0);
@@ -182,9 +336,179 @@ function placeCenteredClamped($el) {
     $el.css({ left: `${pos.x}px`, top: `${pos.y}px`, right: "auto", bottom: "auto", transform: "none", position: "fixed" });
 }
 
+function placeMenuCenteredScaled($menu, desiredScale = 1) {
+    if (!$menu || !$menu.length) return;
+
+    try {
+        const el = $menu.get(0);
+        if (el && el.parentElement !== document.body) {
+            document.body.appendChild(el);
+        }
+    } catch (_) {}
+
+    const rawScale = Number(desiredScale);
+    const userScale = Math.max(0.5, Math.min(1.5, Number.isFinite(rawScale) ? rawScale : 1));
+
+    // Measure at natural size (no transform) to compute fit-to-viewport scale.
+    // This avoids the menu being bigger than the screen on mobile.
+    let w = 320;
+    let h = 420;
+    try {
+        $menu.css({ position: "fixed", left: "0px", top: "0px", right: "auto", bottom: "auto", transform: "none", transformOrigin: "center", visibility: "hidden" });
+        const rect = $menu.get(0)?.getBoundingClientRect?.();
+        w = rect?.width || $menu.outerWidth() || w;
+        h = rect?.height || $menu.outerHeight() || h;
+    } catch (_) {}
+
+    const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    const fitW = vw > 0 ? (vw * 0.94) / Math.max(1, w) : 1;
+    const fitH = vh > 0 ? (vh * 0.88) / Math.max(1, h) : 1;
+    const fitScale = Math.max(0.5, Math.min(1, fitW, fitH));
+    const scale = Math.max(0.5, Math.min(1.5, userScale, fitScale));
+
+    const pad = 10;
+    const scaledW = Math.max(1, w * scale);
+    const scaledH = Math.max(1, h * scale);
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const minCx = pad + scaledW / 2;
+    const maxCx = (vw || 0) - pad - scaledW / 2;
+    const minCy = pad + scaledH / 2;
+    const maxCy = (vh || 0) - pad - scaledH / 2;
+
+    const targetCx = (vw || 0) / 2;
+    const targetCy = (vh || 0) * 0.75;
+    const cx = (vw && vw > 0) ? clamp(targetCx, minCx, Math.max(minCx, maxCx)) : 0;
+    const cy = (vh && vh > 0) ? clamp(targetCy, minCy, Math.max(minCy, maxCy)) : 0;
+
+    try {
+        $menu.css({
+            left: vw && vw > 0 ? `${cx}px` : "50%",
+            top: vh && vh > 0 ? `${cy}px` : "50%",
+            right: "auto",
+            bottom: "auto",
+            position: "fixed",
+            transformOrigin: "center",
+            transform: `translate(-50%, -50%) scale(${scale})`,
+            visibility: "visible"
+        });
+    } catch (_) {}
+}
+
 function initLauncher() {
     const btn = document.getElementById("uie-launcher");
     if (!btn) return;
+
+    let lastToggleAt = 0;
+    let longPressFired = false;
+    let touchDown = null;
+
+    const toggleMenu = (e) => {
+        if (longPressFired) {
+            longPressFired = false;
+            return;
+        }
+
+        const now = Date.now();
+        if (now - lastToggleAt < 320) return;
+        lastToggleAt = now;
+
+        try {
+            e?.preventDefault?.();
+            e?.stopPropagation?.();
+        } catch (_) {}
+
+        const menu = $("#uie-main-menu");
+        if (!menu.length) return;
+
+        if (menu.is(":visible")) {
+            menu.hide();
+            return;
+        }
+
+        menu.css({ visibility: "hidden" });
+        menu.show().css("display", "flex");
+        menu.css("z-index", "2147483650");
+
+        // Apply per-button visibility
+        applyMenuHiddenToButtons();
+
+        const mobileNow = (() => {
+            try {
+                if (isMobileUI()) return true;
+                const touch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
+                const minDim = Math.min(Number(window.innerWidth || 0), Number(window.innerHeight || 0));
+                return touch && minDim > 0 && minDim <= 700;
+            } catch (_) {
+                return isMobileUI();
+            }
+        })();
+
+        if (mobileNow) {
+            const s = getSettings();
+            const raw = Number(s?.ui?.scale ?? s?.uiScale ?? 1);
+            placeMenuCenteredScaled(menu, raw);
+            try { updateLayout(); } catch (_) {}
+            return;
+        }
+
+        const sScale = getSettings();
+        const rawScale = Number(sScale?.ui?.scale ?? sScale?.uiScale ?? 1);
+        const scale = Math.max(0.5, Math.min(1.5, Number.isFinite(rawScale) ? rawScale : 1));
+        const useScale = scale !== 1;
+        try {
+            menu.css({ transformOrigin: "top left", transform: useScale ? `scale(${scale})` : "none" });
+        } catch (_) {}
+
+        const launcher = document.getElementById("uie-launcher");
+        if (launcher && launcher.getBoundingClientRect().height > 0) {
+            const rect = launcher.getBoundingClientRect();
+            let mw = 300;
+            let mh = 400;
+            try {
+                const r = menu.get(0)?.getBoundingClientRect?.();
+                mw = r?.width || menu.outerWidth() || mw;
+                mh = r?.height || menu.outerHeight() || mh;
+            } catch (_) {}
+            const margin = 10;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let left = rect.right + margin;
+            if (left + mw > vw - margin) left = rect.left - mw - margin;
+            let top = rect.top;
+
+            // Clamp robustly even when the menu is larger than the viewport.
+            const maxLeft = vw - mw - margin;
+            if (maxLeft < margin) {
+                left = margin;
+            } else {
+                if (left < margin) left = margin;
+                if (left > maxLeft) left = maxLeft;
+            }
+
+            const maxTop = vh - mh - margin;
+            if (maxTop < margin) {
+                top = margin;
+            } else {
+                if (top < margin) top = margin;
+                if (top > maxTop) top = maxTop;
+            }
+
+            menu.css({
+                top: top + "px",
+                left: left + "px",
+                bottom: "auto",
+                right: "auto",
+                position: "fixed",
+                transformOrigin: "top left",
+                transform: useScale ? `scale(${scale})` : "none",
+                visibility: "visible"
+            });
+        } else {
+             menu.css({ top: "50%", left: "50%", transformOrigin: "center", transform: `translate(-50%, -50%) scale(${scale})`, bottom: "auto", right: "auto", visibility: "visible" });
+        }
+    };
 
     const openLauncherOptions = () => {
         try {
@@ -256,105 +580,41 @@ function initLauncher() {
         try {
             if (String(e.pointerType || "") !== "touch") return;
         } catch (_) { return; }
+        touchDown = { x: Number(e.clientX || 0), y: Number(e.clientY || 0), t: Date.now(), moved: false };
         clearLp();
         lpT = setTimeout(() => {
             lpT = 0;
+            longPressFired = true;
             openLauncherOptions();
         }, 520);
     }, { passive: true });
     btn.addEventListener("pointerup", clearLp, { passive: true });
     btn.addEventListener("pointercancel", clearLp, { passive: true });
-    btn.addEventListener("pointermove", clearLp, { passive: true });
+    btn.addEventListener("pointermove", (e) => {
+        clearLp();
+        try {
+            if (String(e.pointerType || "") !== "touch") return;
+        } catch (_) { return; }
+        if (!touchDown) return;
+        const dx = Math.abs(Number(e.clientX || 0) - Number(touchDown.x || 0));
+        const dy = Math.abs(Number(e.clientY || 0) - Number(touchDown.y || 0));
+        if (dx > 10 || dy > 10) touchDown.moved = true;
+    }, { passive: true });
 
-    // Block Mousedown/Pointerdown propagation to prevent ST from hijacking the drag
-    // But allow default so dragging.js can handle it (dragging.js attaches directly)
-    $(btn).off("mousedown.uieLauncher pointerdown.uieLauncher").on("mousedown.uieLauncher pointerdown.uieLauncher", function(e) {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-    });
+    // Mobile reliability: toggle on pointerup for touch.
+    btn.addEventListener("pointerup", (e) => {
+        try {
+            if (String(e.pointerType || "") !== "touch") return;
+        } catch (_) { return; }
+        const moved = touchDown?.moved === true;
+        touchDown = null;
+        if (moved) return;
+        toggleMenu(e);
+    }, { passive: false });
 
-    // Remove old listener if any
+    // Desktop: click still works; on mobile this is de-duped against pointerup.
     $(btn).off("click.uieLauncher").on("click.uieLauncher", function(e) {
-        // dragging.js handles capture phase stopImmediatePropagation if dragged
-        // If we get here, it's a click
-        e.preventDefault();
-        e.stopPropagation();
-
-        const menu = $("#uie-main-menu");
-        if (!menu.length) return;
-
-        if (menu.is(":visible")) {
-            menu.hide();
-        } else {
-            menu.show();
-            // Ensure proper Z-index
-            menu.css("z-index", "2147483650");
-
-            const mobileNow = (() => {
-                try {
-                    if (isMobileUI()) return true;
-                    const touch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
-                    const minDim = Math.min(Number(window.innerWidth || 0), Number(window.innerHeight || 0));
-                    return touch && minDim > 0 && minDim <= 700;
-                } catch (_) {
-                    return isMobileUI();
-                }
-            })();
-
-            if (mobileNow) {
-                const s = getSettings();
-                const sx = (s.menuX === null || s.menuX === undefined) ? NaN : Number(s.menuX);
-                const sy = (s.menuY === null || s.menuY === undefined) ? NaN : Number(s.menuY);
-                if (Number.isFinite(sx) && Number.isFinite(sy)) {
-                    const rect = menu.get(0)?.getBoundingClientRect?.();
-                    const w = rect?.width || menu.outerWidth() || 320;
-                    const h = rect?.height || menu.outerHeight() || 420;
-                    const pos = clampToViewportPx(sx, sy, w, h, 8);
-                    menu.css({ left: `${pos.x}px`, top: `${pos.y}px`, right: "auto", bottom: "auto", transform: "none", position: "fixed" });
-                } else {
-                    placeCenteredClamped(menu);
-                }
-                try { updateLayout(); } catch (_) {}
-                return;
-            }
-
-            // Force position next to launcher (User Request)
-            const launcher = document.getElementById("uie-launcher");
-            if (launcher && launcher.getBoundingClientRect().height > 0) {
-                const rect = launcher.getBoundingClientRect();
-                // Dimensions
-                let mw = menu.outerWidth() || 300;
-                let mh = menu.outerHeight() || 400;
-                const margin = 10;
-                const vw = window.innerWidth;
-                const vh = window.innerHeight;
-
-                // Prefer opening BESIDE the launcher (User Request)
-                // Try right side first, then left side.
-                let left = rect.right + margin;
-                if (left + mw > vw - margin) left = rect.left - mw - margin;
-                let top = rect.top;
-
-                // Strict Clamping to Viewport
-                if (left < margin) left = margin;
-                if (left + mw > vw - margin) left = vw - mw - margin;
-
-                if (top < margin) top = margin;
-                if (top + mh > vh - margin) top = vh - mh - margin;
-
-                menu.css({
-                    top: top + "px",
-                    left: left + "px",
-                    bottom: "auto",
-                    right: "auto",
-                    transform: "none",
-                    position: "fixed"
-                });
-            } else {
-                // Fallback to center
-                 menu.css({ top: "50%", left: "50%", transform: "translate(-50%, -50%)", bottom: "auto", right: "auto" });
-            }
-        }
+        toggleMenu(e);
     });
 
     // Also init Menu Tabs here since it's menu related?
@@ -496,16 +756,31 @@ function initLauncherOptionsHandlers(openLauncherOptions) {
         try { openLauncherOptions?.(); } catch (_) {}
     });
 
-    $("body").off("click.uieLauncherOptOpenSettings").on("click.uieLauncherOptOpenSettings", "#uie-launcher-opt-open-settings", function (e) {
+    $("body").off("click.uieLauncherOptOpenSettings").on("click.uieLauncherOptOpenSettings", "#uie-launcher-opt-open-settings", async function (e) {
         e.preventDefault();
         e.stopPropagation();
-        const w = $("#uie-settings-window");
-        if (w.length) {
-            w.show().css("display", "flex");
-            w.css("z-index", "2147483653");
-            placeCenteredClamped(w);
-        }
+        try {
+            await ensureSettingsWindowLoaded();
+            openWindow("#uie-settings-window");
+        } catch (_) {}
     });
+}
+
+function openUieSettingsDrawer() {
+    try {
+        const block = document.getElementById("uie-settings-block");
+        if (!block) return;
+
+        // Best-effort: ensure drawer is expanded.
+        const content = block.querySelector(".inline-drawer-content");
+        if (content && window.getComputedStyle(content).display === "none") {
+            const toggle = block.querySelector(".inline-drawer-toggle");
+            if (toggle) toggle.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        }
+
+        // Scroll settings into view.
+        block.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    } catch (_) {}
 }
 
 function initGenericHandlers() {
@@ -516,11 +791,11 @@ function initGenericHandlers() {
         ".uie-close-btn", ".uie-inv-close", ".uie-window-close", ".uie-p-close",
         "#uie-world-close", "#re-forge-close",
         "#uie-party-close", "#uie-party-member-close",
-        "#cal-modal-close", "#cal-rp-modal-close", ".uie-sim-close",
+        "#cal-modal-close", "#cal-rp-modal-close", "#uie-activities-close-btn",
         "#uie-social-close", "#books-reader-close", "#uie-phone-sticker-close",
         "#uie-sprites-close", "#uie-map-card-close", ".uie-sticker-close",
         "#uie-chatbox-close", "#uie-chatbox-options-close",
-        ".uie-rpg-close", ".uie-create-close", "#uie-inv-editor-close", "#uie-fx-close",
+        "#uie-stats-close-btn", ".uie-create-close", "#uie-inv-editor-close", "#uie-fx-close",
         "#life-create-close", "#life-edit-close", "#life-template-close",
         "#uie-k-pick-close", "#uie-item-modal-close", "#uie-battle-close",
         "#uie-launcher-opt-close",
@@ -568,6 +843,11 @@ function openWindow(selector) {
     const win = $(selector);
     if (!win.length) return;
 
+    // Settings window is deprecated; use Extensions Settings drawer.
+    if (String(selector || "") === "#uie-settings-window" || String(win.attr("id") || "") === "uie-settings-window") {
+        // no-op
+    }
+
     // Hide other UIE windows
     $(".uie-window").hide();
 
@@ -587,11 +867,13 @@ function openWindow(selector) {
 
     win.css("display", "flex"); // Most windows use flex
 
+    // (settings_window removed)
+
     // Mobile: always center newly opened windows (prevents "stuck at top")
     const mobileNow = (() => {
         try {
             if (isMobileUI()) return true;
-            const touch = (typeof navigator !== "undefined" && (Number(navigator.maxTouchPoints || 0) > 0 || Number(navigator.msMaxTouchPoints || 0) > 0)) || (typeof window !== "undefined" && ("ontouchstart" in window));
+            const touch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
             const minDim = Math.min(Number(window.innerWidth || 0), Number(window.innerHeight || 0));
             return touch && minDim > 0 && minDim <= 820;
         } catch (_) {
@@ -602,6 +884,11 @@ function openWindow(selector) {
         if (String(win.attr("id") || "") !== "uie-party-window") {
             placeCenteredClamped(win);
         }
+    }
+
+    // Desktop: ensure it's not off-screen (e.g. after dragging, resizing, scaling)
+    if (!mobileNow) {
+        ensureVisibleOnScreen(win, 8);
     }
 
     // Ensure on-screen: clamp pixel position, never force translate centering
@@ -739,8 +1026,11 @@ function initMenuButtons() {
     });
 
     // Settings
-    $menu.off("click.uieMenuSettings").on("click.uieMenuSettings", "#uie-btn-open-settings", function() {
-        openWindow("#uie-settings-window");
+    $menu.off("click.uieMenuSettings").on("click.uieMenuSettings", "#uie-btn-open-settings", async function() {
+        try {
+            await ensureSettingsWindowLoaded();
+            openWindow("#uie-settings-window");
+        } catch (_) {}
     });
 
     // Debug
@@ -751,7 +1041,15 @@ function initMenuButtons() {
 
     // Help
     $menu.off("click.uieMenuHelp").on("click.uieMenuHelp", "#uie-btn-help", function() {
-        window.open("https://github.com/SillyTavern/SillyTavern/blob/release/public/scripts/extensions/third-party/universal-immersion-engine-main/README.md", "_blank");
+        try {
+            openWindow("#uie-phone-window");
+        } catch (_) {}
+        import("./phone.js")
+            .then((mod) => {
+                try { mod.initPhone?.(); } catch (_) {}
+                try { mod.openBooksGuide?.(); } catch (_) {}
+            })
+            .catch(() => {});
     });
 
     // Chatbox (Reality Engine Projection)
@@ -821,13 +1119,23 @@ function initMenuTabs() {
         }
 
         const tab = $(this).data("tab");
-        const target = $("#uie-set-" + tab);
 
-        // Hide all setting pages
-        $("[id^='uie-set-']").hide();
+        const idPrefix = "uie-set-";
+        const $scope = $(".uie-settings-block");
+        const target = $("#" + idPrefix + tab);
 
-        // Reset all tabs
-        $(".uie-set-tab").removeClass("active").css({ "border-bottom-color": "transparent", "color": "#888", "font-weight": "normal" });
+        // Hide all setting pages (scoped)
+        if ($scope && $scope.length) {
+            $scope.find(`[id^='${idPrefix}']`).hide();
+        } else {
+            $(`[id^='${idPrefix}']`).hide();
+        }
+
+        // Reset all tabs (only within the clicked tabs container)
+        const $tabsRoot = $(this).closest("#uie-settings-tabs");
+        ($tabsRoot.length ? $tabsRoot : $("#uie-settings-tabs")).find(".uie-set-tab")
+            .removeClass("active")
+            .css({ "border-bottom-color": "transparent", "color": "#888", "font-weight": "normal" });
 
         // Activate clicked tab
         $(this).addClass("active").css({ "border-bottom-color": "#cba35c", "color": "#fff", "font-weight": "bold" });
@@ -843,6 +1151,53 @@ function initMenuTabs() {
             }, 60);
         }
     });
+
+    // (settings_window removed)
+
+    let lastSwPointerTime = 0;
+    $(document).off("click.uieSettingsWindowTabs pointerup.uieSettingsWindowTabs");
+    $(document).on("click.uieSettingsWindowTabs pointerup.uieSettingsWindowTabs", "#uie-sw-tabs .uie-set-tab", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+
+        if (e.type === "pointerup") {
+            lastSwPointerTime = Date.now();
+        } else if (e.type === "click" && Date.now() - lastSwPointerTime < 300) {
+            return;
+        }
+
+        const tab = String($(this).data("tab") || "").trim();
+        if (!tab) return;
+
+        const root = document.getElementById("uie-settings-window");
+        if (root) {
+            const pages = root.querySelectorAll("#uie-sw-general, #uie-sw-menu, #uie-sw-features, #uie-sw-automation, #uie-sw-rpg, #uie-sw-style");
+            for (const el of pages) {
+                try { el.style.display = "none"; } catch (_) {}
+            }
+            const target = root.querySelector("#uie-sw-" + tab);
+            if (target) {
+                try { target.style.display = "block"; } catch (_) {}
+            }
+        }
+
+        const $tabsRoot = $(this).closest("#uie-sw-tabs");
+        ($tabsRoot.length ? $tabsRoot : $("#uie-sw-tabs")).find(".uie-set-tab")
+            .removeClass("active")
+            .css({ "border-bottom-color": "transparent", "color": "#888", "font-weight": "700" });
+
+        $(this).addClass("active").css({ "border-bottom-color": "#cba35c", "color": "#fff", "font-weight": "700" });
+    });
+
+    $("body").off("click.uieSettingsWindowClose pointerup.uieSettingsWindowClose", "#uie-settings-close")
+        .on("click.uieSettingsWindowClose pointerup.uieSettingsWindowClose", "#uie-settings-close", function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const win = $("#uie-settings-window");
+            if (win.length) win.hide();
+            try { window.UIE_navPop?.(); } catch (_) {}
+        });
 
     // --- SillyTavern Connection Presets (Main API) ---
     function findStMainApiPresetSelect() {
@@ -970,6 +1325,282 @@ function initMenuTabs() {
 
     // --- General Settings Listeners ---
 
+    const syncKillSwitchUi = () => {
+        try {
+            const s = getSettings();
+            const enabled = s.enabled !== false;
+            $("#uie-setting-enable").prop("checked", enabled);
+
+            const scanAll = s?.generation?.scanAllEnabled !== false;
+            $("#uie-scanall-enable").prop("checked", scanAll);
+            $("#uie-sw-scanall-enable").prop("checked", scanAll);
+
+            const sysChecks = s?.generation?.allowSystemChecks !== false;
+            $("#uie-systemchecks-enable").prop("checked", sysChecks);
+            $("#uie-sw-systemchecks-enable").prop("checked", sysChecks);
+
+            const popups = s?.ui?.showPopups !== false;
+            $("#uie-show-popups").prop("checked", popups);
+        } catch (_) {}
+    };
+
+    const syncSettingsDrawerUi = () => {
+        try {
+            const s = getSettings();
+            if (!s) return;
+
+            // AI allow toggles (unchecked -> false disables; default is allowed)
+            if (!s.ai || typeof s.ai !== "object") s.ai = {};
+            $("#uie-ai-phone-browser").prop("checked", s.ai.phoneBrowser !== false);
+            $("#uie-ai-phone-messages").prop("checked", s.ai.phoneMessages !== false);
+            $("#uie-ai-phone-calls").prop("checked", s.ai.phoneCalls !== false);
+            $("#uie-ai-app-builder").prop("checked", s.ai.appBuilder !== false);
+            $("#uie-ai-books").prop("checked", s.ai.books !== false);
+            $("#uie-ai-journal-quests").prop("checked", s.ai.journalQuestGen !== false);
+            $("#uie-ai-databank").prop("checked", s.ai.databankScan !== false);
+            $("#uie-ai-map").prop("checked", s.ai.map !== false);
+            $("#uie-ai-shop").prop("checked", s.ai.shop !== false);
+            $("#uie-ai-loot").prop("checked", s.ai.loot !== false);
+
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            $("#uie-gen-require-confirm").prop("checked", s.generation.requireConfirmUnverified === true);
+            $("#uie-gen-show-prompt").prop("checked", s.generation.showPromptBox === true);
+            $("#uie-ai-confirm-toggle").prop("checked", s.generation.aiConfirm === true);
+            $("#uie-gen-scan-only-buttons").prop("checked", s.generation.scanOnlyOnGenerateButtons === true);
+
+            const sysMinSec = Math.max(0, Math.round(Number(s.generation.systemCheckMinIntervalMs ?? 20000) / 1000));
+            const autoMinSec = Math.max(0, Math.round(Number(s.generation.autoScanMinIntervalMs ?? 8000) / 1000));
+            const $sys = $("#uie-gen-syscheck-min");
+            if ($sys.length) $sys.val(String(Number.isFinite(sysMinSec) ? sysMinSec : 20));
+            const $auto = $("#uie-gen-autoscan-min");
+            if ($auto.length) $auto.val(String(Number.isFinite(autoMinSec) ? autoMinSec : 8));
+
+            const $cs = $("#uie-gen-custom-system");
+            if ($cs.length) $cs.val(String(s.generation.customSystemPrompt || ""));
+
+            if (!s.features || typeof s.features !== "object") s.features = {};
+            $("#uie-feature-codex").prop("checked", s.features.codexEnabled === true);
+            $("#uie-feature-codex-auto").prop("checked", s.features.codexAutoExtract === true);
+
+            const p = (s.generation.promptPrefixes && typeof s.generation.promptPrefixes === "object")
+                ? s.generation.promptPrefixes
+                : (s.generation.promptPrefixes = { byType: {} });
+            if (!p.byType || typeof p.byType !== "object") p.byType = {};
+            $("#uie-gen-prompt-global").val(String(p.global || ""));
+            $("#uie-gen-prompt-default").val(String(p.byType.default || ""));
+            $("#uie-gen-prompt-webpage").val(String(p.byType.Webpage || ""));
+            $("#uie-gen-prompt-systemcheck").val(String(p.byType["System Check"] || ""));
+            $("#uie-gen-prompt-phonecall").val(String(p.byType["Phone Call"] || ""));
+            $("#uie-gen-prompt-image").val(String(p.byType["Image Gen"] || ""));
+        } catch (_) {}
+    };
+
+    // Sync when the settings drawer is interacted with.
+    $(document).off("click.uieSettingsDrawerSync").on("click.uieSettingsDrawerSync", ".uie-settings-block .inline-drawer-toggle", function () {
+        setTimeout(() => { try { syncKillSwitchUi(); } catch (_) {} }, 40);
+    });
+
+    // Extra settings hydration when drawer is opened.
+    $(document).off("click.uieSettingsDrawerSyncMore").on("click.uieSettingsDrawerSyncMore", ".uie-settings-block .inline-drawer-toggle", function () {
+        setTimeout(() => { try { syncSettingsDrawerUi(); } catch (_) {} }, 60);
+    });
+
+    // Also sync shortly after init.
+    setTimeout(() => { try { syncKillSwitchUi(); } catch (_) {} }, 900);
+    setTimeout(() => { try { syncSettingsDrawerUi(); } catch (_) {} }, 950);
+
+    const setEnabled = (on) => {
+        const s = getSettings();
+        s.enabled = on === true;
+        saveSettings();
+        if (s.enabled === false) {
+            try { $("#uie-main-menu").hide(); } catch (_) {}
+            try { $(".uie-window, .uie-overlay, .uie-modal, .uie-full-modal").hide(); } catch (_) {}
+        }
+        try { updateLayout(); } catch (_) {}
+    };
+
+    const setScanAll = (on) => {
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        s.generation.scanAllEnabled = on === true;
+        saveSettings();
+    };
+
+    const setSystemChecks = (on) => {
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        s.generation.allowSystemChecks = on === true;
+        saveSettings();
+    };
+
+    const setPopups = (on) => {
+        const s = getSettings();
+        if (!s.ui || typeof s.ui !== "object") s.ui = {};
+        s.ui.showPopups = on === true;
+        saveSettings();
+    };
+
+    $(document)
+        .off("change.uieKillEnable")
+        .on("change.uieKillEnable", "#uie-setting-enable", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setEnabled($(this).prop("checked") === true);
+        })
+        .off("change.uieKillScanAll")
+        .on("change.uieKillScanAll", "#uie-scanall-enable, #uie-sw-scanall-enable", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const on = $(this).prop("checked") === true;
+            setScanAll(on);
+            $("#uie-scanall-enable").prop("checked", on);
+            $("#uie-sw-scanall-enable").prop("checked", on);
+        })
+        .off("change.uieKillSysChecks")
+        .on("change.uieKillSysChecks", "#uie-systemchecks-enable, #uie-sw-systemchecks-enable", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const on = $(this).prop("checked") === true;
+            setSystemChecks(on);
+            $("#uie-systemchecks-enable").prop("checked", on);
+            $("#uie-sw-systemchecks-enable").prop("checked", on);
+        })
+        .off("change.uieKillPopups")
+        .on("change.uieKillPopups", "#uie-show-popups", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            setPopups($(this).prop("checked") === true);
+        });
+
+    const setAiAllow = (key, checked) => {
+        const s = getSettings();
+        if (!s.ai || typeof s.ai !== "object") s.ai = {};
+        s.ai[key] = checked === true;
+        saveSettings();
+    };
+    const setGenFlag = (key, checked) => {
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        s.generation[key] = checked === true;
+        saveSettings();
+    };
+    const setGenNumberMs = (key, sec) => {
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        const n = Math.max(0, Number(sec));
+        s.generation[key] = Math.round((Number.isFinite(n) ? n : 0) * 1000);
+        saveSettings();
+    };
+
+    $(document)
+        .off("change.uieAiAllowPhoneBrowser")
+        .on("change.uieAiAllowPhoneBrowser", "#uie-ai-phone-browser", function () { setAiAllow("phoneBrowser", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowPhoneMessages")
+        .on("change.uieAiAllowPhoneMessages", "#uie-ai-phone-messages", function () { setAiAllow("phoneMessages", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowPhoneCalls")
+        .on("change.uieAiAllowPhoneCalls", "#uie-ai-phone-calls", function () { setAiAllow("phoneCalls", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowAppBuilder")
+        .on("change.uieAiAllowAppBuilder", "#uie-ai-app-builder", function () { setAiAllow("appBuilder", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowBooks")
+        .on("change.uieAiAllowBooks", "#uie-ai-books", function () { setAiAllow("books", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowJournalQuests")
+        .on("change.uieAiAllowJournalQuests", "#uie-ai-journal-quests", function () { setAiAllow("journalQuestGen", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowDatabank")
+        .on("change.uieAiAllowDatabank", "#uie-ai-databank", function () { setAiAllow("databankScan", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowMap")
+        .on("change.uieAiAllowMap", "#uie-ai-map", function () { setAiAllow("map", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowShop")
+        .on("change.uieAiAllowShop", "#uie-ai-shop", function () { setAiAllow("shop", $(this).prop("checked") === true); })
+        .off("change.uieAiAllowLoot")
+        .on("change.uieAiAllowLoot", "#uie-ai-loot", function () { setAiAllow("loot", $(this).prop("checked") === true); })
+        .off("change.uieGenRequireConfirm")
+        .on("change.uieGenRequireConfirm", "#uie-gen-require-confirm", function () { setGenFlag("requireConfirmUnverified", $(this).prop("checked") === true); })
+        .off("change.uieGenShowPrompt")
+        .on("change.uieGenShowPrompt", "#uie-gen-show-prompt", function () { setGenFlag("showPromptBox", $(this).prop("checked") === true); })
+        .off("change.uieAiConfirm")
+        .on("change.uieAiConfirm", "#uie-ai-confirm-toggle", function () { setGenFlag("aiConfirm", $(this).prop("checked") === true); })
+        .off("change.uieScanOnlyButtons")
+        .on("change.uieScanOnlyButtons", "#uie-gen-scan-only-buttons", function () { setGenFlag("scanOnlyOnGenerateButtons", $(this).prop("checked") === true); })
+        .off("input.uieSyscheckMin change.uieSyscheckMin")
+        .on("input.uieSyscheckMin change.uieSyscheckMin", "#uie-gen-syscheck-min", function () { setGenNumberMs("systemCheckMinIntervalMs", $(this).val()); })
+        .off("input.uieAutoScanMin change.uieAutoScanMin")
+        .on("input.uieAutoScanMin change.uieAutoScanMin", "#uie-gen-autoscan-min", function () { setGenNumberMs("autoScanMinIntervalMs", $(this).val()); })
+        .off("input.uieCustomSystem change.uieCustomSystem")
+        .on("input.uieCustomSystem change.uieCustomSystem", "#uie-gen-custom-system", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            s.generation.customSystemPrompt = String($(this).val() || "");
+            saveSettings();
+        })
+        .off("change.uieFeatureCodex")
+        .on("change.uieFeatureCodex", "#uie-feature-codex", function () {
+            const s = getSettings();
+            if (!s.features || typeof s.features !== "object") s.features = {};
+            s.features.codexEnabled = $(this).prop("checked") === true;
+            saveSettings();
+        })
+        .off("change.uieFeatureCodexAuto")
+        .on("change.uieFeatureCodexAuto", "#uie-feature-codex-auto", function () {
+            const s = getSettings();
+            if (!s.features || typeof s.features !== "object") s.features = {};
+            s.features.codexAutoExtract = $(this).prop("checked") === true;
+            saveSettings();
+        })
+        .off("input.uiePromptGlobal change.uiePromptGlobal")
+        .on("input.uiePromptGlobal change.uiePromptGlobal", "#uie-gen-prompt-global", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            if (!s.generation.promptPrefixes || typeof s.generation.promptPrefixes !== "object") s.generation.promptPrefixes = { byType: {} };
+            s.generation.promptPrefixes.global = String($(this).val() || "");
+            saveSettings();
+        })
+        .off("input.uiePromptDefault change.uiePromptDefault")
+        .on("input.uiePromptDefault change.uiePromptDefault", "#uie-gen-prompt-default", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            if (!s.generation.promptPrefixes || typeof s.generation.promptPrefixes !== "object") s.generation.promptPrefixes = { byType: {} };
+            if (!s.generation.promptPrefixes.byType || typeof s.generation.promptPrefixes.byType !== "object") s.generation.promptPrefixes.byType = {};
+            s.generation.promptPrefixes.byType.default = String($(this).val() || "");
+            saveSettings();
+        })
+        .off("input.uiePromptWebpage change.uiePromptWebpage")
+        .on("input.uiePromptWebpage change.uiePromptWebpage", "#uie-gen-prompt-webpage", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            if (!s.generation.promptPrefixes || typeof s.generation.promptPrefixes !== "object") s.generation.promptPrefixes = { byType: {} };
+            if (!s.generation.promptPrefixes.byType || typeof s.generation.promptPrefixes.byType !== "object") s.generation.promptPrefixes.byType = {};
+            s.generation.promptPrefixes.byType.Webpage = String($(this).val() || "");
+            saveSettings();
+        })
+        .off("input.uiePromptSysCheck change.uiePromptSysCheck")
+        .on("input.uiePromptSysCheck change.uiePromptSysCheck", "#uie-gen-prompt-systemcheck", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            if (!s.generation.promptPrefixes || typeof s.generation.promptPrefixes !== "object") s.generation.promptPrefixes = { byType: {} };
+            if (!s.generation.promptPrefixes.byType || typeof s.generation.promptPrefixes.byType !== "object") s.generation.promptPrefixes.byType = {};
+            s.generation.promptPrefixes.byType["System Check"] = String($(this).val() || "");
+            saveSettings();
+        })
+        .off("input.uiePromptPhoneCall change.uiePromptPhoneCall")
+        .on("input.uiePromptPhoneCall change.uiePromptPhoneCall", "#uie-gen-prompt-phonecall", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            if (!s.generation.promptPrefixes || typeof s.generation.promptPrefixes !== "object") s.generation.promptPrefixes = { byType: {} };
+            if (!s.generation.promptPrefixes.byType || typeof s.generation.promptPrefixes.byType !== "object") s.generation.promptPrefixes.byType = {};
+            s.generation.promptPrefixes.byType["Phone Call"] = String($(this).val() || "");
+            saveSettings();
+        })
+        .off("input.uiePromptImage change.uiePromptImage")
+        .on("input.uiePromptImage change.uiePromptImage", "#uie-gen-prompt-image", function () {
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            if (!s.generation.promptPrefixes || typeof s.generation.promptPrefixes !== "object") s.generation.promptPrefixes = { byType: {} };
+            if (!s.generation.promptPrefixes.byType || typeof s.generation.promptPrefixes.byType !== "object") s.generation.promptPrefixes.byType = {};
+            s.generation.promptPrefixes.byType["Image Gen"] = String($(this).val() || "");
+            saveSettings();
+        });
+
     // Save State
     $(document).off("click.uieStateSave").on("click.uieStateSave", ".uie-state-save-btn", function(e) {
         e.preventDefault();
@@ -1056,6 +1687,16 @@ function initMenuTabs() {
     // Expose for external refresh
     window.UIE_refreshStateSaves = refreshStateDropdown;
 
+    try {
+        window.removeEventListener("uie:state_updated", window.__uieStateUpdatedHandler);
+    } catch (_) {}
+    try {
+        window.__uieStateUpdatedHandler = () => {
+            try { refreshStateDropdown(); } catch (_) {}
+        };
+        window.addEventListener("uie:state_updated", window.__uieStateUpdatedHandler);
+    } catch (_) {}
+
     // Initial refresh on open (handled by openWindow but also here for safety)
     // We'll hook into the tab click or window open
 
@@ -1067,10 +1708,21 @@ function initMenuTabs() {
         const s = getSettings();
         s.ui = s.ui || {};
         s.ui.scale = val;
+        s.uiScale = val;
         saveSettings();
 
         // Update root variable - CSS handles the rest
         document.documentElement.style.setProperty("--uie-scale", val);
+
+        // If the main menu is open on mobile, keep it visually in-sync.
+        try {
+            if (isMobileUI()) {
+                const $menu = $("#uie-main-menu");
+                if ($menu.length && $menu.is(":visible")) {
+                    placeMenuCenteredScaled($menu, val);
+                }
+            }
+        } catch (_) {}
 
         console.log("[UIE] Scale updated to:", val);
     });

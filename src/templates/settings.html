@@ -6,17 +6,17 @@
     </style>
     <div class="inline-drawer">
         <div class="inline-drawer-toggle inline-drawer-header">
-            <b>Universal Immersion Engine</b>
+            <b data-i18n="settings.title.uie">Universal Immersion Engine</b>
             <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
         </div>
         <div class="inline-drawer-content uie-settings-drawer" style="max-height:80vh; overflow-y:auto; overflow-x:hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding-bottom:16px; min-height:0;">
             <div id="uie-settings-tabs" style="display:flex; gap:6px; border-bottom:1px solid #444; margin-bottom:10px; overflow-x:auto; overflow-y:hidden; white-space:nowrap;">
-                <div class="uie-set-tab active" data-tab="general" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; font-weight:bold; color:#fff; border-bottom:2px solid #cba35c; white-space:nowrap;">General</div>
-                <div class="uie-set-tab" data-tab="turbo" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Turbo API</div>
-                <div class="uie-set-tab" data-tab="automation" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Automation</div>
-                <div class="uie-set-tab" data-tab="profiles" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Presets</div>
-                <div class="uie-set-tab" data-tab="prompts" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Prompts</div>
-                <div class="uie-set-tab" data-tab="popups" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Popups</div>
+                <div class="uie-set-tab active" data-tab="general" data-i18n="settings.tab.general" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; font-weight:bold; color:#fff; border-bottom:2px solid #cba35c; white-space:nowrap;">General</div>
+                <div class="uie-set-tab" data-tab="turbo" data-i18n="settings.tab.turbo" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Turbo API</div>
+                <div class="uie-set-tab" data-tab="automation" data-i18n="settings.tab.automation" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Automation</div>
+                <div class="uie-set-tab" data-tab="profiles" data-i18n="settings.tab.profiles" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Presets</div>
+                <div class="uie-set-tab" data-tab="prompts" data-i18n="settings.tab.prompts" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Prompts</div>
+                <div class="uie-set-tab" data-tab="popups" data-i18n="settings.tab.popups" style="flex:0 0 auto; padding:5px 10px; cursor:pointer; color:#888; white-space:nowrap;">Popups</div>
             </div>
             <div id="uie-set-general">
                 <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; margin-bottom:10px;">
@@ -46,6 +46,18 @@
                     <label style="flex:1;">Allow System Checks (AI)</label>
                     <input type="checkbox" id="uie-systemchecks-enable">
                 </div>
+
+                <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; margin-bottom:10px;">
+                    <div style="font-weight:bold; color:#ccc; margin-bottom:8px; font-size:0.9em;">Backups</div>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <button id="uie-backup-now" title="Backup" style="height:34px; width:40px; display:flex; align-items:center; justify-content:center; background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4); color:#2ecc71; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-box-archive"></i></button>
+                        <button id="uie-backup-restore" title="Restore latest" style="height:34px; width:40px; display:flex; align-items:center; justify-content:center; background:rgba(52,152,219,0.15); border:1px solid rgba(52,152,219,0.4); color:#3498db; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button id="uie-backup-export" title="Export JSON" style="height:34px; width:40px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-export"></i></button>
+                        <button id="uie-backup-import" title="Import JSON" style="height:34px; width:40px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-import"></i></button>
+                    </div>
+                    <div style="font-size:0.75em; color:#888; margin-top:6px;">Backups are stored locally and can be exported/imported for safety during updates.</div>
+                </div>
+                <input type="file" id="uie-backup-file" accept="application/json" style="display:none;">
                 <div class="uie-control-group"><label>UI Scale: <span id="uie-scale-display">1.0</span>x</label><input type="range" id="uie-scale-slider" min="0.5" max="1.5" step="0.1" value="1.0" style="width:100%;"></div>
                 <div class="uie-control-group" style="margin-top:10px;">
                     <label style="display:block; margin-bottom:6px;">Show Popup Notifications</label>
@@ -157,6 +169,13 @@
                     <div style="font-size:0.75em; color:#888; margin-bottom:6px;">ComfyUI Easy Setup: set your local URL, pick a checkpoint, click Apply.</div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">ComfyUI URL</label><input type="text" id="uie-img-comfy-base" placeholder="http://127.0.0.1:8188" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">ComfyUI API Key (RunPod/Cloud)</label><input type="password" id="uie-img-comfy-key" data-key="api_key_comfy_runpod" placeholder="Optional" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
+                    <div class="uie-control-group" style="margin-top:8px;">
+                        <label style="font-size:0.8em;">Import</label>
+                        <select id="uie-img-comfy-import" style="width:100%; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                            <option value="">(Choose…)</option>
+                            <option value="st">Import from SillyTavern settings</option>
+                        </select>
+                    </div>
                     <div class="uie-control-group" style="margin-top:8px;">
                         <label style="font-size:0.8em;">Checkpoint</label>
                         <div style="display:flex; gap:6px;">

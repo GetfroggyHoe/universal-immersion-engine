@@ -552,6 +552,25 @@
         max-height: calc(100svh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
         max-height: calc(100vh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
         overflow: auto !important;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(203,163,92,0.85) rgba(0,0,0,0.35);
+    }
+
+    #re-vn-settings-modal > div::-webkit-scrollbar { width: 8px; }
+    #re-vn-settings-modal > div::-webkit-scrollbar-track { background: rgba(0,0,0,0.35); }
+    #re-vn-settings-modal > div::-webkit-scrollbar-thumb { background: rgba(203,163,92,0.85); border-radius: 8px; }
+
+    @media (max-width: 900px), (pointer: coarse) {
+        #re-quick-modal,
+        #re-vn-settings-modal {
+            align-items: flex-start !important;
+            justify-content: center !important;
+        }
+        #re-quick-modal > div,
+        #re-vn-settings-modal > div {
+            margin-top: 50vh !important;
+            transform: translateY(-50%) !important;
+        }
     }
 
     #re-forge-modal {

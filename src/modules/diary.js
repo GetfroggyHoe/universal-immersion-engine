@@ -342,7 +342,7 @@ export function initDiary() {
         const $win = $("#uie-diary-window");
 
         $win.off("click.uieDiaryStickers click.uieDiaryClose input.uieDiaryInput change.uieDiaryPhoto");
-        $(document).off("click.uieDiaryStickers click.uieDiaryClose"); 
+        $(document).off("click.uieDiaryStickers click.uieDiaryClose");
 
         $win.on("click.uieDiaryClose", "#uie-diary-close", function (e) {
             e.preventDefault();

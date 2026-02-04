@@ -97,6 +97,9 @@ jQuery(async () => {
             markInitError("templates", e);
             throw e;
         }
+
+        await safeImport(`./src/modules/i18n.js?v=${uieBuildV}`, "initI18n", false);
+        await safeImport(`./src/modules/backup.js?v=${uieBuildV}`, "initBackups", false);
         try {
             const ok = $("#uie-inventory-window").length > 0;
             if (!ok) {

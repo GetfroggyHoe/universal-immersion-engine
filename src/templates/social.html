@@ -476,41 +476,41 @@
         }
     </style>
     <div class="uie-header">
-        <h2>SOCIAL MENU</h2>
-        <div id="uie-social-sparkle" title="Manage Contacts"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <h2 data-i18n="social.title">SOCIAL MENU</h2>
+        <div id="uie-social-sparkle" title="Manage Contacts" data-i18n-title="social.manage_contacts"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
         <div id="uie-social-close"><i class="fa-solid fa-xmark"></i></div>
 
         <div class="uie-dropdown" id="uie-social-menu" style="position:absolute; top:44px; right:44px; background:#fff8e1; border:2px solid #8d6e63; border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px; box-shadow:0 5px 15px rgba(0,0,0,0.2);">
-            <div class="uie-dd-item" onclick="UIE_openGuide('guide-social')"><i class="fa-solid fa-circle-question" style="color:#d84315;"></i> Help / Guide</div>
-            <div class="uie-dd-item" id="uie-act-scan"><i class="fa-solid fa-users-viewfinder"></i> Scan Chat Log</div>
-            <div class="uie-dd-item" id="uie-act-toggle-auto"><i class="fa-solid fa-robot"></i> Auto Scan: <span id="uie-auto-scan-state">OFF</span></div>
-            <div class="uie-dd-item" id="uie-act-add"><i class="fa-solid fa-plus"></i> Manual Add</div>
-            <div class="uie-dd-item" id="uie-act-delete"><i class="fa-solid fa-trash"></i> Mass Delete</div>
-            <div class="uie-dd-item" id="uie-act-bg"><i class="fa-solid fa-image"></i> Change Background</div>
-            <div class="uie-dd-item" id="uie-act-heart"><i class="fa-solid fa-heart"></i> Change Heart Icon</div>
+            <div class="uie-dd-item" onclick="UIE_openGuide('guide-social')"><i class="fa-solid fa-circle-question" style="color:#d84315;"></i> <span data-i18n="social.menu.help_guide">Help / Guide</span></div>
+            <div class="uie-dd-item" id="uie-act-scan"><i class="fa-solid fa-users-viewfinder"></i> <span data-i18n="social.menu.scan_chat">Scan Chat Log</span></div>
+            <div class="uie-dd-item" id="uie-act-toggle-auto"><i class="fa-solid fa-robot"></i> <span data-i18n="social.menu.auto_scan">Auto Scan:</span> <span id="uie-auto-scan-state">OFF</span></div>
+            <div class="uie-dd-item" id="uie-act-add"><i class="fa-solid fa-plus"></i> <span data-i18n="social.menu.manual_add">Manual Add</span></div>
+            <div class="uie-dd-item" id="uie-act-delete"><i class="fa-solid fa-trash"></i> <span data-i18n="social.menu.mass_delete">Mass Delete</span></div>
+            <div class="uie-dd-item" id="uie-act-bg"><i class="fa-solid fa-image"></i> <span data-i18n="social.menu.change_bg">Change Background</span></div>
+            <div class="uie-dd-item" id="uie-act-heart"><i class="fa-solid fa-heart"></i> <span data-i18n="social.menu.change_heart">Change Heart Icon</span></div>
         </div>
     </div>
 
     <div class="uie-inv-tabs">
-        <div class="uie-tab active" data-tab="friends">FRIENDS</div>
-        <div class="uie-tab" data-tab="associates">ASSOCIATES</div>
-        <div class="uie-tab" data-tab="romance">RELATIONSHIPS</div>
-        <div class="uie-tab" data-tab="family">FAMILY</div>
-        <div class="uie-tab" data-tab="rivals">RIVALS</div>
+        <div class="uie-tab active" data-tab="friends" data-i18n="social.tab.friends">FRIENDS</div>
+        <div class="uie-tab" data-tab="associates" data-i18n="social.tab.associates">ASSOCIATES</div>
+        <div class="uie-tab" data-tab="romance" data-i18n="social.tab.relationships">RELATIONSHIPS</div>
+        <div class="uie-tab" data-tab="family" data-i18n="social.tab.family">FAMILY</div>
+        <div class="uie-tab" data-tab="rivals" data-i18n="social.tab.rivals">RIVALS</div>
     </div>
 
     <div class="uie-content custom-scroll" id="uie-social-content" style="padding:12px; position:relative;">
         </div>
 
     <div id="uie-delete-controls">
-        <div class="uie-del-confirm">CONFIRM DELETE</div>
-        <div class="uie-del-cancel">CANCEL</div>
+        <div class="uie-del-confirm" data-i18n="social.delete.confirm">CONFIRM DELETE</div>
+        <div class="uie-del-cancel" data-i18n="social.delete.cancel">CANCEL</div>
     </div>
 
     <div id="uie-add-modal">
-        <div style="text-align:center; font-weight:bold; color:#d84315; margin-bottom:20px; font-size:1.4em; font-family:'Cinzel',serif; letter-spacing:1px; border-bottom:2px solid #8d6e63; padding-bottom:10px;">CONTACT DETAILS</div>
+        <div style="text-align:center; font-weight:bold; color:#d84315; margin-bottom:20px; font-size:1.4em; font-family:'Cinzel',serif; letter-spacing:1px; border-bottom:2px solid #8d6e63; padding-bottom:10px;" data-i18n="social.add.title">CONTACT DETAILS</div>
 
-        <label class="uie-img-preview" title="Click to upload image">
+        <label class="uie-img-preview" title="Click to upload image" data-i18n-title="social.add.upload_image">
             <img id="uie-add-preview" src="" style="width:100%; height:100%; display:none; object-fit:cover;">
             <i class="fa-solid fa-camera" id="uie-add-icon" style="font-size:2em; color:#8d6e63;"></i>
             <input type="file" id="uie-add-img-file" accept="image/*">
@@ -519,97 +519,97 @@
         <!-- URL Input (Hidden inside preview logic usually, but here distinct) -->
         <div class="uie-input-group">
             <input type="text" id="uie-add-url" placeholder=" ">
-            <label>Image URL (Optional)</label>
+            <label data-i18n="social.add.image_url">Image URL (Optional)</label>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
             <div class="uie-input-group">
                 <input type="text" id="uie-add-name" placeholder=" ">
-                <label>Name</label>
+                <label data-i18n="social.add.name">Name</label>
             </div>
             <div class="uie-input-group">
                 <input type="text" id="uie-add-age" placeholder=" ">
-                <label>Age</label>
+                <label data-i18n="social.add.age">Age</label>
             </div>
         </div>
 
         <div class="uie-input-group">
             <input type="text" id="uie-add-family" placeholder=" ">
-            <label>Known Family</label>
+            <label data-i18n="social.add.known_family">Known Family</label>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
             <div class="uie-input-group">
                 <select id="uie-add-tab" required>
                     <option value="" disabled selected></option>
-                    <option value="friends">Friend</option>
-                    <option value="associates">Associate</option>
-                    <option value="romance">Relationship</option>
-                    <option value="family">Family</option>
-                    <option value="rivals">Rival</option>
+                    <option value="friends" data-i18n="social.add.category.friend">Friend</option>
+                    <option value="associates" data-i18n="social.add.category.associate">Associate</option>
+                    <option value="romance" data-i18n="social.add.category.relationship">Relationship</option>
+                    <option value="family" data-i18n="social.add.category.family">Family</option>
+                    <option value="rivals" data-i18n="social.add.category.rival">Rival</option>
                 </select>
-                <label>Category</label>
+                <label data-i18n="social.add.category">Category</label>
             </div>
             <div class="uie-input-group">
                 <input type="number" id="uie-add-affinity" value="0" min="0" max="100" placeholder=" ">
-                <label>Affinity (0-100)</label>
+                <label data-i18n="social.add.affinity">Affinity (0-100)</label>
             </div>
         </div>
 
         <div class="uie-add-checkbox-row">
             <label class="uie-add-checkbox-label">
                 <input type="checkbox" id="uie-add-known-past">
-                Known from Past
+                <span data-i18n="social.add.known_past">Known from Past</span>
             </label>
             <label class="uie-add-checkbox-label">
                 <input type="checkbox" id="uie-add-met-phys">
-                Met Physically
+                <span data-i18n="social.add.met_phys">Met Physically</span>
             </label>
         </div>
 
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
             <div class="uie-input-group">
                 <input type="text" id="uie-add-family-role" placeholder=" ">
-                <label>Family Role</label>
+                <label data-i18n="social.add.family_role">Family Role</label>
             </div>
             <div class="uie-input-group">
                 <input type="text" id="uie-add-rel-status" placeholder=" ">
-                <label>Status</label>
+                <label data-i18n="social.add.status">Status</label>
             </div>
         </div>
 
         <details style="margin-top:10px; border:1px solid #d7ccc8; border-radius:6px; background:#efebe9; padding:12px;">
-            <summary style="cursor:pointer; font-weight:bold; color:#8d6e63; font-size:0.9em;">More Details</summary>
+            <summary style="cursor:pointer; font-weight:bold; color:#8d6e63; font-size:0.9em;" data-i18n="social.add.more_details">More Details</summary>
 
             <div class="uie-input-group" style="margin-top:15px;">
                 <input type="text" id="uie-add-thoughts" placeholder=" ">
-                <label>Background / Notes</label>
+                <label data-i18n="social.add.background_notes">Background / Notes</label>
             </div>
 
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
                 <div class="uie-input-group">
                     <input type="text" id="uie-add-bday" placeholder=" ">
-                    <label>Birthday</label>
+                    <label data-i18n="social.add.birthday">Birthday</label>
                 </div>
                 <div class="uie-input-group">
                     <input type="text" id="uie-add-loc" placeholder=" ">
-                    <label>Location</label>
+                    <label data-i18n="social.add.location">Location</label>
                 </div>
             </div>
 
             <div class="uie-input-group">
                 <input type="text" id="uie-add-likes" placeholder=" ">
-                <label>Likes (comma sep)</label>
+                <label data-i18n="social.add.likes">Likes (comma sep)</label>
             </div>
             <div class="uie-input-group">
                 <input type="text" id="uie-add-dislikes" placeholder=" ">
-                <label>Dislikes (comma sep)</label>
+                <label data-i18n="social.add.dislikes">Dislikes (comma sep)</label>
             </div>
         </details>
 
         <div style="display:flex; gap:12px; margin-top:10px;">
-            <button class="uie-add-btn" id="uie-submit-add" style="flex:2;">Save Contact</button>
-            <button class="uie-add-btn" id="uie-cancel-add" style="flex:1; background:transparent; border-color:#8d6e63; color:#5d4037;">Cancel</button>
+            <button class="uie-add-btn" id="uie-submit-add" style="flex:2;" data-i18n="social.add.save_contact">Save Contact</button>
+            <button class="uie-add-btn" id="uie-cancel-add" style="flex:1; background:transparent; border-color:#8d6e63; color:#5d4037;" data-i18n="social.common.cancel">Cancel</button>
         </div>
     </div>
 
@@ -617,10 +617,10 @@
         <div class="uie-paper-box">
             <div class="uie-p-close">X</div>
             <div class="uie-p-top-actions">
-                <div class="uie-p-icon-btn" id="uie-social-message" title="Message"><i class="fa-solid fa-comment"></i></div>
-                <div class="uie-p-icon-btn" id="uie-social-memories" title="Memories"><i class="fa-solid fa-brain"></i></div>
-                <div class="uie-p-icon-btn" id="uie-social-edit" title="Edit"><i class="fa-solid fa-pencil"></i></div>
-                <div class="uie-p-icon-btn danger" id="uie-social-del-one" title="Delete"><i class="fa-solid fa-trash"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-message" title="Message" data-i18n-title="social.profile.message"><i class="fa-solid fa-comment"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-memories" title="Memories" data-i18n-title="social.profile.memories"><i class="fa-solid fa-brain"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-edit" title="Edit" data-i18n-title="social.common.edit"><i class="fa-solid fa-pencil"></i></div>
+                <div class="uie-p-icon-btn danger" id="uie-social-del-one" title="Delete" data-i18n-title="social.common.delete"><i class="fa-solid fa-trash"></i></div>
             </div>
             <div class="uie-paper-inner">
                 <div class="uie-p-header">
@@ -634,22 +634,22 @@
                 <div class="uie-p-status-line" id="p-val-status">"No thoughts currently..."</div>
 
                 <div class="uie-p-grid">
-                    <div class="uie-p-row"><strong>Birthday:</strong> <span id="p-val-bday">???</span></div>
-                    <div class="uie-p-row"><strong>Location:</strong> <span id="p-val-loc">???</span></div>
-                    <div class="uie-p-row"><strong>Age:</strong> <span id="p-val-age">???</span></div>
-                    <div class="uie-p-row"><strong>Known Family:</strong> <span id="p-val-family">???</span></div>
-                    <div class="uie-p-row"><strong>Family Role:</strong> <span id="p-val-family-role">—</span></div>
-                    <div class="uie-p-row"><strong>Status:</strong> <span id="p-val-rel-status">—</span></div>
-                    <div class="uie-p-row"><strong>Presence:</strong> <span id="p-val-presence">—</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.birthday">Birthday:</strong> <span id="p-val-bday">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.location">Location:</strong> <span id="p-val-loc">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.age">Age:</strong> <span id="p-val-age">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.known_family">Known Family:</strong> <span id="p-val-family">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.family_role">Family Role:</strong> <span id="p-val-family-role">—</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.status">Status:</strong> <span id="p-val-rel-status">—</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.presence">Presence:</strong> <span id="p-val-presence">—</span></div>
                 </div>
 
                 <div class="uie-p-lists-container">
                     <div class="uie-p-list-col list-likes">
-                        <div class="uie-p-list-header">Likes</div>
+                        <div class="uie-p-list-header" data-i18n="social.field.likes">Likes</div>
                         <div class="uie-p-list-content" id="p-val-likes">-</div>
                     </div>
                     <div class="uie-p-list-col list-dislikes">
-                        <div class="uie-p-list-header">Dislikes</div>
+                        <div class="uie-p-list-header" data-i18n="social.field.dislikes">Dislikes</div>
                         <div class="uie-p-list-content" id="p-val-dislikes">-</div>
                     </div>
                 </div>
@@ -662,18 +662,18 @@
         <div class="uie-paper-box" style="max-width:700px; width:92vw;">
             <div class="uie-p-close" id="uie-social-mem-close">X</div>
             <div class="uie-paper-inner">
-                <div style="font-weight:900; font-size:20px; color:#4a2e16; font-family:serif;">Memories</div>
+                <div style="font-weight:900; font-size:20px; color:#4a2e16; font-family:serif;" data-i18n="social.memories.title">Memories</div>
                 <div id="uie-social-mem-sub" style="margin-top:4px; font-size:12px; opacity:0.75; color:#4a2e16;"></div>
 
                 <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-                    <button class="uie-p-btn" id="uie-social-mem-scan" style="flex:0 0 auto;">Scan From Chat</button>
-                    <button class="uie-p-btn" id="uie-social-mem-add" style="flex:0 0 auto;">Add</button>
-                    <button class="uie-p-btn" id="uie-social-mem-inject" style="flex:0 0 auto;">Inject to Chat</button>
-                    <button class="uie-p-btn" id="uie-social-mem-clear" style="flex:0 0 auto; background:rgba(141, 110, 99, 0.15); color:#4a2e16; border:2px solid rgba(74,46,22,0.35);">Clear</button>
+                    <button class="uie-p-btn" id="uie-social-mem-scan" style="flex:0 0 auto;" data-i18n="social.memories.scan">Scan From Chat</button>
+                    <button class="uie-p-btn" id="uie-social-mem-add" style="flex:0 0 auto;" data-i18n="social.common.add">Add</button>
+                    <button class="uie-p-btn" id="uie-social-mem-inject" style="flex:0 0 auto;" data-i18n="social.memories.inject">Inject to Chat</button>
+                    <button class="uie-p-btn" id="uie-social-mem-clear" style="flex:0 0 auto; background:rgba(141, 110, 99, 0.15); color:#4a2e16; border:2px solid rgba(74,46,22,0.35);" data-i18n="social.common.clear">Clear</button>
                 </div>
 
                 <div id="uie-social-mem-list" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
-                <div id="uie-social-mem-empty" style="margin-top:12px; display:none; text-align:center; color:#4a2e16; opacity:0.7; font-family:serif;">— No memories saved —</div>
+                <div id="uie-social-mem-empty" style="margin-top:12px; display:none; text-align:center; color:#4a2e16; opacity:0.7; font-family:serif;" data-i18n="social.memories.empty">— No memories saved —</div>
             </div>
         </div>
     </div>
@@ -688,7 +688,7 @@
 </template>
 
 <template id="uie-social-empty-msg">
-    <div class="no-data-msg" style="text-align:center; margin-top:50px; color:#4a2e16; font-family:serif; font-size:1.2em;">- Empty Page -</div>
+    <div class="no-data-msg" style="text-align:center; margin-top:50px; color:#4a2e16; font-family:serif; font-size:1.2em;" data-i18n="social.empty">- Empty Page -</div>
 </template>
 
 <template id="uie-social-memory-row">
@@ -699,7 +699,7 @@
                 <div class="mem-impact" style="margin-top:6px; font-size:12px; opacity:0.85;"></div>
                 <div class="mem-tags" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;"></div>
             </div>
-            <div class="uie-p-icon-btn danger uie-social-mem-del" title="Delete" style="width:34px; height:34px;"><i class="fa-solid fa-trash"></i></div>
+            <div class="uie-p-icon-btn danger uie-social-mem-del" title="Delete" data-i18n-title="social.common.delete" style="width:34px; height:34px;"><i class="fa-solid fa-trash"></i></div>
         </div>
     </div>
 </template>

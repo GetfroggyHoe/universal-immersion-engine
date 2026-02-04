@@ -2,18 +2,454 @@ import { getContext } from "/scripts/extensions.js";
 
 const EXT_ID = "universal-immersion-engine";
 
+const MIRROR_KEY = "uie_settings_mirror_v1";
+const MIRROR_IDB_FLAG_KEY = "uie_settings_mirror_idb_v1";
+const MIRROR_IDB_DB = "uie_settings_mirror";
+const MIRROR_IDB_STORE = "mirror";
+const MIRROR_IDB_ID = "current";
+let saveRetryScheduled = false;
+
+let bootstrapSettings = {};
+let bootstrapTouched = false;
+
+const INIT_GRACE_MS = 30000;
+const INIT_DEADLINE = Date.now() + INIT_GRACE_MS;
+
+let mirrorIdbCache = null;
+let mirrorIdbLoadPromise = null;
+
+function applyMirrorToCurrent(data) {
+    try {
+        if (!isNonEmptyObject(data)) return false;
+        if (!window.extension_settings) window.extension_settings = {};
+        if (!window.extension_settings[EXT_ID] || typeof window.extension_settings[EXT_ID] !== "object") {
+            window.extension_settings[EXT_ID] = {};
+        }
+        const current = window.extension_settings[EXT_ID];
+        if (hasUserData(current)) return false;
+        for (const k of Object.keys(current)) delete current[k];
+        for (const [k, v] of Object.entries(data)) current[k] = v;
+
+        try {
+            setTimeout(() => {
+                try { window.UIE_refreshStateSaves?.(); } catch (_) {}
+                try {
+                    const event = new CustomEvent("uie:state_updated", { detail: { mirror: true } });
+                    window.dispatchEvent(event);
+                } catch (_) {}
+                try { updateLayout(); } catch (_) {}
+            }, 0);
+        } catch (_) {}
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+function openMirrorDb() {
+    return new Promise((resolve, reject) => {
+        try {
+            const req = indexedDB.open(MIRROR_IDB_DB, 1);
+            req.onupgradeneeded = () => {
+                try {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(MIRROR_IDB_STORE)) {
+                        db.createObjectStore(MIRROR_IDB_STORE, { keyPath: "id" });
+                    }
+                } catch (_) {}
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+async function mirrorDbPut(payload) {
+    const db = await openMirrorDb();
+    return new Promise((resolve, reject) => {
+        try {
+            const tx = db.transaction(MIRROR_IDB_STORE, "readwrite");
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = () => reject(tx.error);
+            tx.objectStore(MIRROR_IDB_STORE).put(payload);
+        } catch (e) {
+            reject(e);
+        }
+    }).finally(() => {
+        try { db.close(); } catch (_) {}
+    });
+}
+
+async function mirrorDbGet() {
+    const db = await openMirrorDb();
+    return new Promise((resolve, reject) => {
+        try {
+            const tx = db.transaction(MIRROR_IDB_STORE, "readonly");
+            const req = tx.objectStore(MIRROR_IDB_STORE).get(MIRROR_IDB_ID);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        } catch (e) {
+            reject(e);
+        }
+    }).finally(() => {
+        try { db.close(); } catch (_) {}
+    });
+}
+
+function kickMirrorIdbLoad() {
+    try {
+        if (mirrorIdbLoadPromise) return mirrorIdbLoadPromise;
+        mirrorIdbLoadPromise = (async () => {
+            try {
+                const rec = await mirrorDbGet();
+                const data = rec?.data;
+                if (isNonEmptyObject(data)) {
+                    mirrorIdbCache = { at: Number(rec?.at || 0) || 0, data };
+                    try { localStorage.setItem(MIRROR_IDB_FLAG_KEY, String(mirrorIdbCache.at || Date.now())); } catch (_) {}
+                    try { applyMirrorToCurrent(mirrorIdbCache.data); } catch (_) {}
+                }
+            } catch (_) {}
+            return mirrorIdbCache;
+        })();
+        return mirrorIdbLoadPromise;
+    } catch (_) {
+        return null;
+    }
+}
+
+// Kick off IndexedDB mirror load early so bootstrap mode can hydrate quickly even when localStorage is full.
+try { kickMirrorIdbLoad(); } catch (_) {}
+
+function isPersistentSettingsReady() {
+    try {
+        const es = window.extension_settings;
+        if (!es || typeof es !== "object") return false;
+        if (Object.prototype.hasOwnProperty.call(es, EXT_ID)) return true;
+        // If we have a non-empty mirror snapshot, we can safely create & hydrate the bucket.
+        try { if (hasNonEmptyMirror()) return true; } catch (_) {}
+        // After a grace period, assume ST isn't going to hydrate the bucket for us.
+        return Date.now() > INIT_DEADLINE;
+    } catch (_) {
+        return false;
+    }
+}
+
+function hasUserData(s) {
+    try {
+        if (!s || typeof s !== "object") return false;
+        const invItems = Array.isArray(s?.inventory?.items) ? s.inventory.items.length : 0;
+        const hasSavedStates = s.savedStates && typeof s.savedStates === "object" && Object.keys(s.savedStates).length > 0;
+        const hasCalendar = s.calendar && typeof s.calendar === "object" && s.calendar.events && Object.keys(s.calendar.events || {}).length > 0;
+        const hasMap = !!(s.map && (s.map.image || (Array.isArray(s.map?.data?.nodes) && s.map.data.nodes.length)));
+        const hasSocial = s.social && typeof s.social === "object" && Object.values(s.social).some(v => Array.isArray(v) && v.length);
+        const hasDiary = s.diary && typeof s.diary === "object" && Object.keys(s.diary).length > 0;
+        const hasDatabank = s.databank && typeof s.databank === "object" && Object.keys(s.databank).length > 0;
+        return invItems > 0 || hasSavedStates || hasCalendar || hasMap || hasSocial || hasDiary || hasDatabank;
+    } catch (_) {
+        return false;
+    }
+}
+
+function safeJson(obj) {
+    try {
+        const seen = new WeakSet();
+        return JSON.stringify(obj, (k, v) => {
+            try {
+                if (typeof v === "function") return undefined;
+                if (typeof v === "bigint") return Number(v);
+                if (v && typeof v === "object") {
+                    if (seen.has(v)) return undefined;
+                    seen.add(v);
+                }
+            } catch (_) {}
+            return v;
+        });
+    } catch (_) {
+        try {
+            return JSON.stringify(JSON.parse(JSON.stringify(obj)));
+        } catch (_) {
+            return "";
+        }
+    }
+}
+
+function isNonEmptyObject(o) {
+    try {
+        return !!(o && typeof o === "object" && !Array.isArray(o) && Object.keys(o).length > 0);
+    } catch (_) {
+        return false;
+    }
+}
+
+function looksEmptySettings(s) {
+    try {
+        if (!s || typeof s !== "object") return true;
+        const keys = Object.keys(s);
+        if (!keys.length) return true;
+        const invItems = Array.isArray(s?.inventory?.items) ? s.inventory.items.length : 0;
+        const hasSavedStates = s.savedStates && typeof s.savedStates === "object" && Object.keys(s.savedStates).length > 0;
+        const hasCalendar = s.calendar && typeof s.calendar === "object" && s.calendar.events && Object.keys(s.calendar.events || {}).length > 0;
+        const hasMap = !!(s.map && (s.map.image || (Array.isArray(s.map?.data?.nodes) && s.map.data.nodes.length)));
+        const hasSocial = s.social && typeof s.social === "object" && Object.values(s.social).some(v => Array.isArray(v) && v.length);
+        const hasDiary = s.diary && typeof s.diary === "object" && Object.keys(s.diary).length > 0;
+        const hasDatabank = s.databank && typeof s.databank === "object" && Object.keys(s.databank).length > 0;
+        if (invItems > 0) return false;
+        if (hasSavedStates || hasCalendar || hasMap || hasSocial || hasDiary || hasDatabank) return false;
+
+        const keep = ["inventory", "image", "windows", "ui", "currencySymbol", "currencyRate"].filter(Boolean);
+        const meaningful = keys.filter(k => !keep.includes(k));
+        return meaningful.length === 0;
+    } catch (_) {
+        return false;
+    }
+}
+
+ function hasNonEmptyMirror() {
+     try {
+         const raw = localStorage.getItem(MIRROR_KEY);
+         if (!raw) {
+            try {
+                if (mirrorIdbCache && isNonEmptyObject(mirrorIdbCache.data)) return true;
+            } catch (_) {}
+            try { kickMirrorIdbLoad(); } catch (_) {}
+            try { if (mirrorIdbLoadPromise) return true; } catch (_) {}
+            try {
+                const flag = localStorage.getItem(MIRROR_IDB_FLAG_KEY);
+                if (flag) return true;
+            } catch (_) {}
+            return false;
+         }
+         let payload = null;
+         try { payload = JSON.parse(raw); } catch (_) { payload = null; }
+         const data = payload?.data;
+         return isNonEmptyObject(data);
+     } catch (_) {
+        try {
+            const flag = localStorage.getItem(MIRROR_IDB_FLAG_KEY);
+            if (flag) return true;
+        } catch (_) {}
+        return false;
+     }
+ }
+
+function writeMirror() {
+    try {
+        const s = window.extension_settings?.[EXT_ID];
+        if (!isNonEmptyObject(s)) return;
+        const payload = { at: Date.now(), data: JSON.parse(safeJson(s) || "{}") };
+        localStorage.setItem(MIRROR_KEY, safeJson(payload) || "");
+    } catch (e) {
+        try {
+            console.error("[UIE] Failed to write settings mirror", e);
+            if (!window.UIE_mirrorWriteErrorShown) {
+                window.UIE_mirrorWriteErrorShown = true;
+                window.toastr?.warning?.("UIE could not write to localStorage; using fallback storage.", "UIE");
+            }
+        } catch (_) {}
+
+        try {
+            const s = window.extension_settings?.[EXT_ID];
+            if (!isNonEmptyObject(s)) return;
+            const at = Date.now();
+            const data = JSON.parse(safeJson(s) || "{}") || {};
+            void mirrorDbPut({ id: MIRROR_IDB_ID, at, data }).then(() => {
+                mirrorIdbCache = { at, data };
+                try { localStorage.setItem(MIRROR_IDB_FLAG_KEY, String(at)); } catch (_) {}
+                try { applyMirrorToCurrent(mirrorIdbCache.data); } catch (_) {}
+            }).catch((err) => {
+                try {
+                    console.error("[UIE] Failed to write settings mirror to IndexedDB", err);
+                    window.toastr?.error?.("UIE could not persist settings (storage failed).", "UIE");
+                } catch (_) {}
+            });
+        } catch (_) {}
+    }
+}
+
+function writeMirrorFrom(data) {
+    try {
+        if (!isNonEmptyObject(data)) return;
+        const payload = { at: Date.now(), data: JSON.parse(safeJson(data) || "{}") };
+        localStorage.setItem(MIRROR_KEY, safeJson(payload) || "");
+    } catch (e) {
+        try {
+            console.error("[UIE] Failed to write settings mirror", e);
+            if (!window.UIE_mirrorWriteErrorShown) {
+                window.UIE_mirrorWriteErrorShown = true;
+                window.toastr?.warning?.("UIE could not write to localStorage; using fallback storage.", "UIE");
+            }
+        } catch (_) {}
+
+        try {
+            if (!isNonEmptyObject(data)) return;
+            const at = Date.now();
+            const copy = JSON.parse(safeJson(data) || "{}") || {};
+            void mirrorDbPut({ id: MIRROR_IDB_ID, at, data: copy }).then(() => {
+                mirrorIdbCache = { at, data: copy };
+                try { localStorage.setItem(MIRROR_IDB_FLAG_KEY, String(at)); } catch (_) {}
+                try { applyMirrorToCurrent(mirrorIdbCache.data); } catch (_) {}
+            }).catch((err) => {
+                try {
+                    console.error("[UIE] Failed to write settings mirror to IndexedDB", err);
+                    window.toastr?.error?.("UIE could not persist settings (storage failed).", "UIE");
+                } catch (_) {}
+            });
+        } catch (_) {}
+    }
+}
+
+function readMirrorData() {
+    try {
+        const raw = localStorage.getItem(MIRROR_KEY);
+        if (!raw) {
+            try {
+                if (mirrorIdbCache && isNonEmptyObject(mirrorIdbCache.data)) return mirrorIdbCache.data;
+                try { kickMirrorIdbLoad(); } catch (_) {}
+            } catch (_) {}
+            return null;
+        }
+        let payload = null;
+        try { payload = JSON.parse(raw); } catch (_) { payload = null; }
+        const data = payload?.data;
+        if (!isNonEmptyObject(data)) return null;
+        return data;
+    } catch (_) {
+        try {
+            if (mirrorIdbCache && isNonEmptyObject(mirrorIdbCache.data)) return mirrorIdbCache.data;
+            const flag = localStorage.getItem(MIRROR_IDB_FLAG_KEY);
+            if (flag) kickMirrorIdbLoad();
+        } catch (_) {}
+        return null;
+    }
+}
+
+function readMirrorPayload() {
+    try {
+        const raw = localStorage.getItem(MIRROR_KEY);
+        if (!raw) {
+            try {
+                if (mirrorIdbCache && isNonEmptyObject(mirrorIdbCache.data)) {
+                    return { at: Number(mirrorIdbCache.at || 0) || 0, data: mirrorIdbCache.data };
+                }
+                try { kickMirrorIdbLoad(); } catch (_) {}
+            } catch (_) {}
+            return null;
+        }
+        let payload = null;
+        try { payload = JSON.parse(raw); } catch (_) { payload = null; }
+        const data = payload?.data;
+        if (!isNonEmptyObject(data)) return null;
+        const at = Number(payload?.at || 0);
+        return { at: Number.isFinite(at) ? at : 0, data };
+    } catch (_) {
+        try {
+            if (mirrorIdbCache && isNonEmptyObject(mirrorIdbCache.data)) {
+                return { at: Number(mirrorIdbCache.at || 0) || 0, data: mirrorIdbCache.data };
+            }
+            const flag = localStorage.getItem(MIRROR_IDB_FLAG_KEY);
+            if (flag) kickMirrorIdbLoad();
+        } catch (_) {}
+        return null;
+    }
+}
+
+function restoreFromMirrorIfEmpty() {
+    try {
+        if (!isPersistentSettingsReady()) return;
+        if (!window.extension_settings) window.extension_settings = {};
+        if (!window.extension_settings[EXT_ID]) window.extension_settings[EXT_ID] = {};
+        const current = window.extension_settings[EXT_ID];
+        if (hasUserData(current)) return;
+
+        const payload = readMirrorPayload();
+        const data = payload?.data;
+        if (!isNonEmptyObject(data)) return;
+
+        for (const k of Object.keys(current)) delete current[k];
+        for (const [k, v] of Object.entries(data)) current[k] = v;
+    } catch (_) {}
+}
+
 export function getSettings() {
+    if (!isPersistentSettingsReady()) {
+        bootstrapTouched = true;
+        try {
+            const snap = readMirrorData();
+            if (snap && bootstrapSettings && typeof bootstrapSettings === "object" && looksEmptySettings(bootstrapSettings)) {
+                bootstrapSettings = JSON.parse(safeJson(snap) || "{}") || {};
+            }
+        } catch (_) {}
+        return bootstrapSettings;
+    }
+
     if (!window.extension_settings) window.extension_settings = {};
-    if (!window.extension_settings[EXT_ID]) window.extension_settings[EXT_ID] = {};
-    return window.extension_settings[EXT_ID];
+    if (!window.extension_settings[EXT_ID] || typeof window.extension_settings[EXT_ID] !== "object") {
+        window.extension_settings[EXT_ID] = {};
+    }
+
+    const s = window.extension_settings[EXT_ID];
+
+    // Always try to restore persisted settings BEFORE merging any bootstrap defaults.
+    // Bootstrap mutations can happen early (before ST hydrates extension_settings) and would otherwise
+    // make the bucket look non-empty, preventing mirror restore and causing settings loss.
+    restoreFromMirrorIfEmpty();
+
+    if (bootstrapTouched && bootstrapSettings && typeof bootstrapSettings === "object") {
+        try {
+            for (const [k, v] of Object.entries(bootstrapSettings)) {
+                if (!(k in s)) s[k] = v;
+            }
+        } catch (_) {}
+        bootstrapTouched = false;
+        bootstrapSettings = {};
+    }
+    return s;
 }
 
 export function saveSettings() {
     const context = getContext();
+    if (!isPersistentSettingsReady()) {
+        bootstrapTouched = true;
+        try { writeMirrorFrom(bootstrapSettings); } catch (_) {}
+        if (!saveRetryScheduled) {
+            saveRetryScheduled = true;
+            setTimeout(() => {
+                saveRetryScheduled = false;
+                try { saveSettings(); } catch (_) {}
+            }, 1000);
+        }
+        return;
+    }
+
+    // IMPORTANT: Ensure any bootstrap writes are merged into the real settings bucket
+    // BEFORE we persist to mirror / ST disk. Otherwise we can end up saving an empty bucket.
+    let live = null;
+    try { live = getSettings(); } catch (_) { live = null; }
+    try { window.UIE_backupMaybe?.(); } catch (_) {}
+    try {
+        if (live && typeof live === "object") writeMirrorFrom(live);
+        else writeMirror();
+    } catch (_) {}
     if (window.saveSettingsDebounced) {
         window.saveSettingsDebounced();
-    } else if (context && context.saveSettings) {
-        context.saveSettings();
+    }
+
+    if (context && context.saveSettings) {
+        try { context.saveSettings(); } catch (_) {}
+        return;
+    }
+
+    if (!saveRetryScheduled) {
+        saveRetryScheduled = true;
+        setTimeout(() => {
+            saveRetryScheduled = false;
+            try {
+                const ctx = getContext();
+                if (ctx && ctx.saveSettings) ctx.saveSettings();
+            } catch (_) {}
+        }, 1000);
     }
 }
 
@@ -26,6 +462,96 @@ export function commitStateUpdate(opts = {}) {
         window.dispatchEvent(event);
     }
 }
+
+export function failsafeRecover(opts = {}) {
+    try { kickMirrorIdbLoad(); } catch (_) {}
+    try { restoreFromMirrorIfEmpty(); } catch (_) {}
+    try { updateLayout(); } catch (_) {}
+    try { window.UIE_refreshStateSaves?.(); } catch (_) {}
+    try {
+        const event = new CustomEvent("uie:state_updated", { detail: { ...(opts || {}), failsafe: true } });
+        window.dispatchEvent(event);
+    } catch (_) {}
+}
+
+try { window.UIE_failsafeRecover = failsafeRecover; } catch (_) {}
+
+function clampMenuIfNeeded() {
+    try {
+        const el = document.getElementById("uie-main-menu");
+        if (!el) return;
+        const style = window.getComputedStyle(el);
+        if (style.display === "none" || style.visibility === "hidden") return;
+        const rect = el.getBoundingClientRect();
+        const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+        const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+        if (!(vw > 0 && vh > 0)) return;
+
+        const pad = 10;
+        const out = rect.right < pad || rect.bottom < pad || rect.left > vw - pad || rect.top > vh - pad;
+        if (!out) return;
+
+        const s = getSettings();
+        const rawScale = Number(s?.ui?.scale ?? s?.uiScale ?? 1);
+        const scale = Math.max(0.5, Math.min(1.5, Number.isFinite(rawScale) ? rawScale : 1));
+        const useScale = scale !== 1;
+
+        const w = rect.width || 320;
+        const h = rect.height || 420;
+        let left = rect.left;
+        let top = rect.top;
+        if (!Number.isFinite(left)) left = pad;
+        if (!Number.isFinite(top)) top = pad;
+        if (left < pad) left = pad;
+        if (top < pad) top = pad;
+        if (left > vw - w - pad) left = vw - w - pad;
+        if (top > vh - h - pad) top = vh - h - pad;
+
+        el.style.position = "fixed";
+        el.style.left = `${left}px`;
+        el.style.top = `${top}px`;
+        el.style.right = "auto";
+        el.style.bottom = "auto";
+        el.style.transformOrigin = "top left";
+        el.style.transform = useScale ? `scale(${scale})` : "none";
+    } catch (_) {}
+}
+
+function startFailsafeWatchdog() {
+    try {
+        if (window.__uieFailsafeWatchdogStarted) return;
+        window.__uieFailsafeWatchdogStarted = true;
+    } catch (_) {}
+
+    let lastRecoverAt = 0;
+    const tick = () => {
+        try {
+            if (window.UIE_isDragging) return;
+        } catch (_) {}
+
+        try { clampMenuIfNeeded(); } catch (_) {}
+
+        const now = Date.now();
+        if (now - lastRecoverAt < 2500) return;
+
+        try {
+            const s = getSettings();
+            if (!s || typeof s !== "object") return;
+            if (looksEmptySettings(s)) {
+                const hasMirror = hasNonEmptyMirror();
+                if (hasMirror) {
+                    lastRecoverAt = now;
+                    failsafeRecover({ reason: "empty_settings" });
+                }
+            }
+        } catch (_) {}
+    };
+
+    try { setInterval(tick, 1500); } catch (_) {}
+    try { setTimeout(tick, 1000); } catch (_) {}
+}
+
+try { startFailsafeWatchdog(); } catch (_) {}
 
 export async function ensureChatStateLoaded() {
     // Wait for context to be available
@@ -40,7 +566,24 @@ export async function ensureChatStateLoaded() {
 }
 
 export function sanitizeSettings() {
+    const persistent = isPersistentSettingsReady();
     const s = getSettings();
+
+    // If settings are still an empty shell, don't stamp defaults over real data that hasn't hydrated yet.
+    // Give ST a moment to populate extension_settings from disk; if it doesn't, then proceed.
+    if (persistent && looksEmptySettings(s) && Date.now() < INIT_DEADLINE) {
+        try {
+            // If there may be a mirror (localStorage or IndexedDB), give it a chance to hydrate before stamping defaults.
+            try { kickMirrorIdbLoad(); } catch (_) {}
+            const maybeMirror = hasNonEmptyMirror();
+            if (maybeMirror) throw new Error("extension_settings not hydrated yet");
+
+            // Even if we can't detect a mirror synchronously (e.g. IDB-only), wait briefly during init.
+            if (mirrorIdbLoadPromise) throw new Error("extension_settings not hydrated yet");
+        } catch (_) {
+            throw new Error("extension_settings not hydrated yet");
+        }
+    }
 
     // 1. Basic Structure
     if (!s.inventory) s.inventory = {};
@@ -81,7 +624,21 @@ export function sanitizeSettings() {
     // 4. Windows State
     if (!s.windows) s.windows = {};
 
-    saveSettings();
+    try {
+        if (!s.ui) s.ui = {};
+        const raw = Number(s?.ui?.scale ?? s?.uiScale);
+        if (!Number.isFinite(raw) || raw <= 0) {
+            s.ui.scale = 0.8;
+            s.uiScale = 0.8;
+        } else {
+            if (!Number.isFinite(Number(s.ui.scale))) s.ui.scale = raw;
+            if (!Number.isFinite(Number(s.uiScale))) s.uiScale = raw;
+        }
+    } catch (_) {}
+
+    // Never persist an effectively-empty settings object during init.
+    // This prevents overwriting real user settings that haven't hydrated yet.
+    if (persistent && !looksEmptySettings(s)) saveSettings();
 }
 
 export function isMobileUI() {
@@ -90,6 +647,16 @@ export function isMobileUI() {
 
 export function updateLayout() {
     const s = getSettings();
+
+    try {
+        const raw = Number(s?.ui?.scale ?? s?.uiScale ?? 1);
+        const scale = Math.max(0.5, Math.min(1.5, Number.isFinite(raw) ? raw : 1));
+        document.documentElement.style.setProperty("--uie-scale", scale);
+        const slider = document.getElementById("uie-scale-slider");
+        if (slider) slider.value = String(scale);
+        const disp = document.getElementById("uie-scale-display");
+        if (disp) disp.textContent = scale.toFixed(1);
+    } catch (_) {}
 
     // Always keep the launcher visible (unless explicitly hidden) and on-screen.
     // On mobile we skip window clamping, but the launcher must still be corrected.

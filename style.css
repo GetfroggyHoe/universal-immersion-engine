@@ -10,7 +10,7 @@
     --re-z-stage: 2147483640;
     --re-z-ui: 2147483641;
     --re-z-menu: 2147483660;
-    --uie-scale: 1.0; /* Default scale */
+    --uie-scale: 0.8; /* Default scale */
 }
 
 /* --- SCALING SUPPORT --- */
@@ -94,8 +94,8 @@
     background-size: cover !important;
     background-position: center !important;
     background-repeat: no-repeat !important;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+    border-radius: 0 !important;
+    box-shadow: none !important;
     /* Force visibility and reset any inherited styles */
     display: block !important;
     visibility: visible !important;

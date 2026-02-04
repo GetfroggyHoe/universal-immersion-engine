@@ -42,6 +42,53 @@ function getMainChatContext(lines) {
     }
 }
 
+function ensurePhoneWindowOnScreen(forceCenter = false) {
+    try {
+        const el = document.getElementById("uie-phone-window");
+        if (!el) return;
+        const $p = $(el);
+
+        const vw = Number(window.innerWidth || document.documentElement.clientWidth || 0);
+        const vh = Number(window.innerHeight || document.documentElement.clientHeight || 0);
+        if (!vw || !vh) return;
+
+        // Ensure measurable
+        try { $p.css("position", "fixed"); } catch (_) {}
+
+        const rect = el.getBoundingClientRect();
+        const w = Number(rect?.width) || Number($p.outerWidth?.() || 0) || 380;
+        const h = Number(rect?.height) || Number($p.outerHeight?.() || 0) || 720;
+        const margin = 8;
+
+        const curLeft = parseFloat(String($p.css("left") || ""));
+        const curTop = parseFloat(String($p.css("top") || ""));
+        const hasCur = Number.isFinite(curLeft) && Number.isFinite(curTop);
+
+        const offScreen =
+            !rect ||
+            rect.top < margin ||
+            rect.left < margin ||
+            rect.bottom > (vh - margin) ||
+            rect.right > (vw - margin);
+
+        if (!forceCenter && hasCur && !offScreen) return;
+
+        const maxX = Math.max(margin, vw - w - margin);
+        const maxY = Math.max(margin, vh - h - margin);
+        const cx = Math.max(margin, Math.min(Math.round((vw - w) / 2), maxX));
+        const cy = Math.max(margin, Math.min(Math.round((vh - h) / 2), maxY));
+
+        $p.css({
+            position: "fixed",
+            left: `${cx}px`,
+            top: `${cy}px`,
+            right: "auto",
+            bottom: "auto",
+            transform: "none",
+        });
+    } catch (_) {}
+}
+
 async function relayRelationship(name, text, source) {
     try {
         const mod = await import("./social.js");
@@ -2529,6 +2576,17 @@ export function openBooksGuide(sectionId) {
         const $p = $("#uie-phone-window");
         // Force open phone if closed
         $p.show().css("display", "flex");
+
+        // Position: always clamp/center on open (prevents phone from appearing off the top on small screens)
+        try {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    try { ensurePhoneWindowOnScreen(true); } catch (_) {}
+                });
+            });
+        } catch (_) {
+            setTimeout(() => { try { ensurePhoneWindowOnScreen(true); } catch (_) {} }, 0);
+        }
 
         // Hide other screens
         $("#uie-phone-lockscreen").hide();

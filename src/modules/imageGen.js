@@ -3,6 +3,92 @@ import { notify } from "./notifications.js";
 import { generateContent } from "./apiClient.js";
 
 let uieImgCsrfCache = { t: 0, token: "" };
+let comfyWorkflowCache = { raw: "", parsed: null, ids: null, err: "", at: 0 };
+
+function safeStructuredClone(v) {
+    try {
+        if (typeof structuredClone === "function") return structuredClone(v);
+    } catch (_) {}
+    return JSON.parse(JSON.stringify(v));
+}
+
+function parseComfyWorkflowRaw(workflowRaw) {
+    const obj = JSON.parse(String(workflowRaw || ""));
+    if (obj && typeof obj === "object" && obj.prompt && typeof obj.prompt === "object") return obj.prompt;
+    return obj;
+}
+
+function detectComfyNodeIds(graph) {
+    const g = graph && typeof graph === "object" ? graph : {};
+    const clip = [];
+    const save = [];
+    const preview = [];
+    for (const [id, n] of Object.entries(g)) {
+        const ct = String(n?.class_type || "");
+        if (/CLIPTextEncode/i.test(ct)) clip.push(id);
+        if (/SaveImage/i.test(ct)) save.push(id);
+        if (/PreviewImage/i.test(ct)) preview.push(id);
+    }
+    const positiveNodeId = clip.length ? String(clip[0]) : "";
+    const negativeNodeId = clip.length > 1 ? String(clip[1]) : "";
+    const outputNodeId = save.length ? String(save[0]) : preview.length ? String(preview[0]) : "";
+    return { positiveNodeId, negativeNodeId, outputNodeId };
+}
+
+function buildDefaultComfyWorkflowJson() {
+    return JSON.stringify({
+        "3": {
+            class_type: "KSampler",
+            inputs: {
+                cfg: "%scale%",
+                denoise: "%denoise%",
+                latent_image: ["5", 0],
+                model: ["4", 0],
+                negative: ["7", 0],
+                positive: ["6", 0],
+                sampler_name: "%sampler%",
+                scheduler: "%scheduler%",
+                seed: "%seed%",
+                steps: "%steps%"
+            }
+        },
+        "4": { class_type: "CheckpointLoaderSimple", inputs: { ckpt_name: "%model%" } },
+        "5": { class_type: "EmptyLatentImage", inputs: { batch_size: 1, height: "%height%", width: "%width%" } },
+        "6": { class_type: "CLIPTextEncode", inputs: { clip: ["4", 1], text: "%prompt%" } },
+        "7": { class_type: "CLIPTextEncode", inputs: { clip: ["4", 1], text: "%negative_prompt%" } },
+        "8": { class_type: "VAEDecode", inputs: { samples: ["3", 0], vae: ["4", 2] } },
+        "9": { class_type: "SaveImage", inputs: { filename_prefix: "UIE", images: ["8", 0] } }
+    });
+}
+
+function applyComfySettings(graph, { checkpoint, sampler, scheduler, steps, cfg, denoise, seed, width, height }) {
+    const g = graph && typeof graph === "object" ? graph : graph;
+    try {
+        for (const n of Object.values(g || {})) {
+            const ct = String(n?.class_type || "");
+            if (!n || typeof n !== "object") continue;
+            if (!n.inputs || typeof n.inputs !== "object") n.inputs = {};
+
+            if (/CheckpointLoaderSimple/i.test(ct) && checkpoint) {
+                if ("ckpt_name" in n.inputs || n.inputs.ckpt_name === undefined) n.inputs.ckpt_name = String(checkpoint);
+            }
+            if (/KSampler/i.test(ct)) {
+                if (sampler && ("sampler_name" in n.inputs || n.inputs.sampler_name === undefined)) n.inputs.sampler_name = String(sampler);
+                if (scheduler && ("scheduler" in n.inputs || n.inputs.scheduler === undefined)) n.inputs.scheduler = String(scheduler);
+                if (Number.isFinite(steps) && steps > 0 && ("steps" in n.inputs || n.inputs.steps === undefined)) n.inputs.steps = steps;
+                if (Number.isFinite(cfg) && cfg >= 0 && ("cfg" in n.inputs || n.inputs.cfg === undefined)) n.inputs.cfg = cfg;
+                if (Number.isFinite(denoise) && denoise >= 0 && denoise <= 1 && ("denoise" in n.inputs || n.inputs.denoise === undefined)) n.inputs.denoise = denoise;
+                if (Number.isFinite(seed) && seed >= 0 && ("seed" in n.inputs || n.inputs.seed === undefined)) n.inputs.seed = seed;
+            }
+            if (/EmptyLatentImage/i.test(ct)) {
+                if (Number.isFinite(width) && width > 0 && ("width" in n.inputs || n.inputs.width === undefined)) n.inputs.width = width;
+                if (Number.isFinite(height) && height > 0 && ("height" in n.inputs || n.inputs.height === undefined)) n.inputs.height = height;
+            }
+        }
+    } catch (_) {}
+    return g;
+}
+
 async function getCsrfToken() {
     const now = Date.now();
     if (uieImgCsrfCache.token && now - uieImgCsrfCache.t < 5 * 60 * 1000) return uieImgCsrfCache.token;
@@ -203,12 +289,15 @@ function handleNanoPayment(data) {
  */
 export async function generateImageAPI(prompt) {
     const s = getSettings();
-    const endpoint = normalizeEndpoint(String(s.image.url || "https://api.openai.com/v1/images/generations"));
-    const provider = String(s.image.provider || "").toLowerCase();
-    const model = String(s.image.model || "dall-e-3").trim();
-    const apiKey = String(s.image.key || "").trim();
-    const negText = String(s.image.negativePrompt || "").trim();
+    const img = s.image || {};
+    const endpoint = normalizeEndpoint(String(img.url || "https://api.openai.com/v1/images/generations"));
+    const provider = String(img.provider || "").toLowerCase();
+    const model = String(img.model || "dall-e-3").trim();
+    const apiKey = String(img.key || "").trim();
+    const negText = String(img.negativePrompt || "").trim();
+
     const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?(\/|$)/i.test(endpoint);
+    const isPollinations = provider === "pollinations";
     const isSdWebUi = provider === "sdwebui" || /\/sdapi\/v1\/txt2img\s*$/i.test(endpoint);
     const isComfy = (() => {
         if (provider === "comfy") return true;
@@ -217,10 +306,9 @@ export async function generateImageAPI(prompt) {
         if (/\/images\/generations\s*$/i.test(endpoint)) return false;
         if (/\/prompt\s*$/i.test(endpoint)) return true;
         if (/:(8188|8189)(\/|$)/i.test(endpoint)) return true;
-        const wf = String(s.image?.comfy?.workflow || "").trim();
+        const wf = String(img?.comfy?.workflow || "").trim();
         return !!wf && isLocal;
     })();
-    const isPollinations = provider === "pollinations";
 
     if (!apiKey && !isLocal && !isSdWebUi && !isComfy && !isPollinations) {
         console.warn("Image Gen: No API Key");
@@ -237,79 +325,92 @@ export async function generateImageAPI(prompt) {
     if (!lockedPrompt) {
         try {
             const p = s?.generation?.promptPrefixes || {};
-            const by = (p?.byType && typeof p.byType === "object") ? p.byType : {};
             const global = String(p?.global || "").trim();
-            // const def = String(by?.default || "").trim();
             if (global) finalPrompt = `${global}, ${finalPrompt}`;
         } catch (_) {}
     }
 
+    const startedAt = Date.now();
     try {
-        const startedAt = Date.now();
-
         if (isPollinations) {
-             const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?nologo=true&width=1024&height=1024&seed=${Math.floor(Math.random() * 100000)}`;
-             const fx = await fetchWithCorsProxyFallback(url, { method: "GET" });
-             if (!fx.response.ok) throw new Error("Pollinations API failed");
-             const blob = await fx.response.blob();
-             const dataUrl = await new Promise(resolve => {
-                 const r = new FileReader();
-                 r.onload = () => resolve(r.result);
-                 r.readAsDataURL(blob);
-             });
-             try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint: "pollinations", mode: "pollinations" }; } catch (_) {}
-             return dataUrl;
+            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?nologo=true&width=1024&height=1024&seed=${Math.floor(Math.random() * 100000)}`;
+            const fx = await fetchWithCorsProxyFallback(url, { method: "GET" });
+            if (!fx.response.ok) throw new Error("Pollinations API failed");
+            const blob = await fx.response.blob();
+            const dataUrl = await new Promise(resolve => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.readAsDataURL(blob);
+            });
+            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint: "pollinations", mode: "pollinations" }; } catch (_) {}
+            return dataUrl;
         }
 
         if (isComfy) {
-            const wfRaw = String(s.image?.comfy?.workflow || "").trim();
+            const comfyBase = String(img?.comfy?.base || "").trim();
+            const comfyKey = String(img?.comfy?.key || "").trim();
+            const endpoint2 = comfyBase || endpoint;
+
+            let wfRaw = String(img?.comfy?.workflow || "").trim();
             if (!wfRaw) {
-                console.warn("Image Gen: ComfyUI workflow missing");
-                if (window.toastr) toastr.error("ComfyUI workflow is missing (paste it in settings).");
-                return null;
+                wfRaw = buildDefaultComfyWorkflowJson();
+                try {
+                    if (!s.image) s.image = {};
+                    if (!s.image.comfy) s.image.comfy = {};
+                    s.image.comfy.workflow = wfRaw;
+                    saveSettings();
+                } catch (_) {}
             }
-            const posId = String(s.image?.comfy?.positiveNodeId || "").trim();
-            const negId = String(s.image?.comfy?.negativeNodeId || "").trim();
-            const outId = String(s.image?.comfy?.outputNodeId || "").trim();
-            const ckpt = String(s.image?.comfy?.checkpoint || "").trim();
-            const out = await generateComfyUI({ endpoint, workflowRaw: wfRaw, promptText: finalPrompt, negativePrompt: negText, checkpoint: ckpt, positiveNodeId: posId, negativeNodeId: negId, outputNodeId: outId });
-            try { window.UIE_lastImage = { ok: !!out, ms: Date.now() - startedAt, endpoint, mode: "comfy" }; } catch (_) {}
+
+            let ids = null;
+            try {
+                const baseGraph = parseComfyWorkflowRaw(wfRaw);
+                ids = detectComfyNodeIds(baseGraph);
+            } catch (_) {}
+
+            const out = await generateComfyUI({
+                endpoint: endpoint2,
+                workflowRaw: wfRaw,
+                promptText: finalPrompt,
+                negativePrompt: negText,
+                checkpoint: String(img?.comfy?.checkpoint || "").trim(),
+                positiveNodeId: String(img?.comfy?.positiveNodeId || "").trim() || String(ids?.positiveNodeId || ""),
+                negativeNodeId: String(img?.comfy?.negativeNodeId || "").trim() || String(ids?.negativeNodeId || ""),
+                outputNodeId: String(img?.comfy?.outputNodeId || "").trim() || String(ids?.outputNodeId || ""),
+                apiKey: comfyKey
+            });
+            try { window.UIE_lastImage = { ok: !!out, ms: Date.now() - startedAt, endpoint: endpoint2, mode: "comfy" }; } catch (_) {}
             return out;
         }
 
         if (isSdWebUi) {
-             // SD Web UI Logic
-             // Note: Original code for SDWebUI was cut off/corrupted in previous view. 
-             // Reconstructing standard SD Web UI call
-             const payload = {
-                 prompt: finalPrompt,
-                 negative_prompt: negText,
-                 steps: 20,
-                 width: 512,
-                 height: 512,
-                 cfg_scale: 7
-             };
-             const fx = await fetchWithCorsProxyFallback(`${endpoint}/sdapi/v1/txt2img`, {
-                 method: "POST",
-                 headers: { "Content-Type": "application/json" },
-                 body: JSON.stringify(payload)
-             });
-             const res = fx.response;
-             if (!res.ok) {
-                 const err = await res.text();
-                 try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
-                 if (window.toastr) toastr.error("Image Generation Failed");
-                 return null;
-             }
-             const data = await res.json();
-             const img = Array.isArray(data?.images) ? String(data.images[0] || "") : "";
-             if (!img) {
-                 try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200, error: "No image returned." }; } catch (_) {}
-                 return null;
-             }
-             const out = img.startsWith("data:image") ? img : `data:image/png;base64,${img}`;
-             try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "sdwebui", status: 200 }; } catch (_) {}
-             return out;
+            const sdUrl = String(img.sdwebuiUrl || endpoint).trim();
+            const payload = {
+                prompt: finalPrompt,
+                negative_prompt: negText,
+                steps: 20,
+                width: 512,
+                height: 512,
+                cfg_scale: 7
+            };
+            const fx = await fetchWithCorsProxyFallback(sdUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const res = fx.response;
+            if (!res.ok) {
+                const err = await res.text();
+                try { window.UIE_lastImage = { ok: false, ms: Date.now() - startedAt, endpoint: sdUrl, mode: "sdwebui", status: res.status, error: String(err || "").slice(0, 280) }; } catch (_) {}
+                if (window.toastr) toastr.error("Image Generation Failed");
+                return null;
+            }
+            const data = await res.json();
+            const imgB64 = Array.isArray(data?.images) ? String(data.images[0] || "") : "";
+            if (!imgB64) return null;
+            const out = imgB64.startsWith("data:image") ? imgB64 : `data:image/png;base64,${imgB64}`;
+            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint: sdUrl, mode: "sdwebui", status: 200 }; } catch (_) {}
+            return out;
         }
 
         const headers = { "Content-Type": "application/json", "Accept": "application/json" };
@@ -317,24 +418,17 @@ export async function generateImageAPI(prompt) {
         const fx = await fetchWithCorsProxyFallback(endpoint, {
             method: "POST",
             headers,
-            body: JSON.stringify({
-                model: model,
-                prompt: finalPrompt,
-                n: 1,
-                size: "1024x1024",
-                response_format: "url" // or b64_json
-            })
+            body: JSON.stringify({ model, prompt: finalPrompt, n: 1, size: "1024x1024", response_format: "url" })
         });
         const res = fx.response;
 
         if (res.status === 402) {
-             // Payment Required (NanoGPT etc)
-             try {
-                 const data = await res.json();
-                 handleNanoPayment(data);
-             } catch (_) {}
-             if (window.toastr) toastr.warning("Payment Required");
-             return null;
+            try {
+                const data = await res.json();
+                handleNanoPayment(data);
+            } catch (_) {}
+            if (window.toastr) toastr.warning("Payment Required");
+            return null;
         }
 
         if (!res.ok) {
@@ -349,46 +443,67 @@ export async function generateImageAPI(prompt) {
         const first = Array.isArray(data?.data) ? data.data[0] : null;
         const urlOut = String(first?.url || data?.url || "").trim();
         const b64 = String(first?.b64_json || first?.b64 || "").trim();
-        if (urlOut) {
-            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200, via: fx?.via || "" }; } catch (_) {}
-            return urlOut;
-        }
-        if (b64) {
-            const out = b64.startsWith("data:image") ? b64 : `data:image/png;base64,${b64}`;
-            try { window.UIE_lastImage = { ok: true, ms: Date.now() - startedAt, endpoint, mode: "openai", status: 200, via: fx?.via || "" }; } catch (_) {}
-            return out;
-        }
-        try {
-            window.UIE_lastImage = {
-                ok: false,
-                ms: Date.now() - startedAt,
-                endpoint,
-                mode: "openai",
-                status: 200,
-                error: "No data.url or data.b64_json returned.",
-                via: fx?.via || ""
-            };
-        } catch (_) {}
+        if (urlOut) return urlOut;
+        if (b64) return b64.startsWith("data:image") ? b64 : `data:image/png;base64,${b64}`;
         return null;
-
     } catch (e) {
         const msg = String(e?.message || e || "Image gen failed");
         try { console.error("Image Gen Exception:", { message: msg, endpoint, stack: String(e?.stack || "").slice(0, 3000) }); } catch (_) { console.error("Image Gen Exception:", msg); }
         try { notify("error", "Image Gen Error: " + msg.slice(0, 220), "UIE", "api"); } catch (_) {}
-        try { window.UIE_lastImage = { ok: false, ms: 0, endpoint, mode: isComfy ? "comfy" : isSdWebUi ? "sdwebui" : "openai", status: 0, error: String(e?.message || e || "").slice(0, 280) }; } catch (_) {}
+        try { window.UIE_lastImage = { ok: false, ms: 0, endpoint, mode: isComfy ? "comfy" : isSdWebUi ? "sdwebui" : "openai", status: 0, error: msg.slice(0, 280) }; } catch (_) {}
         return null;
     }
 }
 
-async function generateComfyUI({ endpoint, workflowRaw, promptText, negativePrompt, checkpoint, positiveNodeId, negativeNodeId, outputNodeId }) {
+async function generateComfyUI({ endpoint, workflowRaw, promptText, negativePrompt, checkpoint, positiveNodeId, negativeNodeId, outputNodeId, apiKey }) {
+    const s = getSettings();
+    const comfy = s?.image?.comfy && typeof s.image.comfy === "object" ? s.image.comfy : {};
+    const ez = comfy?.easy && typeof comfy.easy === "object" ? comfy.easy : {};
+
+    const common = String(comfy?.common || "").trim();
+    const commonNeg = String(comfy?.commonNeg || "").trim();
+    if (common) promptText = `${common}\n${String(promptText || "")}`.trim();
+    if (commonNeg) negativePrompt = `${commonNeg}\n${String(negativePrompt || "")}`.trim();
+
+    const numOrNull = (v) => {
+        const n = typeof v === "string" && v.trim() === "" ? NaN : Number(v);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    const steps = numOrNull(ez.steps);
+    const cfg = numOrNull(ez.cfg);
+    const denoise = numOrNull(ez.denoise);
+    const width = numOrNull(ez.width);
+    const height = numOrNull(ez.height);
+    const seedIn = numOrNull(ez.seed);
+    const seed = Number.isFinite(seedIn) && seedIn >= 0 ? seedIn : Math.floor(Math.random() * 1e9);
+
+    const sampler = String(comfy.sampler || "").trim();
+    const scheduler = String(comfy.scheduler || "").trim();
+    checkpoint = String(checkpoint || comfy.checkpoint || "").trim();
+
     try {
-        const s = getSettings();
-        const ez = s?.image?.comfy?.easy && typeof s.image.comfy.easy === "object" ? s.image.comfy.easy : null;
-        const common = String(ez?.common || "").trim();
-        const commonNeg = String(ez?.commonNeg || "").trim();
-        if (common) promptText = `${common}\n${String(promptText || "")}`.trim();
-        if (commonNeg) negativePrompt = `${commonNeg}\n${String(negativePrompt || "")}`.trim();
-    } catch (_) {}
+        if (comfyWorkflowCache.raw !== String(workflowRaw || "") || !comfyWorkflowCache.parsed) {
+            const parsed = parseComfyWorkflowRaw(workflowRaw);
+            comfyWorkflowCache = {
+                raw: String(workflowRaw || ""),
+                parsed,
+                ids: detectComfyNodeIds(parsed),
+                err: "",
+                at: Date.now()
+            };
+        }
+    } catch (e) {
+        comfyWorkflowCache = { raw: String(workflowRaw || ""), parsed: null, ids: null, err: String(e?.message || e || ""), at: Date.now() };
+    }
+
+    const baseGraph = comfyWorkflowCache.parsed;
+    if (!baseGraph) return null;
+
+    const ids = comfyWorkflowCache.ids || {};
+    if (!positiveNodeId) positiveNodeId = String(ids.positiveNodeId || "");
+    if (!negativeNodeId) negativeNodeId = String(ids.negativeNodeId || "");
+    if (!outputNodeId) outputNodeId = String(ids.outputNodeId || "");
 
     const normalizeBase = (u) => String(u || "").trim().replace(/\/+$/, "").replace(/\/prompt$/i, "");
     const base = normalizeBase(endpoint);
@@ -396,18 +511,33 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
     const viewUrl = `${base}/view`;
     const historyUrl = `${base}/history`;
 
-    const parseWorkflow = () => {
-        const obj = JSON.parse(String(workflowRaw || ""));
-        if (obj && typeof obj === "object" && obj.prompt && typeof obj.prompt === "object") return obj.prompt;
-        return obj;
-    };
-
     const deepReplace = (v) => {
         if (typeof v === "string") {
             return v
                 .replace(/\{\{\s*(prompt|positive_prompt|positive)\s*\}\}/gi, String(promptText || ""))
                 .replace(/\{\{\s*(negative_prompt|negative)\s*\}\}/gi, String(negativePrompt || ""))
-                .replace(/\{\{\s*(checkpoint|ckpt|model)\s*\}\}/gi, String(checkpoint || ""));
+                .replace(/\{\{\s*(checkpoint|ckpt|model)\s*\}\}/gi, String(checkpoint || ""))
+                .replace(/\{\{\s*(width|w)\s*\}\}/gi, width === null ? "{{width}}" : String(width))
+                .replace(/\{\{\s*(height|h)\s*\}\}/gi, height === null ? "{{height}}" : String(height))
+                .replace(/\{\{\s*(size|resolution)\s*\}\}/gi, (width === null || height === null) ? "{{size}}" : `${width}x${height}`)
+                .replace(/\{\{\s*(steps)\s*\}\}/gi, steps === null ? "{{steps}}" : String(steps))
+                .replace(/\{\{\s*(scale|cfg|cfg_scale)\s*\}\}/gi, cfg === null ? "{{scale}}" : String(cfg))
+                .replace(/\{\{\s*(denoise|denoising)\s*\}\}/gi, denoise === null ? "{{denoise}}" : String(denoise))
+                .replace(/\{\{\s*(sampler)\s*\}\}/gi, String(sampler || ""))
+                .replace(/\{\{\s*(scheduler)\s*\}\}/gi, String(scheduler || ""))
+                .replace(/\{\{\s*(seed)\s*\}\}/gi, String(seed))
+                .replace(/%prompt%/gi, String(promptText || ""))
+                .replace(/%negative_prompt%/gi, String(negativePrompt || ""))
+                .replace(/%model%/gi, String(checkpoint || ""))
+                .replace(/%sampler%/gi, String(sampler || ""))
+                .replace(/%scheduler%/gi, String(scheduler || ""))
+                .replace(/%steps%/gi, steps === null ? "%steps%" : String(steps))
+                .replace(/%scale%/gi, cfg === null ? "%scale%" : String(cfg))
+                .replace(/%denoise%/gi, denoise === null ? "%denoise%" : String(denoise))
+                .replace(/%width%/gi, width === null ? "%width%" : String(width))
+                .replace(/%height%/gi, height === null ? "%height%" : String(height))
+                .replace(/%size%/gi, (width === null || height === null) ? "%size%" : `${width}x${height}`)
+                .replace(/%seed%/gi, String(seed));
         }
         if (Array.isArray(v)) return v.map(deepReplace);
         if (v && typeof v === "object") {
@@ -437,10 +567,7 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
         if (negativeNodeId) did = setText(negativeNodeId, negativePrompt) || did;
         if (did) return g;
 
-        const clipNodes = Object.entries(g).filter(([_, n]) => {
-            const ct = String(n?.class_type || "");
-            return /CLIPTextEncode/i.test(ct);
-        });
+        const clipNodes = Object.entries(g).filter(([_, n]) => /CLIPTextEncode/i.test(String(n?.class_type || "")));
         if (clipNodes.length) {
             const [id1] = clipNodes[0];
             setText(id1, promptText);
@@ -452,25 +579,30 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
         return g;
     };
 
-    let graph = parseWorkflow();
+    let graph = safeStructuredClone(baseGraph);
     graph = deepReplace(graph);
+    graph = applyComfySettings(graph, { checkpoint, sampler, scheduler, steps, cfg, denoise, seed, width, height });
     graph = injectTextNodes(graph);
 
     try {
-        const randSeed = () => Math.floor(Math.random() * 1e9);
         for (const n of Object.values(graph || {})) {
             const ct = String(n?.class_type || "");
             if (!/KSampler/i.test(ct)) continue;
             if (!n.inputs || typeof n.inputs !== "object") n.inputs = {};
             const sd = Number(n.inputs.seed);
-            if (!Number.isFinite(sd) || sd < 0) n.inputs.seed = randSeed();
+            if (!Number.isFinite(sd) || sd < 0) n.inputs.seed = seed;
         }
     } catch (_) {}
 
     const client_id = `uie_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
+    const headers = { "Content-Type": "application/json" };
+    if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+        headers["X-Api-Key"] = apiKey;
+    }
     const fx = await fetchWithCorsProxyFallback(promptUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({ prompt: graph, client_id })
     });
     const res = fx.response;
@@ -486,7 +618,7 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const deadline = Date.now() + 120_000;
-    
+
     while (Date.now() < deadline) {
         await sleep(1000);
         let h;
@@ -518,18 +650,18 @@ async function generateComfyUI({ endpoint, workflowRaw, promptText, negativeProm
         }
 
         if (target) {
-             const fname = target.filename;
-             const sub = target.subfolder;
-             const type = target.type;
-             const query = `filename=${encodeURIComponent(fname)}&subfolder=${encodeURIComponent(sub)}&type=${encodeURIComponent(type)}`;
-             const url = `${viewUrl}?${query}`;
-             const r = await fetchWithCorsProxyFallback(url);
-             const blob = await r.response.blob();
-             return new Promise(resolve => {
-                 const reader = new FileReader();
-                 reader.onload = () => resolve(reader.result);
-                 reader.readAsDataURL(blob);
-             });
+            const fname = target.filename;
+            const sub = target.subfolder;
+            const type = target.type;
+            const query = `filename=${encodeURIComponent(fname)}&subfolder=${encodeURIComponent(sub)}&type=${encodeURIComponent(type)}`;
+            const url = `${viewUrl}?${query}`;
+            const r = await fetchWithCorsProxyFallback(url);
+            const blob = await r.response.blob();
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
         }
     }
     return null;
@@ -684,9 +816,177 @@ export function initImageUi() {
         saveSettings();
     };
 
+    const coerceNum = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    };
+
+    const pickFirst = (...vals) => {
+        for (const v of vals) {
+            if (v === undefined || v === null) continue;
+            if (typeof v === "string" && !v.trim()) continue;
+            return v;
+        }
+        return null;
+    };
+
+    const readFromLocalStorage = () => {
+        try {
+            const keys = Object.keys(localStorage || {});
+            const candidates = keys
+                .filter(k => /comfy|comfyui|stable[_-]?diffusion|stablediffusion|sd[_-]?settings|sd[_-]?config|image[_-]?gen/i.test(String(k)))
+                .slice(0, 40);
+            for (const k of candidates) {
+                let raw = "";
+                try { raw = localStorage.getItem(k); } catch (_) { raw = ""; }
+                if (!raw || raw.length < 2) continue;
+                let obj = null;
+                try { obj = JSON.parse(raw); } catch (_) { obj = null; }
+                if (!obj || typeof obj !== "object") continue;
+                const asStr = JSON.stringify(obj);
+                if (!/8188|comfy|workflow|sampler|scheduler|cfg|denoise|checkpoint|ckpt/i.test(asStr)) continue;
+                return obj;
+            }
+        } catch (_) {}
+        return null;
+    };
+
+    const bestEffortExtract = (root) => {
+        const out = {};
+        if (!root || typeof root !== "object") return out;
+
+        const comfy =
+            root.comfy ||
+            root.comfyui ||
+            root.ComfyUI ||
+            root.comfyUi ||
+            root.stable_diffusion ||
+            root.stablediffusion ||
+            root.sd ||
+            root.sdSettings ||
+            root.sd_settings ||
+            root.image ||
+            root.imageGen ||
+            root.image_generation ||
+            null;
+
+        const r = (comfy && typeof comfy === "object") ? comfy : root;
+
+        out.base = pickFirst(r.base, r.base_url, r.baseUrl, r.url, r.endpoint, r.host, r.server, r.address);
+        out.key = pickFirst(r.key, r.api_key, r.apiKey, r.token, r.auth, r.authorization);
+        out.checkpoint = pickFirst(r.checkpoint, r.ckpt, r.ckpt_name, r.model, r.model_name);
+        out.sampler = pickFirst(r.sampler, r.sampler_name, r.sampling_method, r.samplingMethod);
+        out.scheduler = pickFirst(r.scheduler, r.schedule, r.scheduling, r.sigma_schedule);
+        out.steps = pickFirst(r.steps, r.sampling_steps, r.samplingSteps);
+        out.cfg = pickFirst(r.cfg, r.cfg_scale, r.cfgScale, r.guidance_scale, r.guidanceScale);
+        out.width = pickFirst(r.width, r.w, r.image_width, r.imageWidth);
+        out.height = pickFirst(r.height, r.h, r.image_height, r.imageHeight);
+        out.denoise = pickFirst(r.denoise, r.denoising_strength, r.denoisingStrength, r.strength);
+        out.seed = pickFirst(r.seed, r.random_seed, r.randomSeed);
+        out.common = pickFirst(r.common, r.common_prompt, r.commonPrompt, r.prompt_prefix, r.promptPrefix);
+        out.commonNeg = pickFirst(r.commonNeg, r.common_negative, r.commonNegative, r.negative_prefix, r.negativePrefix);
+        out.negativePrompt = pickFirst(r.negativePrompt, r.negative_prompt, r.negativePromptText, r.negative);
+        out.workflow = pickFirst(r.workflow, r.workflow_json, r.workflowJson);
+
+        return out;
+    };
+
+    const importFromSillyTavern = () => {
+        const roots = [];
+        try { roots.push(window.extension_settings || null); } catch (_) { roots.push(null); }
+        try { roots.push(window.settings || null); } catch (_) { roots.push(null); }
+        try { roots.push(window.SillyTavern || null); } catch (_) { roots.push(null); }
+        try { roots.push(readFromLocalStorage()); } catch (_) { roots.push(null); }
+
+        let merged = {};
+        for (const root of roots) {
+            const ex = bestEffortExtract(root);
+            merged = { ...merged, ...Object.fromEntries(Object.entries(ex).filter(([,v]) => v !== null && v !== undefined && !(typeof v === "string" && !v.trim()))) };
+        }
+
+        const hasAny = Object.keys(merged).length > 0;
+        if (!hasAny) return null;
+
+        const cleanUrl = (u) => {
+            const s = String(u || "").trim();
+            if (!s) return "";
+            if (/^https?:\/\//i.test(s)) return s;
+            return `http://${s}`;
+        };
+
+        return {
+            base: merged.base ? cleanUrl(merged.base) : "",
+            key: merged.key ? String(merged.key) : "",
+            checkpoint: merged.checkpoint ? String(merged.checkpoint) : "",
+            sampler: merged.sampler ? String(merged.sampler) : "",
+            scheduler: merged.scheduler ? String(merged.scheduler) : "",
+            steps: coerceNum(merged.steps),
+            cfg: coerceNum(merged.cfg),
+            width: coerceNum(merged.width),
+            height: coerceNum(merged.height),
+            denoise: coerceNum(merged.denoise),
+            seed: coerceNum(merged.seed),
+            common: merged.common ? String(merged.common) : "",
+            commonNeg: merged.commonNeg ? String(merged.commonNeg) : "",
+            negativePrompt: merged.negativePrompt ? String(merged.negativePrompt) : "",
+            workflow: merged.workflow ? String(merged.workflow) : ""
+        };
+    };
+
     $(document).off("change.uieImg").on("change.uieImg", "#uie-img-provider", function() {
         syncSetting((img) => { img.provider = $(this).val(); });
         refreshUi();
+    });
+
+    $(document).off("change.uieImgComfyImport").on("change.uieImgComfyImport", "#uie-img-comfy-import", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const val = String($(this).val() || "").trim();
+        if (!val) return;
+        $(this).val("");
+        if (val !== "st") return;
+
+        const imported = importFromSillyTavern();
+        if (!imported) {
+            try { window.toastr?.warning?.("No SillyTavern image settings found to import."); } catch (_) {}
+            return;
+        }
+
+        const s = getSettings();
+        if (!s.image) s.image = {};
+        if (!s.image.comfy) s.image.comfy = {};
+        if (!s.image.comfy.easy) s.image.comfy.easy = {};
+
+        if (imported.base) {
+            s.image.provider = "comfy";
+            s.image.url = imported.base;
+            s.image.comfy.base = imported.base;
+            $("#uie-img-provider").val("comfy");
+            $("#uie-img-url").val(imported.base);
+            $("#uie-img-comfy-base").val(imported.base);
+        }
+        if (imported.key) {
+            s.image.comfy.key = imported.key;
+            $("#uie-img-comfy-key").val(imported.key);
+        }
+        if (imported.checkpoint) { s.image.comfy.checkpoint = imported.checkpoint; $("#uie-img-comfy-ckpt").val(imported.checkpoint); }
+        if (imported.sampler) { s.image.comfy.sampler = imported.sampler; $("#uie-img-comfy-sampler").val(imported.sampler); }
+        if (imported.scheduler) { s.image.comfy.scheduler = imported.scheduler; $("#uie-img-comfy-scheduler").val(imported.scheduler); }
+        if (imported.common) { s.image.comfy.common = imported.common; $("#uie-img-comfy-common").val(imported.common); }
+        if (imported.commonNeg) { s.image.comfy.commonNeg = imported.commonNeg; $("#uie-img-comfy-common-neg").val(imported.commonNeg); }
+        if (imported.negativePrompt) { s.image.negativePrompt = imported.negativePrompt; $("#uie-img-negative").val(imported.negativePrompt); }
+        if (imported.workflow) { s.image.comfy.workflow = imported.workflow; $("#uie-img-comfy-workflow").val(imported.workflow); }
+
+        if (imported.steps !== null) { s.image.comfy.easy.steps = String(imported.steps); $("#uie-img-comfy-steps").val(String(imported.steps)); }
+        if (imported.cfg !== null) { s.image.comfy.easy.cfg = String(imported.cfg); $("#uie-img-comfy-cfg").val(String(imported.cfg)); }
+        if (imported.width !== null) { s.image.comfy.easy.width = String(imported.width); $("#uie-img-comfy-width").val(String(imported.width)); }
+        if (imported.height !== null) { s.image.comfy.easy.height = String(imported.height); $("#uie-img-comfy-height").val(String(imported.height)); }
+        if (imported.denoise !== null) { s.image.comfy.easy.denoise = String(imported.denoise); $("#uie-img-comfy-denoise").val(String(imported.denoise)); }
+        if (imported.seed !== null) { s.image.comfy.easy.seed = String(imported.seed); $("#uie-img-comfy-seed").val(String(imported.seed)); }
+
+        saveSettings();
+        refreshUi();
+        try { window.toastr?.success?.("Imported ComfyUI settings from SillyTavern."); } catch (_) {}
     });
 
     $(document).off("change.uieImgEnable").on("change.uieImgEnable", "#uie-img-enable", function() {
@@ -726,10 +1026,11 @@ export function initImageUi() {
         syncSetting((img) => { img.sdwebuiUrl = val; });
     });
 
-    $(document).off("input.uieImgComfy change.uieImgComfy").on("input.uieImgComfy change.uieImgComfy", "#uie-img-comfy-base, #uie-img-comfy-key, #uie-img-comfy-ckpt, #uie-img-comfy-quality, #uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-common, #uie-img-comfy-common-neg, #uie-img-comfy-workflow, #uie-img-comfy-posnode, #uie-img-comfy-negnode, #uie-img-comfy-outnode", function() {
+    $(document).off("input.uieImgComfy change.uieImgComfy").on("input.uieImgComfy change.uieImgComfy", "#uie-img-comfy-base, #uie-img-comfy-key, #uie-img-comfy-ckpt, #uie-img-comfy-quality, #uie-img-comfy-sampler, #uie-img-comfy-scheduler, #uie-img-comfy-common, #uie-img-comfy-common-neg, #uie-img-comfy-workflow, #uie-img-comfy-posnode, #uie-img-comfy-negnode, #uie-img-comfy-outnode, #uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed", function() {
         const s = getSettings();
         if (!s.image) s.image = {};
         if (!s.image.comfy) s.image.comfy = {};
+        if (!s.image.comfy.easy) s.image.comfy.easy = {};
         s.image.comfy.base = String($("#uie-img-comfy-base").val() || "").trim();
         s.image.comfy.key = String($("#uie-img-comfy-key").val() || "").trim();
         s.image.comfy.checkpoint = String($("#uie-img-comfy-ckpt").val() || "").trim();
@@ -742,7 +1043,85 @@ export function initImageUi() {
         s.image.comfy.positiveNodeId = String($("#uie-img-comfy-posnode").val() || "").trim();
         s.image.comfy.negativeNodeId = String($("#uie-img-comfy-negnode").val() || "").trim();
         s.image.comfy.outputNodeId = String($("#uie-img-comfy-outnode").val() || "").trim();
+        s.image.comfy.easy.steps = String($("#uie-img-comfy-steps").val() || "").trim();
+        s.image.comfy.easy.cfg = String($("#uie-img-comfy-cfg").val() || "").trim();
+        s.image.comfy.easy.width = String($("#uie-img-comfy-width").val() || "").trim();
+        s.image.comfy.easy.height = String($("#uie-img-comfy-height").val() || "").trim();
+        s.image.comfy.easy.denoise = String($("#uie-img-comfy-denoise").val() || "").trim();
+        s.image.comfy.easy.seed = String($("#uie-img-comfy-seed").val() || "").trim();
         saveSettings();
+    });
+
+    $(document).off("click.uieImgComfyApply").on("click.uieImgComfyApply", "#uie-img-comfy-apply", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const s = getSettings();
+        if (!s.image) s.image = {};
+        if (!s.image.comfy) s.image.comfy = {};
+        if (!s.image.comfy.easy) s.image.comfy.easy = {};
+
+        const base = String($("#uie-img-comfy-base").val() || "").trim();
+        if (!base) {
+            try { window.toastr?.warning?.("Enter ComfyUI URL first"); } catch (_) {}
+            return;
+        }
+
+        const q = String($("#uie-img-comfy-quality").val() || "balanced");
+        const defaults = q === "fast" ? { w: 512, h: 512, steps: 16 } : q === "hq" ? { w: 1024, h: 1024, steps: 32 } : { w: 768, h: 768, steps: 24 };
+        if (!String($("#uie-img-comfy-width").val() || "").trim()) $("#uie-img-comfy-width").val(String(defaults.w));
+        if (!String($("#uie-img-comfy-height").val() || "").trim()) $("#uie-img-comfy-height").val(String(defaults.h));
+        if (!String($("#uie-img-comfy-steps").val() || "").trim()) $("#uie-img-comfy-steps").val(String(defaults.steps));
+        if (!String($("#uie-img-comfy-cfg").val() || "").trim()) $("#uie-img-comfy-cfg").val("7");
+        if (!String($("#uie-img-comfy-denoise").val() || "").trim()) $("#uie-img-comfy-denoise").val("1");
+        if (!String($("#uie-img-comfy-seed").val() || "").trim()) $("#uie-img-comfy-seed").val("-1");
+
+        s.image.provider = "comfy";
+        s.image.url = base;
+        s.image.comfy.base = base;
+
+        if (!String(s.image.comfy.workflow || "").trim()) {
+            s.image.comfy.workflow = buildDefaultComfyWorkflowJson();
+        }
+
+        // Let auto-detect handle these unless the user explicitly set them.
+        if (!String(s.image.comfy.positiveNodeId || "").trim()) s.image.comfy.positiveNodeId = "";
+        if (!String(s.image.comfy.negativeNodeId || "").trim()) s.image.comfy.negativeNodeId = "";
+        if (!String(s.image.comfy.outputNodeId || "").trim()) s.image.comfy.outputNodeId = "";
+
+        // Trigger the shared sync handler
+        $("#uie-img-provider").val("comfy");
+        $("#uie-img-url").val(base);
+        $("#uie-img-comfy-workflow").val(String(s.image.comfy.workflow || ""));
+        $("#uie-img-comfy-base, #uie-img-comfy-quality, #uie-img-comfy-steps, #uie-img-comfy-cfg, #uie-img-comfy-width, #uie-img-comfy-height, #uie-img-comfy-denoise, #uie-img-comfy-seed").trigger("change");
+        saveSettings();
+        refreshUi();
+        try { window.toastr?.success?.("Applied ComfyUI Easy Setup"); } catch (_) {}
+    });
+
+    $(document).off("click.uieImgTest").on("click.uieImgTest", "#uie-img-test", async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const out = await generateImageAPI("[UIE_LOCKED] A cinematic fantasy illustration of a traveler in a lantern-lit forest, ultra-detailed, sharp focus");
+        if (!out) {
+            try { window.toastr?.error?.("Test image failed. Check console/UIE_lastImage."); } catch (_) {}
+            return;
+        }
+        const id = "uie-img-test-modal";
+        $("#" + id).remove();
+        const html = `
+            <div id="${id}" style="position:fixed; inset:0; z-index:2147483660; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center;">
+                <div style="background:#111; border:1px solid rgba(255,255,255,0.2); padding:12px; border-radius:12px; width:min(820px, 94vw); max-height:92vh; overflow:auto;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+                        <div style="color:#fff; font-weight:700;">UIE Image Test</div>
+                        <button style="background:#333; border:1px solid #555; color:#fff; padding:6px 10px; border-radius:8px; cursor:pointer;" onclick="$('#${id}').remove()">Close</button>
+                    </div>
+                    <img src="${String(out)}" style="width:100%; height:auto; border-radius:10px; display:block;" />
+                </div>
+            </div>
+        `;
+        $("body").append(html);
     });
 
     $(document).off("click.uieImgRefresh").on("click.uieImgRefresh", "#uie-img-comfy-ckpt-refresh", function(e) {

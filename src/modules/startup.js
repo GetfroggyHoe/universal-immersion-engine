@@ -80,9 +80,10 @@ export async function loadTemplates() {
             return;
         }
         $("body").append(html);
+        try { (await import("./i18n.js")).applyI18n?.(document); } catch (_) {}
     }
 
-    const optional = ['phone', 'calendar', 'debug', 'journal', 'social', 'diary', 'settings_window', 'shop', 'map', 'party', 'databank', 'battle', 'chatbox', 'launcher_options', 'sprites', 'activities', 'stats'];
+    const optional = ['phone', 'calendar', 'debug', 'journal', 'social', 'diary', 'shop', 'map', 'party', 'databank', 'battle', 'chatbox', 'launcher_options', 'sprites', 'activities', 'stats', 'settings_window'];
     Promise.allSettled(
         optional.map(async (f) => {
             const url = `${baseUrl}src/templates/${f}.html?v=${ts}`;
@@ -96,6 +97,7 @@ export async function loadTemplates() {
             } else {
                  $("body").append(html);
             }
+            try { (await import("./i18n.js")).applyI18n?.(document); } catch (_) {}
             return { f, url };
         })
     ).then((results) => {
@@ -136,9 +138,128 @@ export function patchToastr() {
 }
 
 export function injectSettingsUI() {
+    let tries = 0;
+
+    const dedupeSettingsBlocks = () => {
+        try {
+            const target = $([
+                "#extensions_settings",
+                "#extensions_settings_panel",
+                "#extensions-settings-container",
+                "#extensions_settings2",
+                "#extensions-settings",
+                "#extensionsSettings",
+                "#extensions_settings_content",
+                ".extensions_settings",
+                "#extensions-settings-content"
+            ].join(", "));
+
+            const blocks = $(".uie-settings-block");
+            if (!blocks.length) return;
+
+            let keep = null;
+            try {
+                const inside = target && target.length ? blocks.filter((_, el) => target.has(el).length > 0) : $();
+                keep = inside.length ? inside.first() : null;
+            } catch (_) {
+                keep = null;
+            }
+
+            if (!keep || !keep.length) {
+                try {
+                    const byId = blocks.filter("#uie-settings-block");
+                    keep = byId.length ? byId.first() : blocks.first();
+                } catch (_) {
+                    keep = blocks.first();
+                }
+            }
+
+            try {
+                if (target && target.length && target.has(keep).length === 0) target.append(keep);
+            } catch (_) {}
+
+            try { keep.attr("id", "uie-settings-block"); } catch (_) {}
+            try { keep.attr("data-uie-settings-drawer", "1"); } catch (_) {}
+
+            try { blocks.not(keep).remove(); } catch (_) {}
+        } catch (_) {}
+    };
     const inject = async () => {
-        const target = $("#extensions_settings, #extensions_settings_panel, #extensions-settings-container");
-        if(target.length && !$("#uie-settings-block").length) {
+        tries++;
+
+        let target = $([
+            "#extensions_settings",
+            "#extensions_settings_panel",
+            "#extensions-settings-container",
+            "#extensions_settings2",
+            "#extensions-settings",
+            "#extensionsSettings",
+            "#extensions_settings_content",
+            ".extensions_settings",
+            "#extensions-settings-content"
+        ].join(", "));
+
+        if (!target.length) {
+            try {
+                const nodes = Array.from(document.querySelectorAll(
+                    "[id*='extensions'][id*='settings'], [class*='extensions'][class*='settings'], [id*='extension'][id*='settings'], [class*='extension'][class*='settings']"
+                ));
+                const scored = nodes
+                    .map((el) => {
+                        try {
+                            const r = el.getBoundingClientRect();
+                            const area = Math.max(0, r.width) * Math.max(0, r.height);
+                            const visible = r.width > 40 && r.height > 40 && r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth;
+                            return { el, area, visible };
+                        } catch (_) {
+                            return { el, area: 0, visible: false };
+                        }
+                    })
+                    .filter((x) => x.visible)
+                    .sort((a, b) => b.area - a.area);
+                if (scored.length) target = $(scored[0].el);
+            } catch (_) {}
+        }
+
+        // If ST already injected our settings block (or something duplicated it), reuse it and dedupe.
+        // Prefer the block that's already inside the extensions settings container.
+        try {
+            const blocks = $(".uie-settings-block");
+            if (blocks.length) {
+                let keep = null;
+                try {
+                    const inside = target && target.length ? blocks.filter((_, el) => target.has(el).length > 0) : $();
+                    keep = inside.length ? inside.first() : blocks.first();
+                } catch (_) {
+                    keep = blocks.first();
+                }
+
+                if (target && target.length) {
+                    try {
+                        if (target.has(keep).length === 0) target.append(keep);
+                    } catch (_) {}
+                }
+
+                if (!keep.attr("id")) keep.attr("id", "uie-settings-block");
+                keep.attr("data-uie-settings-drawer", "1");
+                blocks.not(keep).remove();
+                try { initTurboUi(); } catch (_) {}
+                try { initImageUi(); } catch (_) {}
+                try { (await import("./i18n.js")).applyI18n?.(document); } catch (_) {}
+                return;
+            }
+        } catch (_) {}
+
+        const alreadyInjected = $(".uie-settings-block").length > 0;
+        if (!target.length) {
+            if (tries === 1 || tries === 5 || tries === 15 || tries === 40) {
+                try { console.warn("[UIE] Settings drawer target not found yet; will retry", { tries }); } catch (_) {}
+            }
+            setTimeout(inject, 750);
+            return;
+        }
+
+        if (target.length && !alreadyInjected) {
             try {
                 const ts = (() => {
                     try {
@@ -147,16 +268,72 @@ export function injectSettingsUI() {
                     } catch (_) {}
                     return Date.now();
                 })();
-                const html = await fetchTemplateHtml(`${baseUrl}src/templates/settings.html?v=${ts}`);
-                target.append($(html).attr("id", "uie-settings-block"));
+                const urls = [
+                    `${baseUrl}src/templates/settings.html?v=${ts}`,
+                    `${baseUrl}templates/settings.html?v=${ts}`,
+                    `/scripts/extensions/third-party/universal-immersion-engine/src/templates/settings.html?v=${ts}`
+                ];
+
+                let html = "";
+                for (const url of urls) {
+                    try {
+                        html = await fetchTemplateHtml(url);
+                        if (html) break;
+                    } catch (_) {}
+                }
+                if (!html) {
+                    try { console.error("[UIE] Failed to load settings drawer template (settings.html)", { baseUrl, urls }); } catch (_) {}
+                    setTimeout(inject, 750);
+                    return;
+                }
+                const $html = $(html);
+                let $block = $html.filter(".uie-settings-block").first();
+                if (!$block.length) $block = $html.find(".uie-settings-block").first();
+                if (!$block.length) {
+                    try { console.error("[UIE] settings.html loaded but .uie-settings-block not found; cannot inject", { baseUrl, urls }); } catch (_) {}
+                    setTimeout(inject, 750);
+                    return;
+                }
+                $block.attr("id", "uie-settings-block");
+                $block.attr("data-uie-settings-drawer", "1");
+                target.append($block);
                 initTurboUi();
                 initImageUi();
-            } catch(e) {}
+                try { (await import("./i18n.js")).applyI18n?.(document); } catch (_) {}
+            } catch (e) {
+                try { console.error("[UIE] Failed to inject settings drawer", e); } catch (_) {}
+            }
         } else {
-            setTimeout(inject, 2000);
+            setTimeout(inject, 750);
         }
     };
     inject();
+
+    try { dedupeSettingsBlocks(); } catch (_) {}
+
+    try {
+        if (!window.UIE_settingsDrawerObserver) {
+            let reinjectT = 0;
+            const scheduleReinject = () => {
+                if (reinjectT) return;
+                reinjectT = setTimeout(() => {
+                    reinjectT = 0;
+                    try {
+                        if ($("#uie-settings-block").length === 0) inject();
+                    } catch (_) {}
+                }, 350);
+            };
+
+            const obs = new MutationObserver(() => {
+                try {
+                    dedupeSettingsBlocks();
+                    if ($("#uie-settings-block").length === 0) scheduleReinject();
+                } catch (_) {}
+            });
+            obs.observe(document.body, { childList: true, subtree: true });
+            window.UIE_settingsDrawerObserver = obs;
+        }
+    } catch (_) {}
 
     // Add Drawer Listener - Use specific class to avoid double-binding if ST already handles general drawers
     // Bind to BODY to catch events that might bubble up, but use stopImmediatePropagation to claim them

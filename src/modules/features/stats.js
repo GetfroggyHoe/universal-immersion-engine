@@ -45,13 +45,36 @@ export function initStats() {
 
         if (type === "root") {
             s[key] = val;
+            // Keep legacy inventory.vitals in sync (some installs still rely on it)
+            if (!s.inventory) s.inventory = {};
+            if (!s.inventory.vitals) s.inventory.vitals = {};
+            if (key === "hp") s.inventory.vitals.hp = Number(val) || 0;
+            if (key === "maxHp") s.inventory.vitals.maxHp = Number(val) || 0;
+            if (key === "mp") s.inventory.vitals.mp = Number(val) || 0;
+            if (key === "maxMp") s.inventory.vitals.maxMp = Number(val) || 0;
+            // Inventory uses AP naming internally; older settings use SP
+            if (key === "ap") s.inventory.vitals.sp = Number(val) || 0;
+            if (key === "maxAp") s.inventory.vitals.maxSp = Number(val) || 0;
+            if (key === "xp") s.inventory.vitals.xp = Number(val) || 0;
         } else if (type === "char") {
             s.character[key] = val;
         } else if (type === "stat") {
             s.character.stats[key] = val;
+        } else if (type === "label") {
+            if (!s.statLabels) s.statLabels = {};
+            s.statLabels[key] = String(val || "");
+        } else if (type === "vitalLabel") {
+            if (!s.vitalLabels) s.vitalLabels = {};
+            s.vitalLabels[key] = String(val || "");
         }
 
         saveSettings();
+        // If vitals changed, refresh inventory bars immediately
+        if (type === "root" && ["hp", "maxHp", "mp", "maxMp", "ap", "maxAp", "xp", "maxXp"].includes(String(key))) {
+            import("../inventory.js").then(mod => {
+                if (mod && mod.updateVitals) mod.updateVitals();
+            });
+        }
         // Don't re-render immediately to avoid losing focus, unless needed?
         // Actually, re-rendering might be safer to sync UI states, but input focus is tricky.
         // Let's just update the setting silently.
@@ -77,6 +100,22 @@ export function renderStats() {
     const s = getSettings();
     if (!s.character) s.character = {};
     if (!s.character.stats) s.character.stats = {};
+
+    const vit = s.inventory?.vitals && typeof s.inventory.vitals === "object" ? s.inventory.vitals : {};
+    const hp = Number.isFinite(Number(s.hp)) ? Number(s.hp) : Number(vit.hp || 0);
+    const maxHp = Number.isFinite(Number(s.maxHp)) ? Number(s.maxHp) : Number(vit.maxHp || 0);
+    const mp = Number.isFinite(Number(s.mp)) ? Number(s.mp) : Number(vit.mp || 0);
+    const maxMp = Number.isFinite(Number(s.maxMp)) ? Number(s.maxMp) : Number(vit.maxMp || 0);
+    const ap = Number.isFinite(Number(s.ap)) ? Number(s.ap) : Number(vit.sp || 0);
+    const maxAp = Number.isFinite(Number(s.maxAp)) ? Number(s.maxAp) : Number(vit.maxSp || 0);
+    const xp = Number.isFinite(Number(s.xp)) ? Number(s.xp) : Number(vit.xp || 0);
+    const maxXp = Number.isFinite(Number(s.maxXp)) ? Number(s.maxXp) : Number(s.maxXp || 0);
+
+    const vitLabels = s.vitalLabels && typeof s.vitalLabels === "object" ? s.vitalLabels : {};
+    const labelHp = String(vitLabels.hp || "Health");
+    const labelMp = String(vitLabels.mp || "Mana");
+    const labelAp = String(vitLabels.ap || "Stamina");
+    const labelXp = String(vitLabels.xp || "Experience");
 
     // Check if elements exist
     if ($("#uie-stats-list").length === 0) {
@@ -181,12 +220,12 @@ export function renderStats() {
     const vitalsEl = $("#uie-stats-vitals");
     vitalsEl.empty();
 
-    const renderBar = (label, cur, max, type, keyCur, keyMax) => {
+    const renderBar = (label, cur, max, type, keyCur, keyMax, keyLabel) => {
         if (isEditing) {
             return `
                 <div class="uie-bar-container" style="background:rgba(0,0,0,0.3); padding:5px; border-radius:6px;">
                     <div class="uie-bar-labels" style="align-items:center;">
-                        <span>${label}</span>
+                        <input type="text" class="uie-stat-input" data-key="${keyLabel}" data-type="vitalLabel" value="${String(label || "")}" style="width:120px; background:rgba(0,0,0,0.35); border:1px solid #555; color:#ddd; border-radius:6px; padding:2px 6px;">
                         <div style="display:flex; gap:5px; align-items:center;">
                             <input type="number" class="uie-stat-input" data-key="${keyCur}" data-type="root" value="${cur||0}" style="width:60px; background:rgba(0,0,0,0.5); border:1px solid #555; color:#fff; text-align:right;">
                             /
@@ -213,10 +252,10 @@ export function renderStats() {
         }
     };
 
-    vitalsEl.append(renderBar("Health", s.hp, s.maxHp, "hp", "hp", "maxHp"));
-    vitalsEl.append(renderBar("Mana", s.mp, s.maxMp, "mp", "mp", "maxMp"));
-    vitalsEl.append(renderBar("Stamina", s.ap, s.maxAp, "ap", "ap", "maxAp"));
-    vitalsEl.append(renderBar("Experience", s.xp, s.maxXp, "xp", "xp", "maxXp"));
+    vitalsEl.append(renderBar(labelHp, hp, maxHp, "hp", "hp", "maxHp", "hp"));
+    vitalsEl.append(renderBar(labelMp, mp, maxMp, "mp", "mp", "maxMp", "mp"));
+    vitalsEl.append(renderBar(labelAp, ap, maxAp, "ap", "ap", "maxAp", "ap"));
+    vitalsEl.append(renderBar(labelXp, xp, maxXp, "xp", "xp", "maxXp", "xp"));
 }
 
 function resetStats() {

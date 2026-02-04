@@ -33,38 +33,43 @@
         #uie-settings-window .uie-header h2 { margin:0; font-size:1.2em; color:#f1c40f; }
         #uie-settings-window .uie-close-btn { cursor:pointer; font-size:1.2em; opacity:0.7; }
         #uie-settings-window .uie-close-btn:hover { opacity:1; color:#e74c3c; }
-        #uie-settings-tabs-wrap{
+        #uie-sw-tabs-wrap{
             overflow-x: auto;
             overflow-y: hidden;
             scrollbar-width: none;
             -webkit-overflow-scrolling: touch;
             touch-action: pan-x;
         }
-        #uie-settings-tabs-wrap::-webkit-scrollbar{ width:0; height:0; }
-        #uie-settings-tabs{
+        #uie-sw-tabs-wrap::-webkit-scrollbar{ width:0; height:0; }
+        #uie-sw-tabs{
             display: flex;
             flex-wrap: nowrap;
             width: max-content;
             min-width: 100%;
         }
-        #uie-settings-tabs .uie-set-tab{ flex: 0 0 auto; white-space: nowrap; }
+        #uie-sw-tabs .uie-set-tab{ flex: 0 0 auto; white-space: nowrap; }
+
+        #uie-settings-window .uie-content{ scrollbar-width: thin; scrollbar-color: rgba(203,163,92,0.85) rgba(0,0,0,0.25); }
+        #uie-settings-window .uie-content::-webkit-scrollbar{ width: 8px; }
+        #uie-settings-window .uie-content::-webkit-scrollbar-track{ background: rgba(0,0,0,0.25); }
+        #uie-settings-window .uie-content::-webkit-scrollbar-thumb{ background: rgba(203,163,92,0.85); border-radius: 8px; }
     </style>
     <div class="uie-header">
-        <div class="uie-info"><h2>Game Settings</h2></div>
+        <div class="uie-info"><h2 data-i18n="settings.title.game_settings">Game Settings</h2></div>
         <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
             <i class="fa-solid fa-circle-question" onclick="uie.phone.openBooksGuide('guide-settings')" title="Help / Guide" style="cursor:pointer; color:#cba35c; font-size:1.2em;"></i>
             <i class="fa-solid fa-xmark uie-close-btn" id="uie-settings-close"></i>
         </div>
     </div>
 
-    <div id="uie-settings-tabs-wrap" style="border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2);">
-        <div id="uie-settings-tabs">
-            <div class="uie-set-tab active" data-tab="general" style="padding:12px 16px; cursor:pointer; color:#fff; border-bottom:2px solid #cba35c; font-weight:700;">General</div>
-            <div class="uie-set-tab" data-tab="menu" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Menu</div>
-            <div class="uie-set-tab" data-tab="features" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Features</div>
-            <div class="uie-set-tab" data-tab="automation" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Automation</div>
-            <div class="uie-set-tab" data-tab="rpg" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">RPG</div>
-            <div class="uie-set-tab" data-tab="style" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Style</div>
+    <div id="uie-sw-tabs-wrap" style="border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2);">
+        <div id="uie-sw-tabs">
+            <div class="uie-set-tab active" data-tab="general" data-i18n="settings.tab.general" style="padding:12px 16px; cursor:pointer; color:#fff; border-bottom:2px solid #cba35c; font-weight:700;">General</div>
+            <div class="uie-set-tab" data-tab="menu" data-i18n="settings.tab.menu" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Menu</div>
+            <div class="uie-set-tab" data-tab="features" data-i18n="settings.tab.features" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Features</div>
+            <div class="uie-set-tab" data-tab="automation" data-i18n="settings.tab.automation" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Automation</div>
+            <div class="uie-set-tab" data-tab="rpg" data-i18n="settings.tab.rpg" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">RPG</div>
+            <div class="uie-set-tab" data-tab="style" data-i18n="settings.tab.style" style="padding:12px 16px; cursor:pointer; color:#888; border-bottom:2px solid transparent; font-weight:700;">Style</div>
         </div>
     </div>
 
@@ -72,6 +77,25 @@
 
         <!-- GENERAL TAB -->
         <div id="uie-sw-general">
+            <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+                <div style="font-weight:bold; color:#ccc;" data-i18n="settings.language">Language</div>
+                <select id="uie-sw-lang-select" style="margin-left:auto; height:40px; background:#111; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
+                    <option value="en" data-i18n="lang.en">English</option>
+                    <option value="ko" data-i18n="lang.ko">Korean</option>
+                </select>
+            </div>
+
+            <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
+                <div style="font-weight:bold; color:#ccc; margin-bottom:10px; font-size:1.05em;">Backups</div>
+                <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button id="uie-sw-backup-now" title="Backup" style="height:40px; width:44px; display:flex; align-items:center; justify-content:center; background:rgba(46,204,113,0.15); border:1px solid rgba(46,204,113,0.4); color:#2ecc71; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-box-archive"></i></button>
+                    <button id="uie-sw-backup-restore" title="Restore latest" style="height:40px; width:44px; display:flex; align-items:center; justify-content:center; background:rgba(52,152,219,0.15); border:1px solid rgba(52,152,219,0.4); color:#3498db; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-rotate-left"></i></button>
+                    <button id="uie-sw-backup-export" title="Export JSON" style="height:40px; width:44px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-export"></i></button>
+                    <button id="uie-sw-backup-import" title="Import JSON" style="height:40px; width:44px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:#fff; border-radius:8px; cursor:pointer; font-weight:bold;"><i class="fa-solid fa-file-import"></i></button>
+                </div>
+                <div style="font-size:0.85em; color:#888; margin-top:8px;">Backups are stored locally and can be exported/imported for safety during updates.</div>
+            </div>
+            <input type="file" id="uie-sw-backup-file" accept="application/json" style="display:none;">
             <div style="background:#1a2236; padding:15px; border-radius:8px; border:1px solid #334; margin-bottom:15px;">
                 <div style="font-weight:bold; color:#ccc; margin-bottom:8px; font-size:1.1em;">Full Character State (Internal)</div>
                 <div style="display:flex; gap:10px; margin-bottom:10px;">

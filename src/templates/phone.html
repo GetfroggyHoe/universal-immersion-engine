@@ -502,27 +502,27 @@
     <div id="uie-app-msg-view" class="phone-app-window">
         <div class="phone-app-header">
             <i class="fa-solid fa-chevron-left phone-back-btn"></i>
-            <i class="fa-solid fa-user-slash" id="msg-block" title="Block / Unblock contact" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
-            <i class="fa-solid fa-trash" id="msg-del-thread" title="Delete" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
-            <i class="fa-solid fa-plus" id="msg-new-number" title="Text a number" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
-            <span id="msg-contact-name">Messages</span>
+            <i class="fa-solid fa-user-slash" id="msg-block" title="Block / Unblock contact" data-i18n-title="phone.msg.block_unblock" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
+            <i class="fa-solid fa-trash" id="msg-del-thread" title="Delete" data-i18n-title="phone.common.delete" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
+            <i class="fa-solid fa-plus" id="msg-new-number" title="Text a number" data-i18n-title="phone.msg.text_number" style="padding:10px; opacity:0.85; cursor:pointer;"></i>
+            <span id="msg-contact-name" data-i18n="phone.msg.messages">Messages</span>
         </div>
         <div class="phone-app-content p-msg-list" id="msg-container"></div>
         <div class="p-input-area">
-            <button id="msg-attach-btn" title="Send image" style="width:42px; height:40px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; display:grid; place-items:center; cursor:pointer;"><i class="fa-solid fa-paperclip"></i></button>
-            <button id="msg-sticker-btn" title="Stickers" style="width:42px; height:40px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; display:grid; place-items:center; cursor:pointer;"><i class="fa-regular fa-face-smile"></i></button>
-            <textarea id="msg-input" rows="1" placeholder="Message..." style="flex:1; min-width:0; padding:10px 14px; border-radius:18px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; resize:none; overflow:auto; max-height:120px;"></textarea>
+            <button id="msg-attach-btn" title="Send image" data-i18n-title="phone.msg.send_image" style="width:42px; height:40px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; display:grid; place-items:center; cursor:pointer;"><i class="fa-solid fa-paperclip"></i></button>
+            <button id="msg-sticker-btn" title="Stickers" data-i18n-title="phone.msg.stickers" style="width:42px; height:40px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; display:grid; place-items:center; cursor:pointer;"><i class="fa-regular fa-face-smile"></i></button>
+            <textarea id="msg-input" rows="1" placeholder="Message..." data-i18n-placeholder="phone.msg.placeholder" style="flex:1; min-width:0; padding:10px 14px; border-radius:18px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; resize:none; overflow:auto; max-height:120px;"></textarea>
             <button id="msg-send-btn" style="background:#007aff; color:white; border:none; border-radius:999px; width:44px; height:40px; cursor:pointer; display:grid; place-items:center;"><i class="fa-solid fa-arrow-up"></i></button>
             <input type="file" id="msg-attach-file" accept="image/*" style="display:none;">
         </div>
     </div>
 
     <div id="uie-app-dial-view" class="phone-app-window">
-        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Phone</span></div>
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span data-i18n="phone.dial.title">Phone</span></div>
         <div class="phone-app-content" style="padding:14px; display:flex; flex-direction:column; gap:12px;">
             <div style="display:flex; align-items:center; gap:10px;">
-                <div style="font-weight:900; color:#fff; opacity:0.85;">Recents</div>
-                <button id="dial-recents-clear" title="Clear call log" style="margin-left:auto; height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Clear</button>
+                <div style="font-weight:900; color:#fff; opacity:0.85;" data-i18n="phone.dial.recents">Recents</div>
+                <button id="dial-recents-clear" title="Clear call log" data-i18n-title="phone.dial.clear_log" data-i18n="phone.dial.clear" style="margin-left:auto; height:34px; padding:0 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Clear</button>
             </div>
             <div id="dial-recents" style="max-height:160px; overflow:auto; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); padding:10px;"></div>
             <div id="dial-display" style="height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; letter-spacing:1px; font-size:1.05em;">—</div>
@@ -541,25 +541,25 @@
                 <button class="dial-btn" data-digit="#" style="height:56px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900;">#</button>
             </div>
             <div style="display:flex; gap:10px; margin-top:4px;">
-                <button id="dial-backspace" style="flex:1; height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Del</button>
-                <button id="dial-save" style="flex:1; height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900; cursor:pointer;">Save</button>
-                <button id="dial-call" style="flex:1; height:44px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer;">Call</button>
+                <button id="dial-backspace" data-i18n="phone.dial.del" style="flex:1; height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#fff; font-weight:900; cursor:pointer;">Del</button>
+                <button id="dial-save" data-i18n="phone.common.save" style="flex:1; height:44px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); color:#fff; font-weight:900; cursor:pointer;">Save</button>
+                <button id="dial-call" data-i18n="phone.dial.call" style="flex:1; height:44px; border-radius:14px; border:none; background:#2ecc71; color:#000; font-weight:900; cursor:pointer;">Call</button>
             </div>
         </div>
     </div>
 
     <div id="uie-app-browser-view" class="phone-app-window">
         <div class="p-browser-bar">
-            <button id="p-browser-back" class="p-browser-btn" title="Back"><i class="fa-solid fa-chevron-left"></i></button>
-            <button id="p-browser-fwd" class="p-browser-btn" title="Forward"><i class="fa-solid fa-chevron-right"></i></button>
+            <button id="p-browser-back" class="p-browser-btn" title="Back" data-i18n-title="phone.browser.back"><i class="fa-solid fa-chevron-left"></i></button>
+            <button id="p-browser-fwd" class="p-browser-btn" title="Forward" data-i18n-title="phone.browser.forward"><i class="fa-solid fa-chevron-right"></i></button>
 
             <div class="p-browser-input-wrapper">
                 <i class="fa-solid fa-lock" style="font-size:12px; color:#8e8e93;"></i>
-                <input type="text" id="p-browser-url" placeholder="Search or enter location...">
-                <button id="p-browser-go" class="p-browser-btn" title="Go"><i class="fa-solid fa-arrow-right"></i></button>
+                <input type="text" id="p-browser-url" placeholder="Search or enter location..." data-i18n-placeholder="phone.browser.placeholder">
+                <button id="p-browser-go" class="p-browser-btn" title="Go" data-i18n-title="phone.browser.go"><i class="fa-solid fa-arrow-right"></i></button>
             </div>
 
-            <button id="p-browser-save" class="p-browser-btn" title="Save Page"><i class="fa-solid fa-bookmark"></i></button>
+            <button id="p-browser-save" class="p-browser-btn" title="Save Page" data-i18n-title="phone.browser.save_page"><i class="fa-solid fa-bookmark"></i></button>
         </div>
         <div class="phone-app-header" id="p-app-header" style="display:none;">
             <i class="fa-solid fa-chevron-left phone-back-btn"></i><span id="p-app-title">App</span>
@@ -571,7 +571,7 @@
     </div>
 
     <div id="uie-app-books-view" class="phone-app-window">
-        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span>Books</span></div>
+        <div class="phone-app-header"><i class="fa-solid fa-chevron-left phone-back-btn"></i><span data-i18n="phone.books">Books</span></div>
         <div class="phone-app-content" style="padding:0; display:flex; flex-direction:column; background:rgba(0,0,0,0.10);">
             <style>
                 #uie-phone-window #uie-app-books-view .books-tabs { display:flex; gap:8px; padding:10px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); }
@@ -594,15 +594,15 @@
                 #uie-phone-window #uie-app-books-view #books-reader-body { padding:14px; background:#f7f2e8; color:#2c1e10; font-family: Iowan Old Style, Palatino Linotype, Book Antiqua, Palatino, Georgia, serif; line-height:1.6; }
             </style>
             <div class="books-tabs">
-                <button id="books-tab-guide" class="books-tab active">Guide</button>
-                <button id="books-tab-library" class="books-tab">Library</button>
+                <button id="books-tab-guide" class="books-tab active" data-i18n="phone.books.guide">Guide</button>
+                <button id="books-tab-library" class="books-tab" data-i18n="phone.books.library">Library</button>
             </div>
 
             <div id="books-view-guide" class="books-pane">
                 <div class="books-card" style="background:rgba(0,0,0,0.22); margin-bottom:15px;">
-                    <div style="font-weight:900; font-size:1.4em; margin-bottom:12px; color:#cba35c; text-align:center; border-bottom:1px solid rgba(225,193,122,0.3); padding-bottom:8px;">UIE User Manual</div>
+                    <div style="font-weight:900; font-size:1.4em; margin-bottom:12px; color:#cba35c; text-align:center; border-bottom:1px solid rgba(225,193,122,0.3); padding-bottom:8px;" data-i18n="phone.manual.title">UIE User Manual</div>
                     <div style="opacity:0.92; color:#e5e5e5; line-height:1.6; font-size:0.95em;">
-                        <p>Welcome to the Universal Immersion Engine (UIE). This extension transforms your roleplay into a dynamic RPG experience. Tap a section below or use the "Help" buttons (?) found in various windows to jump to specific instructions.</p>
+                        <p data-i18n="phone.manual.intro">Welcome to the Universal Immersion Engine (UIE). This extension transforms your roleplay into a dynamic RPG experience. Tap a section below or use the "Help" buttons (?) found in various windows to jump to specific instructions.</p>
                     </div>
                 </div>
 

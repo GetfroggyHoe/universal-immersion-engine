@@ -40,6 +40,19 @@
     .uie-grid-view { grid-template-columns: repeat(3, 1fr) !important; }
 }
 
+#uie-inv-gear-menu{
+  max-height: min(72vh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(203,163,92,0.85) rgba(0,0,0,0.25);
+}
+
+#uie-inv-gear-menu::-webkit-scrollbar{ width: 8px; }
+#uie-inv-gear-menu::-webkit-scrollbar-track{ background: rgba(0,0,0,0.25); }
+#uie-inv-gear-menu::-webkit-scrollbar-thumb{ background: rgba(203,163,92,0.85); border-radius: 8px; }
+
 #uie-inventory-window {
   position: fixed;
   inset: 0;
@@ -983,107 +996,107 @@
       </div>
       <div class="uie-inv-currency">150 G</div>
       <div class="uie-inv-actions">
-        <div class="uie-inv-icon" onclick="UIE_openGuide('guide-inventory')" title="Help"><i class="fa-solid fa-circle-question"></i></div>
-        <div class="uie-inv-icon" id="uie-inv-pencil" title="Edit Mode"><i class="fa-solid fa-pencil"></i></div>
-        <div class="uie-inv-icon" id="uie-inv-sparkle" title="Creation Station"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <div class="uie-inv-icon" onclick="UIE_openGuide('guide-inventory')" title="Help" data-i18n-title="inv.help"><i class="fa-solid fa-circle-question"></i></div>
+        <div class="uie-inv-icon" id="uie-inv-pencil" title="Edit Mode" data-i18n-title="inv.edit_mode"><i class="fa-solid fa-pencil"></i></div>
+        <div class="uie-inv-icon" id="uie-inv-sparkle" title="Creation Station" data-i18n-title="inv.creation_station"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
         <div id="uie-inv-sparkle-menu" class="uie-create-menu" style="display:none; position:absolute; top:70px; right:40px; z-index:2147483646;">
           <div class="uie-create-top">
-            <div class="uie-create-title">Creation Station</div>
+            <div class="uie-create-title" data-i18n="inv.creation_station">Creation Station</div>
             <div id="uie-create-status" class="uie-create-status"></div>
             <div id="uie-create-close" class="uie-create-close">×</div>
           </div>
 
           <div class="uie-create-row" style="margin-bottom:6px;">
             <select id="uie-create-kind" class="uie-create-select" style="flex:2;">
-              <option value="item">Item</option>
-              <option value="class">Create Class</option>
-              <option value="skill">Skill</option>
-              <option value="asset">Asset</option>
-              <option value="status">Status Effects</option>
+              <option value="item" data-i18n="inv.create.kind.item">Item</option>
+              <option value="class" data-i18n="inv.create.kind.class">Create Class</option>
+              <option value="skill" data-i18n="inv.create.kind.skill">Skill</option>
+              <option value="asset" data-i18n="inv.create.kind.asset">Asset</option>
+              <option value="status" data-i18n="inv.create.kind.status">Status Effects</option>
             </select>
-            <input id="uie-create-qty" type="number" min="1" max="5" value="1" placeholder="#" title="Quantity" style="width:46px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 5px; font-weight:900; text-align:center;">
-            <button id="uie-create-run" class="uie-create-btn" style="flex:1;">Create</button>
+            <input id="uie-create-qty" type="number" min="1" max="5" value="1" placeholder="#" title="Quantity" data-i18n-title="inv.create.quantity" style="width:46px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 5px; font-weight:900; text-align:center;">
+            <button id="uie-create-run" class="uie-create-btn" style="flex:1;" data-i18n="inv.create.run">Create</button>
           </div>
 
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-left:4px;">
              <label style="display:flex; align-items:center; gap:6px; font-size:0.85em; opacity:0.9; cursor:pointer;">
-                 <input type="checkbox" id="uie-create-gen-img"> Generate Image
+                 <input type="checkbox" id="uie-create-gen-img"> <span data-i18n="inv.create.generate_image">Generate Image</span>
              </label>
           </div>
 
-          <textarea id="uie-create-desc" class="uie-create-desc" placeholder="Describe what you’re creating (optional)…"></textarea>
+          <textarea id="uie-create-desc" class="uie-create-desc" placeholder="Describe what you’re creating (optional)…" data-i18n-placeholder="inv.create.desc_placeholder"></textarea>
 
           <div class="uie-create-quick">
             <div class="qbox">
               <input id="uie-create-money" type="number" min="0" step="1" placeholder="+Money">
-              <button id="uie-create-add-currency">Add</button>
+              <button id="uie-create-add-currency" data-i18n="inv.common.add">Add</button>
             </div>
             <div class="qbox">
               <input id="uie-create-xp" type="number" min="0" step="1" placeholder="+XP">
-              <button id="uie-create-add-xp">Add</button>
+              <button id="uie-create-add-xp" data-i18n="inv.common.add">Add</button>
             </div>
           </div>
 
           <div style="margin-top:10px; display:flex; gap:10px;">
-            <button id="uie-create-scan-loot" class="uie-create-btn" style="flex:1;">Scan Chat Log</button>
-            <button id="uie-create-scan-warroom" class="uie-create-btn" style="flex:1;">Scan War Room</button>
+            <button id="uie-create-scan-loot" class="uie-create-btn" style="flex:1;" data-i18n="inv.create.scan_chat">Scan Chat Log</button>
+            <button id="uie-create-scan-warroom" class="uie-create-btn" style="flex:1;" data-i18n="inv.create.scan_war_room">Scan War Room</button>
           </div>
 
           <div id="uie-create-staging" style="display:none; flex-direction:column; gap:10px; margin-top:15px; border-top:1px solid rgba(255,255,255,0.15); padding-top:10px;"></div>
         </div>
-        <div class="uie-inv-icon" id="uie-inv-gear" title="Inventory Settings"><i class="fa-solid fa-gear"></i></div>
+        <div class="uie-inv-icon" id="uie-inv-gear" title="Inventory Settings" data-i18n-title="inv.settings"><i class="fa-solid fa-gear"></i></div>
         <div id="uie-inv-gear-menu" style="display:none; position:absolute; top:70px; right:124px; width:280px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(10,6,5,0.92); backdrop-filter: blur(6px); padding:10px; z-index:2147483670;">
-          <div style="padding:8px; border-radius:10px; background:rgba(255,255,255,0.08); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:900; color:#cba35c;" onclick="uie.phone.openBooksGuide('guide-inventory');"><i class="fa-solid fa-circle-question"></i> Help / Guide</div>
-          <div style="font-weight:900; color:#fff; margin-bottom:8px;">Inventory Tabs</div>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-items"> Items</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-skills"> Skills</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-assets"> Assets</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-equipment"> Equipment</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-life"> Life</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-tab-create"> Create</label>
+          <div style="padding:8px; border-radius:10px; background:rgba(255,255,255,0.08); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:900; color:#cba35c;" onclick="uie.phone.openBooksGuide('guide-inventory');"><i class="fa-solid fa-circle-question"></i> <span data-i18n="inv.help_guide">Help / Guide</span></div>
+          <div style="font-weight:900; color:#fff; margin-bottom:8px;" data-i18n="inv.tabs.title">Inventory Tabs</div>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-items"> <span data-i18n="inv.tab.items">Items</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-skills"> <span data-i18n="inv.tab.skills">Skills</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-assets"> <span data-i18n="inv.tab.assets">Assets</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-equipment"> <span data-i18n="inv.tab.equipment">Equipment</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-life"> <span data-i18n="inv.tab.life">Life</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-tab-create"> <span data-i18n="inv.tab.create">Create</span></label>
 
-          <div style="font-weight:900; color:#fff; margin:10px 0 8px;">Functions</div>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-edit"> Edit Pencil</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-fabricate"> Creation Station</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-fn-slottypes"> Slot Types (categories)</label>
+          <div style="font-weight:900; color:#fff; margin:10px 0 8px;" data-i18n="inv.functions.title">Functions</div>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-edit"> <span data-i18n="inv.fn.edit_pencil">Edit Pencil</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-fabricate"> <span data-i18n="inv.fn.creation_station">Creation Station</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-fn-slottypes"> <span data-i18n="inv.fn.slot_types">Slot Types (categories)</span></label>
 
-          <div style="font-weight:900; color:#fff; margin:10px 0 8px;">Progression</div>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-leveling"> Leveling (XP → Level)</label>
-          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-ui-bars"> Show Bars / Level / Stats</label>
+          <div style="font-weight:900; color:#fff; margin:10px 0 8px;" data-i18n="inv.progression.title">Progression</div>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-fn-leveling"> <span data-i18n="inv.progression.leveling">Leveling (XP → Level)</span></label>
+          <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); cursor:pointer;"><input type="checkbox" id="inv-ui-bars"> <span data-i18n="inv.progression.show_bars">Show Bars / Level / Stats</span></label>
 
           <div id="uie-inv-rebirth-opt" style="margin-top:10px; display:none; border-top:1px solid rgba(255,255,255,0.15); padding-top:10px;">
-             <button id="uie-inv-trigger-rebirth" style="width:100%; height:36px; border-radius:10px; background:linear-gradient(90deg, #8e44ad, #9b59b6); border:none; color:#fff; font-weight:900; cursor:pointer;">Initiate Rebirth</button>
+             <button id="uie-inv-trigger-rebirth" style="width:100%; height:36px; border-radius:10px; background:linear-gradient(90deg, #8e44ad, #9b59b6); border:none; color:#fff; font-weight:900; cursor:pointer;" data-i18n="inv.rebirth">Initiate Rebirth</button>
           </div>
         </div>
-        <div class="uie-inv-icon" id="uie-inv-fullscreen-toggle" title="Toggle Fullscreen"><i class="fa-solid fa-expand"></i></div>
+        <div class="uie-inv-icon" id="uie-inv-fullscreen-toggle" title="Toggle Fullscreen" data-i18n-title="inv.toggle_fullscreen"><i class="fa-solid fa-expand"></i></div>
         <div class="uie-inv-close" id="uie-inv-close">X</div>
       </div>
     </div>
 
     <div id="tabs">
-      <div class="tab-wrap active" data-tab="items" title="Items">
+      <div class="tab-wrap active" data-tab="items" title="Items" data-i18n-title="inv.tab.items">
         <div class="tab-pill"><i class="fa-solid fa-box-open"></i></div>
-        <div class="tab-name">Items</div>
+        <div class="tab-name" data-i18n="inv.tab.items">Items</div>
       </div>
-      <div class="tab-wrap" data-tab="skills" title="Skills">
+      <div class="tab-wrap" data-tab="skills" title="Skills" data-i18n-title="inv.tab.skills">
         <div class="tab-pill"><i class="fa-solid fa-bolt"></i></div>
-        <div class="tab-name">Skills</div>
+        <div class="tab-name" data-i18n="inv.tab.skills">Skills</div>
       </div>
-      <div class="tab-wrap" data-tab="assets" title="Assets">
+      <div class="tab-wrap" data-tab="assets" title="Assets" data-i18n-title="inv.tab.assets">
         <div class="tab-pill"><i class="fa-solid fa-gem"></i></div>
-        <div class="tab-name">Assets</div>
+        <div class="tab-name" data-i18n="inv.tab.assets">Assets</div>
       </div>
-      <div class="tab-wrap" data-tab="equipment" title="Equipment">
+      <div class="tab-wrap" data-tab="equipment" title="Equipment" data-i18n-title="inv.tab.equipment">
         <div class="tab-pill"><i class="fa-solid fa-shield-halved"></i></div>
-        <div class="tab-name">Equip</div>
+        <div class="tab-name" data-i18n="inv.tab.equip">Equip</div>
       </div>
-      <div class="tab-wrap" data-tab="life" title="Life">
+      <div class="tab-wrap" data-tab="life" title="Life" data-i18n-title="inv.tab.life">
         <div class="tab-pill"><i class="fa-solid fa-heart-pulse"></i></div>
-        <div class="tab-name">Life</div>
+        <div class="tab-name" data-i18n="inv.tab.life">Life</div>
       </div>
-      <div class="tab-wrap" data-tab="create" title="Create">
+      <div class="tab-wrap" data-tab="create" title="Create" data-i18n-title="inv.tab.create">
         <div class="tab-pill"><i class="fa-solid fa-hammer"></i></div>
-        <div class="tab-name">Create</div>
+        <div class="tab-name" data-i18n="inv.tab.create">Create</div>
       </div>
     </div>
 
@@ -1091,10 +1104,10 @@
       <div id="paper-doll">
         <div class="uie-inv-side">
           <div class="uie-inv-card">
-            <div class="label">Character</div>
+            <div class="label" data-i18n="inv.character">Character</div>
             <div id="uie-inv-classline" style="opacity:0.9; font-weight:900; color:#cba35c;">Adventurer</div>
           </div>
-          <div class="portrait" id="uie-inv-portrait" title="Portrait"><img id="uie-inv-portrait-img" alt="" style="display:none;"></div>
+          <div class="portrait" id="uie-inv-portrait" title="Portrait" data-i18n-title="inv.portrait"><img id="uie-inv-portrait-img" alt="" style="display:none;"></div>
         </div>
       </div>
 
@@ -1128,28 +1141,28 @@
   <div id="uie-inv-editor" style="display:none; position:fixed; inset:0; z-index:2147483647; align-items:center; justify-content:center; background:rgba(0,0,0,0.65);">
     <div style="width:min(520px, 92vw); max-height:90vh; overflow:auto; border-radius:16px; border:1px solid rgba(225,193,122,0.35); background:rgba(15,10,8,0.92); padding:14px;">
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-        <div style="font-weight:900; letter-spacing:0.6px; color:#f1c40f;">Item Editor</div>
-        <div style="margin-left:auto; cursor:pointer; padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25);" id="uie-inv-editor-close">Close</div>
+        <div style="font-weight:900; letter-spacing:0.6px; color:#f1c40f;" data-i18n="inv.editor.title">Item Editor</div>
+        <div style="margin-left:auto; cursor:pointer; padding:6px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25);" id="uie-inv-editor-close" data-i18n="inv.common.close">Close</div>
       </div>
 
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <div style="flex:1; min-width:220px;">
-          <div style="font-weight:800; opacity:0.85; margin-bottom:6px;">Name</div>
+          <div style="font-weight:800; opacity:0.85; margin-bottom:6px;" data-i18n="inv.editor.name">Name</div>
           <input id="uie-inv-edit-name" type="text" style="width:100%; height:38px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f6e7c8; padding:0 12px; box-sizing:border-box;">
         </div>
         <div style="flex:1; min-width:220px;">
-          <div style="font-weight:800; opacity:0.85; margin-bottom:6px;">Type</div>
+          <div style="font-weight:800; opacity:0.85; margin-bottom:6px;" data-i18n="inv.editor.type">Type</div>
           <input id="uie-inv-edit-type" type="text" style="width:100%; height:38px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f6e7c8; padding:0 12px; box-sizing:border-box;">
         </div>
       </div>
 
       <div style="margin-top:12px;">
-        <div style="font-weight:800; opacity:0.85; margin-bottom:6px;">Description</div>
+        <div style="font-weight:800; opacity:0.85; margin-bottom:6px;" data-i18n="inv.editor.description">Description</div>
         <textarea id="uie-inv-edit-desc" style="width:100%; min-height:90px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f6e7c8; padding:10px 12px; box-sizing:border-box; resize:vertical;"></textarea>
       </div>
 
       <div style="margin-top:12px;">
-        <div style="font-weight:900; letter-spacing:0.5px; color:rgba(255,255,255,0.85);">Stat Modifiers</div>
+        <div style="font-weight:900; letter-spacing:0.5px; color:rgba(255,255,255,0.85);" data-i18n="inv.editor.stat_mods">Stat Modifiers</div>
         <div style="display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:10px; margin-top:10px;">
           <input id="uie-inv-edit-str" type="number" placeholder="STR" style="height:38px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f6e7c8; padding:0 12px;">
           <input id="uie-inv-edit-dex" type="number" placeholder="DEX" style="height:38px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f6e7c8; padding:0 12px;">
@@ -1161,13 +1174,13 @@
       </div>
 
       <div style="margin-top:12px;">
-        <div style="font-weight:800; opacity:0.85; margin-bottom:6px;">Status Effects (comma-separated)</div>
+        <div style="font-weight:800; opacity:0.85; margin-bottom:6px;" data-i18n="inv.editor.status_effects">Status Effects (comma-separated)</div>
         <input id="uie-inv-edit-status" type="text" style="width:100%; height:38px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.35); color:#f6e7c8; padding:0 12px; box-sizing:border-box;">
       </div>
 
       <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
-        <button id="uie-inv-edit-pickimg" style="flex:1; min-width:180px; height:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Pick Image</button>
-        <button id="uie-inv-edit-save" style="flex:1; min-width:180px; height:40px; border-radius:12px; border:1px solid rgba(241,196,15,0.35); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Save</button>
+        <button id="uie-inv-edit-pickimg" style="flex:1; min-width:180px; height:40px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;" data-i18n="inv.editor.pick_image">Pick Image</button>
+        <button id="uie-inv-edit-save" style="flex:1; min-width:180px; height:40px; border-radius:12px; border:1px solid rgba(241,196,15,0.35); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;" data-i18n="inv.common.save">Save</button>
       </div>
     </div>
   </div>

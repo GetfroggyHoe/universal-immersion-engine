@@ -483,11 +483,21 @@ function openItemModal(idx, anchorEl) {
     const vh = window.innerHeight || document.documentElement.clientHeight || 0;
     const pad = 10;
 
+    const mobileNow = (() => {
+      try {
+        const touch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
+        return touch || (vw > 0 && vw <= 820);
+      } catch (_) {
+        return false;
+      }
+    })();
+
     const preferRight = (vw - a.right) >= w + pad;
     let left = preferRight ? Math.round(a.right + 10) : Math.round(a.left - w - 10);
     left = Math.max(pad, Math.min(left, vw - w - pad));
 
     let top = Math.round(a.top + (a.height / 2) - (h / 2));
+    if (mobileNow) top = Math.round(top + (vh * 0.30));
     top = Math.max(pad, Math.min(top, vh - h - pad));
 
     $card.css({ left: `${left}px`, top: `${top}px`, visibility: "" });
@@ -545,8 +555,18 @@ function openItemContextMenu(idx, x, y) {
   let left = x;
   let top = y;
 
+  try {
+    const touch = (typeof navigator !== "undefined" && Number(navigator.maxTouchPoints || 0) > 0);
+    const mobileNow = touch || (vw > 0 && vw <= 820);
+    if (mobileNow) top = Math.round(top + (vh * 0.30));
+  } catch (_) {}
+
   if (left + mw > vw) left = x - mw;
   if (top + mh > vh) top = y - mh;
+
+  const pad = 10;
+  left = Math.max(pad, Math.min(left, vw - mw - pad));
+  top = Math.max(pad, Math.min(top, vh - mh - pad));
 
   menu.css({ left: left + "px", top: top + "px" });
 
@@ -624,6 +644,16 @@ async function actOnItem(kind) {
   if (!it) return;
 
   const name = String(it.name || "Item");
+
+  try {
+    const confirmKinds = new Set(["use", "use_chat", "custom_use", "equip", "custom_equip", "send_party"]);
+    if (it.needsUserConfirm && confirmKinds.has(String(kind || ""))) {
+      const ok = confirm(`${name} is marked as UNVERIFIED. Continue?`);
+      if (!ok) return;
+      it.needsUserConfirm = false;
+      saveSettings();
+    }
+  } catch (_) {}
 
   if (kind === "use_chat") {
     const consumes = !!it?.use?.consumes;

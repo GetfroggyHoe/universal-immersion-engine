@@ -4,7 +4,7 @@
       position: fixed;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%) scale(var(--uie-scale));
       width: min(420px, 92vw);
       border-radius: 16px;
       border: 1px solid rgba(225, 193, 122, 0.65);
@@ -44,46 +44,46 @@
   </style>
   <div id="uie-menu-drag" style="padding:10px; cursor:move; border-bottom:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; gap:8px;">
       <div style="width:8px; height:8px; background:#f1c40f; border-radius:50%; box-shadow:0 0 5px #f1c40f;"></div>
-      <span id="uie-menu-title" style="font-weight:900; letter-spacing:1px; font-size:0.9em; color:#fff;">SYSTEM MENU</span>
+      <span id="uie-menu-title" style="font-weight:900; letter-spacing:1px; font-size:0.9em; color:#fff;" data-i18n="menu.title">SYSTEM MENU</span>
       <div style="margin-left:auto; opacity:0.5; font-size:10px;">V2.1</div>
   </div>
 
   <div class="uie-menu-tabs" style="display:flex; border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(0,0,0,0.2);">
-      <div class="uie-menu-tab active" data-tab="main" style="flex:1; text-align:center; padding:8px; cursor:pointer; color:#fff; font-weight:bold; font-size:0.8em; border-bottom:2px solid #f1c40f;">MAIN</div>
-      <div class="uie-menu-tab" data-tab="apps" style="flex:1; text-align:center; padding:8px; cursor:pointer; color:#888; font-weight:bold; font-size:0.8em; border-bottom:2px solid transparent;">MISC</div>
-      <div class="uie-menu-tab" data-tab="system" style="flex:1; text-align:center; padding:8px; cursor:pointer; color:#888; font-weight:bold; font-size:0.8em; border-bottom:2px solid transparent;">SYSTEM</div>
+      <div class="uie-menu-tab active" data-tab="main" data-i18n="menu.tab.main" style="flex:1; text-align:center; padding:8px; cursor:pointer; color:#fff; font-weight:bold; font-size:0.8em; border-bottom:2px solid #f1c40f;">MAIN</div>
+      <div class="uie-menu-tab" data-tab="apps" data-i18n="menu.tab.misc" style="flex:1; text-align:center; padding:8px; cursor:pointer; color:#888; font-weight:bold; font-size:0.8em; border-bottom:2px solid transparent;">MISC</div>
+      <div class="uie-menu-tab" data-tab="system" data-i18n="menu.tab.system" style="flex:1; text-align:center; padding:8px; cursor:pointer; color:#888; font-weight:bold; font-size:0.8em; border-bottom:2px solid transparent;">SYSTEM</div>
   </div>
 
   <div id="uie-menu-content" style="padding:10px;">
       <div id="uie-tab-main" class="uie-menu-page" style="display:block;">
           <div class="uie-menu-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-              <button id="uie-btn-inventory" class="uie-menu-btn"><i class="fa-solid fa-box-open"></i><span>Inventory</span></button>
-              <button id="uie-btn-shop" class="uie-menu-btn"><i class="fa-solid fa-shop"></i><span>Shop</span></button>
-              <button id="uie-btn-journal" class="uie-menu-btn"><i class="fa-solid fa-book-journal-whills"></i><span>Journal</span></button>
-              <button id="uie-btn-party" class="uie-menu-btn"><i class="fa-solid fa-users"></i><span>Party</span></button>
-              <button id="uie-btn-diary" class="uie-menu-btn"><i class="fa-solid fa-book"></i><span>Diary</span></button>
-              <button id="uie-btn-social" class="uie-menu-btn"><i class="fa-solid fa-heart" style="color:#e74c3c;"></i><span>Social</span></button>
-              <button id="uie-btn-stats" class="uie-menu-btn"><i class="fa-solid fa-chart-bar"></i><span>Stats</span></button>
-              <button id="uie-btn-activities" class="uie-menu-btn"><i class="fa-solid fa-person-running"></i><span>Activities</span></button>
+              <button id="uie-btn-inventory" class="uie-menu-btn"><i class="fa-solid fa-box-open"></i><span data-i18n="menu.inventory">Inventory</span></button>
+              <button id="uie-btn-shop" class="uie-menu-btn"><i class="fa-solid fa-shop"></i><span data-i18n="menu.shop">Shop</span></button>
+              <button id="uie-btn-journal" class="uie-menu-btn"><i class="fa-solid fa-book-journal-whills"></i><span data-i18n="menu.journal">Journal</span></button>
+              <button id="uie-btn-party" class="uie-menu-btn"><i class="fa-solid fa-users"></i><span data-i18n="menu.party">Party</span></button>
+              <button id="uie-btn-diary" class="uie-menu-btn"><i class="fa-solid fa-book"></i><span data-i18n="menu.diary">Diary</span></button>
+              <button id="uie-btn-social" class="uie-menu-btn"><i class="fa-solid fa-heart" style="color:#e74c3c;"></i><span data-i18n="menu.social">Social</span></button>
+              <button id="uie-btn-stats" class="uie-menu-btn"><i class="fa-solid fa-chart-bar"></i><span data-i18n="menu.stats">Stats</span></button>
+              <button id="uie-btn-activities" class="uie-menu-btn"><i class="fa-solid fa-person-running"></i><span data-i18n="menu.activities">Activities</span></button>
           </div>
       </div>
 
       <div id="uie-tab-apps" class="uie-menu-page" style="display:none;">
           <div class="uie-menu-grid" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-              <button id="uie-btn-open-phone" class="uie-menu-btn"><i class="fa-solid fa-mobile-screen"></i><span>Phone</span></button>
-              <button id="uie-btn-open-map" class="uie-menu-btn"><i class="fa-solid fa-map"></i><span>Map</span></button>
-              <button id="uie-btn-open-world" class="uie-menu-btn"><i class="fa-solid fa-vr-cardboard"></i><span>Reality</span></button>
-              <button id="uie-btn-open-calendar" class="uie-menu-btn"><i class="fa-solid fa-calendar-days"></i><span>Calendar</span></button>
-              <button id="uie-btn-databank" class="uie-menu-btn"><i class="fa-solid fa-server"></i><span>Databank</span></button>
-              <button id="uie-btn-battle" class="uie-menu-btn"><i class="fa-solid fa-skull-crossbones"></i><span>War Room</span></button>
+              <button id="uie-btn-open-phone" class="uie-menu-btn"><i class="fa-solid fa-mobile-screen"></i><span data-i18n="menu.phone">Phone</span></button>
+              <button id="uie-btn-open-map" class="uie-menu-btn"><i class="fa-solid fa-map"></i><span data-i18n="menu.map">Map</span></button>
+              <button id="uie-btn-open-world" class="uie-menu-btn"><i class="fa-solid fa-vr-cardboard"></i><span data-i18n="menu.reality">Reality</span></button>
+              <button id="uie-btn-open-calendar" class="uie-menu-btn"><i class="fa-solid fa-calendar-days"></i><span data-i18n="menu.calendar">Calendar</span></button>
+              <button id="uie-btn-databank" class="uie-menu-btn"><i class="fa-solid fa-server"></i><span data-i18n="menu.databank">Databank</span></button>
+              <button id="uie-btn-battle" class="uie-menu-btn"><i class="fa-solid fa-skull-crossbones"></i><span data-i18n="menu.war_room">War Room</span></button>
           </div>
       </div>
 
       <div id="uie-tab-system" class="uie-menu-page" style="display:none;">
           <div class="uie-menu-grid" style="display:grid; grid-template-columns: 1fr; gap:8px;">
-              <button id="uie-btn-open-settings" class="uie-menu-btn" style="justify-content:flex-start; padding-left:20px;"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
-              <button id="uie-btn-debug" class="uie-menu-btn" style="justify-content:flex-start; padding-left:20px;"><i class="fa-solid fa-bug"></i><span>Debug</span></button>
-              <button id="uie-btn-help" class="uie-menu-btn" style="justify-content:flex-start; padding-left:20px;"><i class="fa-solid fa-circle-question"></i><span>Help / Manual</span></button>
+              <button id="uie-btn-open-settings" class="uie-menu-btn" style="justify-content:flex-start; padding-left:20px;"><i class="fa-solid fa-gear"></i><span data-i18n="menu.settings">Settings</span></button>
+              <button id="uie-btn-debug" class="uie-menu-btn" style="justify-content:flex-start; padding-left:20px;"><i class="fa-solid fa-bug"></i><span data-i18n="menu.debug">Debug</span></button>
+              <button id="uie-btn-help" class="uie-menu-btn" style="justify-content:flex-start; padding-left:20px;"><i class="fa-solid fa-circle-question"></i><span data-i18n="menu.help_manual">Help / Manual</span></button>
           </div>
       </div>
   </div>

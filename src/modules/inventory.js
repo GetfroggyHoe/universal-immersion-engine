@@ -1523,6 +1523,9 @@ export function initInventory() {
       const s = getSettings();
       ensureModel(s);
 
+      const requireConfirm = s?.generation?.requireConfirmUnverified === true;
+      if (requireConfirm && String(item.kind || "") === "item") item.needsUserConfirm = true;
+
       if (item.kind === "skill") {
           if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
           s.inventory.skills.push(item);

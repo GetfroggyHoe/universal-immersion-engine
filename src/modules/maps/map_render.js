@@ -5,9 +5,16 @@ export class MapRenderer {
         // Clean container
         if (this.container) {
             this.container.innerHTML = '';
+            this.root = document.createElement('div');
+            this.root.id = 'uie-map-root';
+            this.root.style.position = 'absolute';
+            this.root.style.left = '0';
+            this.root.style.top = '0';
+            this.root.style.transformOrigin = '0 0';
+            this.container.appendChild(this.root);
             this.canvas = document.createElement('canvas');
             this.canvas.style.display = 'block';
-            this.container.appendChild(this.canvas);
+            this.root.appendChild(this.canvas);
             this.ctx = this.canvas.getContext('2d');
 
             // Icon layer (HTML for easier interaction/styling)
@@ -15,7 +22,7 @@ export class MapRenderer {
             this.iconLayer.style.position = 'absolute';
             this.iconLayer.style.inset = '0';
             this.iconLayer.style.pointerEvents = 'none'; // Allow clicking through to canvas if needed, but icons need events
-            this.container.appendChild(this.iconLayer);
+            this.root.appendChild(this.iconLayer);
         }
 
         this.colors = {
@@ -39,6 +46,12 @@ export class MapRenderer {
         if (!this.canvas) return;
         this.canvas.width = width * this.tileSize;
         this.canvas.height = height * this.tileSize;
+
+        // Keep root sized to content for transform-based pan/zoom
+        if (this.root) {
+            this.root.style.width = `${this.canvas.width}px`;
+            this.root.style.height = `${this.canvas.height}px`;
+        }
         // Keep icon layer synced
         this.iconLayer.style.width = `${this.canvas.width}px`;
         this.iconLayer.style.height = `${this.canvas.height}px`;

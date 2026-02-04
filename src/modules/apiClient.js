@@ -26,7 +26,7 @@ function ensureConfirmModal() {
                             <div id="uie-ai-confirm-model" style="font-weight:800;"></div>
                         </div>
                     </div>
-                    <div style="border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.25);">
+                    <div id="uie-ai-confirm-preview-wrap" style="border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:10px; background:rgba(0,0,0,0.25);">
                         <div style="font-weight:900; opacity:0.85; margin-bottom:6px;">Preview</div>
                         <div id="uie-ai-confirm-preview" style="font-size:12px; opacity:0.9; white-space:pre-wrap; max-height:160px; overflow:auto;"></div>
                     </div>
@@ -444,6 +444,12 @@ async function confirmAICall({ what, providerModel, preview }) {
     $("#uie-ai-confirm-what").text(String(what || "Generation"));
     $("#uie-ai-confirm-model").text(String(providerModel || "Unknown"));
     $("#uie-ai-confirm-preview").text(String(preview || ""));
+    try {
+        const s = getSettings();
+        const show = s?.generation?.showPromptBox === true;
+        $("#uie-ai-confirm-preview-wrap").toggle(!!show);
+        if (!show) $("#uie-ai-confirm-preview").text("");
+    } catch (_) {}
 
     return await new Promise((resolve) => {
         const $m = $("#uie-ai-confirm");
@@ -1224,6 +1230,24 @@ export async function generateContent(prompt, type) {
         return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
     };
 
+    const normalizeWebpageOut = (txt) => {
+        let t = String(txt || "").trim();
+        if (!t) return "";
+        t = t.replace(/```html/gi, "```");
+        t = t.replace(/```/g, "").trim();
+        t = t.replace(/<think[\s\S]*?<\/think>/gi, "");
+        t = t.replace(/<analysis[\s\S]*?<\/analysis>/gi, "");
+        // If the model wrapped the HTML with explanation, try to extract the HTML block.
+        const firstLt = t.indexOf("<");
+        const lastGt = t.lastIndexOf(">");
+        if (firstLt >= 0 && lastGt > firstLt) {
+            const sub = t.slice(firstLt, lastGt + 1).trim();
+            // Heuristic: require at least one tag.
+            if (/<[a-z][\s\S]*?>/i.test(sub)) return sub;
+        }
+        return t;
+    };
+
     let out = null;
     if (useTurbo) {
         const allowCtx = !lockedPrompt && !wantsJson && type !== "Shop";
@@ -1287,10 +1311,6 @@ export async function generateContent(prompt, type) {
                 const err = String(lt?.error || "").trim();
                 notify("warning", `Turbo failed — using Main API fallback.${err ? ` (${err.slice(0, 160)})` : ""}`, "UIE", "api");
             }
-            if (type === "Webpage") {
-                notify("error", "Webpage generation requires Turbo (OpenAI/OpenRouter/local). Main API fallback is disabled to prevent HTML in chat.", "UIE", "api");
-                return null;
-            }
             out = await generateRaw({ prompt: `${system}\n\n${finalPrompt}`, quietToLoud: false, skip_w_info: true });
         } catch (e) {
             try {
@@ -1338,10 +1358,12 @@ export async function generateContent(prompt, type) {
         const issues = Array.isArray(vr?.issues) ? vr.issues : [];
         if (issues.length) console.warn("[UIE] LogicEnforcer issues:", issues);
         const baseOut = String(vr?.text ?? out);
-        if (type !== "Webpage" && !wantsJson) return stripHtmlAndCss(baseOut);
+        if (type === "Webpage") return normalizeWebpageOut(baseOut);
+        if (!wantsJson) return stripHtmlAndCss(baseOut);
         return baseOut;
     } catch (_) {
-        if (type !== "Webpage" && !wantsJson) return stripHtmlAndCss(out);
+        if (type === "Webpage") return normalizeWebpageOut(out);
+        if (!wantsJson) return stripHtmlAndCss(out);
         return out;
     }
     } finally {
