@@ -925,11 +925,7 @@ export async function listTurboModels() {
 
     const key = rawKey ? rawKey.replace(/^bearer\s+/i, "").trim() : "";
     const headers = { "Accept": "application/json", "HTTP-Referer": "https://github.com/SillyTavern/SillyTavern", "X-Title": "UIE" };
-    if (key) {
-        headers.Authorization = `Bearer ${key}`;
-        headers["x-api-key"] = key;
-        headers["api-key"] = key;
-    }
+    if (key) headers.Authorization = `Bearer ${key}`;
 
     const norm = normalizeTurboInputUrl(rawUrl);
     let base;
@@ -950,7 +946,16 @@ export async function listTurboModels() {
     const isNanoGpt = host.includes("nano-gpt.com") || host.includes("nanogpt") || /nano-?gpt/i.test(origin);
     const isNvidia = host.includes("nvidia.com") || /nvidia\.com/i.test(origin);
     const isPollinations = host.includes("pollinations.ai") || /pollinations\.ai/i.test(origin);
+    const isDeepSeek = host.includes("deepseek.com") || /deepseek\.com/i.test(origin);
     if (isOpenRouter) {
+        delete headers["x-api-key"];
+        delete headers["api-key"];
+    }
+    if (key && (isNvidia || isNanoGpt)) {
+        headers["x-api-key"] = key;
+        headers["api-key"] = key;
+    }
+    if (isDeepSeek) {
         delete headers["x-api-key"];
         delete headers["api-key"];
     }
@@ -1403,6 +1408,20 @@ export function initTurboUi() {
             $("#uie-turbo-url").val("https://nano-gpt.com/api/v1");
             s.turbo.url = "https://nano-gpt.com/api/v1";
             notify("success", "Applied NanoGPT preset. Please enter your API Key.", "Turbo API");
+        } else if (val === "deepseek") {
+            $("#uie-turbo-url").val("https://api.deepseek.com/v1");
+            s.turbo.url = "https://api.deepseek.com/v1";
+            $("#uie-turbo-model").val("deepseek-chat");
+            s.turbo.model = "deepseek-chat";
+            try {
+                const sel = $("#uie-turbo-model-select");
+                sel.empty();
+                sel.append(`<option value="deepseek-chat">DeepSeek: deepseek-chat</option>`);
+                sel.append(`<option value="deepseek-reasoner">DeepSeek: deepseek-reasoner</option>`);
+                sel.append(`<option value="__custom__">Custom…</option>`);
+                sel.val("deepseek-chat");
+            } catch (_) {}
+            notify("success", "Applied DeepSeek preset. Please enter your API Key.", "Turbo API");
         } else if (val === "pollinations") {
             $("#uie-turbo-url").val("https://text.pollinations.ai/");
             s.turbo.url = "https://text.pollinations.ai/";
