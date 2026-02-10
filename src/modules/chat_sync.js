@@ -5,17 +5,41 @@ import { notify } from "./notifications.js";
 
 // --- CHAT SYNC MODULE (v4.0) ---
 
+let chatObserver = null;
+let reverseSyncInt = null;
+let chatSyncInited = false;
+
 export function initChatSync() {
+    if (chatSyncInited) return;
+    chatSyncInited = true;
     initInputSync();
     initChatObserver();
     initReverseSync();
     initWandProxy();
 }
 
+export function stopChatSync() {
+    chatSyncInited = false;
+    try {
+        if (chatObserver) chatObserver.disconnect();
+    } catch (_) {}
+    chatObserver = null;
+
+    try {
+        if (reverseSyncInt) clearInterval(reverseSyncInt);
+    } catch (_) {}
+    reverseSyncInt = null;
+}
+
 // A. Input Box (Mirror Logic)
 function initInputSync() {
     const reInput = document.getElementById("re-input-bar");
     if (!reInput) return;
+
+    try {
+        if (reInput.__uieChatSyncInputBound) return;
+        reInput.__uieChatSyncInputBound = true;
+    } catch (_) {}
 
     reInput.addEventListener("keyup", (e) => {
         const stInput = document.getElementById("send_textarea");
@@ -51,7 +75,14 @@ function initChatObserver() {
     // Initial load of last few messages
     syncLastMessages(stChat, reChatLog);
 
-    const observer = new MutationObserver((mutations) => {
+    try {
+        if (chatObserver) chatObserver.disconnect();
+    } catch (_) {}
+
+    chatObserver = new MutationObserver((mutations) => {
+        const s = getSettings();
+        if (s?.realityEngine?.enabled !== true) return;
+
         mutations.forEach((mutation) => {
             if (mutation.addedNodes.length) {
                 mutation.addedNodes.forEach((node) => {
@@ -65,7 +96,7 @@ function initChatObserver() {
         });
     });
 
-    observer.observe(stChat, { childList: true });
+    chatObserver.observe(stChat, { childList: true });
 }
 
 function syncLastMessages(stChat, reChatLog) {
@@ -193,6 +224,11 @@ function initReverseSync() {
 
     if (!stInput || !reInput) return;
 
+    try {
+        if (stInput.__uieChatSyncReverseBound) return;
+        stInput.__uieChatSyncReverseBound = true;
+    } catch (_) {}
+
     // Listen for events
     stInput.addEventListener("input", () => {
         if (document.activeElement !== reInput) {
@@ -202,20 +238,28 @@ function initReverseSync() {
 
     // Polling for programmatic changes (Wand injection)
     let lastVal = stInput.value;
-    setInterval(() => {
+    if (reverseSyncInt) return;
+    reverseSyncInt = setInterval(() => {
+        const s = getSettings();
+        if (s?.realityEngine?.enabled !== true) return;
         if (stInput.value !== lastVal) {
             lastVal = stInput.value;
             if (document.activeElement !== reInput) {
                 reInput.value = stInput.value;
             }
         }
-    }, 200);
+    }, 400);
 }
 
 // D. The Wand Proxy
 function initWandProxy() {
     const reWand = document.getElementById("re-wand-btn");
     if (!reWand) return;
+
+    try {
+        if (reWand.__uieChatSyncWandBound) return;
+        reWand.__uieChatSyncWandBound = true;
+    } catch (_) {}
 
     reWand.addEventListener("click", (e) => {
         e.preventDefault();

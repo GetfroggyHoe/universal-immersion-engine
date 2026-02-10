@@ -117,7 +117,23 @@
     /* When ST UI is shown behind the stage, do NOT let the stage itself eat clicks.
        This fixes blocked clicks on the SillyTavern launcher/system menu. */
     body:not([data-reality-stage="1"]) #reality-stage {
-        pointer-events: none;
+        pointer-events: auto;
+    }
+
+    #re-bg,
+    #re-objects,
+    #re-sprites-layer {
+        transform: none !important;
+    }
+
+    #re-sprites-layer .re-sprite,
+    #re-sprite {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    #reality-stage.re-shake {
+        animation: none !important;
     }
 
     /* Aggressively hide SillyTavern UI elements when stage is active */

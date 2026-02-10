@@ -5,7 +5,7 @@ import { initBackgroundManager } from "./backgrounds.js";
 import { initAtmosphere, updateAtmosphere } from "./atmosphere.js";
 import { updateSpriteStage, initSprites } from "./sprites.js";
 import { initScavenge, initSpriteInteraction, spawnScavengeNodes } from "./interaction.js";
-import { initChatSync } from "./chat_sync.js";
+import { initChatSync, stopChatSync } from "./chat_sync.js";
 import { initNavigation, setNavVisible, refreshNavVisibility } from "./navigation.js";
 import { generateContent } from "./apiClient.js";
 import {
@@ -31,6 +31,30 @@ let reObserver = null;
 let reLastSig = "";
 let reEngine = null;
 let reV3 = null;
+let reModulesInited = false;
+
+function ensureRealityModulesInited() {
+    if (reModulesInited) return;
+    reModulesInited = true;
+
+    try { initBackgroundManager(); } catch (e) { console.error(e); }
+    try { initSprites(); } catch (e) { console.error(e); }
+    try { initAtmosphere(); } catch (e) { console.error(e); }
+    try { initScavenge(); } catch (e) { console.error(e); }
+    try { initSpriteInteraction(); } catch (e) { console.error(e); }
+    import("./interaction.js").then(m => m.initBackgroundInteraction?.()).catch(console.error);
+    try { initGestures(); } catch (e) { console.error(e); }
+    try { initRuneCasting(); } catch (e) { console.error(e); }
+    try { initLockpicking(); } catch (e) { console.error(e); }
+    try { initScratchCard(); } catch (e) { console.error(e); }
+    try { initSensory(); } catch (e) { console.error(e); }
+    try { initInputAssist(); } catch (e) { console.error(e); }
+    try { initTrophies(); } catch (e) { console.error(e); }
+    try { initHaptics(); } catch (e) { console.error(e); }
+    try { initVisualPhysics(); } catch (e) { console.error(e); }
+    try { initSimulation(); } catch (e) { console.error(e); }
+    try { initMods(); } catch (e) { console.error(e); }
+}
 
 async function ensureRealityV3() {
     if (reV3) return reV3;
@@ -194,9 +218,26 @@ function setStageEnabled(enabled) {
     ensureReality(s);
     if (s.realityEngine.comingSoon === true) enabled = false;
     if (enabled) {
+        try { ensureRealityModulesInited(); } catch (_) {}
+        try { initChatSync(); } catch (_) {}
         // IMPORTANT: CSS handles layout changes now.
         // We toggle 'display' but the children are 'fixed'
         el.style.display = "block";
+
+        try {
+            const wrap = document.getElementById("re-composer-wrap");
+            if (wrap) {
+                wrap.style.display = "flex";
+                wrap.style.visibility = "visible";
+                wrap.style.opacity = "1";
+            }
+            const ui = document.getElementById("re-user-input");
+            if (ui) {
+                ui.style.display = "block";
+                ui.style.visibility = "visible";
+                ui.style.opacity = "1";
+            }
+        } catch (_) {}
 
         try { document.getElementById("re-bg")?.style && (document.getElementById("re-bg").style.backgroundImage = ""); } catch (_) {}
         if (s.realityEngine.ui?.hideStUi !== false) document.body.dataset.realityStage = "1";
@@ -204,6 +245,11 @@ function setStageEnabled(enabled) {
     } else {
         el.style.display = "none";
         delete document.body.dataset.realityStage;
+        try {
+            if (reObserver) reObserver.disconnect();
+        } catch (_) {}
+        reObserver = null;
+        try { stopChatSync(); } catch (_) {}
         try { document.getElementById("re-bg")?.style && (document.getElementById("re-bg").style.backgroundImage = ""); } catch (_) {}
         try { const m = document.getElementById("re-st-menu"); if (m) m.style.display = "none"; } catch (_) {}
         try { const f = document.getElementById("re-forge-modal"); if (f) f.style.display = "none"; } catch (_) {}
@@ -681,7 +727,7 @@ class RealityEngine {
 
         // Multi-scene / Map Detection
         if (/(?:entire|full|whole)\s+map|castle\s+layout|home\s+layout|multiple\s+scenes/i.test(text)) {
-            if (empty) empty.textContent = "Generating map layout (structure only)...";
+            if (empty) empty.textContent = "Map generating";
             if (imgEl) imgEl.style.display = "none";
 
             try {
@@ -1767,25 +1813,7 @@ export function initWorld() {
 
     $(document).off("click.world");
 
-    // --- INITIALIZE NEW MODULES ---
-    try { initBackgroundManager(); } catch (e) { console.error(e); }
-    try { initSprites(); } catch (e) { console.error(e); }
-    try { initAtmosphere(); } catch (e) { console.error(e); }
-    try { initScavenge(); } catch (e) { console.error(e); }
-    try { initSpriteInteraction(); } catch (e) { console.error(e); }
-    import("./interaction.js").then(m => m.initBackgroundInteraction?.()).catch(console.error);
-    try { initGestures(); } catch (e) { console.error(e); }
-    try { initRuneCasting(); } catch (e) { console.error(e); }
-    try { initLockpicking(); } catch (e) { console.error(e); }
-    try { initScratchCard(); } catch (e) { console.error(e); }
-    try { initSensory(); } catch (e) { console.error(e); }
-    try { initInputAssist(); } catch (e) { console.error(e); }
-    try { initTrophies(); } catch (e) { console.error(e); }
-    try { initHaptics(); } catch (e) { console.error(e); }
-    try { initVisualPhysics(); } catch (e) { console.error(e); }
-    try { initSimulation(); } catch (e) { console.error(e); }
-    try { initMods(); } catch (e) { console.error(e); }
-    // ------------------------------
+    // Heavy Reality modules are lazy-initialized when the projector is enabled.
 
     const render = () => {
         const s2 = getSettings();

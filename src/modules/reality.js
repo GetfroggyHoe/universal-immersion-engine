@@ -836,6 +836,16 @@ export const physics = new VisualPhysics();
 export function initVisualPhysics() {
     if (initVisualPhysics._inited) return;
     initVisualPhysics._inited = true;
+    try {
+        const isMobileNow = () => {
+            try { return window.matchMedia("(max-width: 768px), (pointer: coarse)").matches; } catch (_) {}
+            return false;
+        };
+        if (isMobileNow()) {
+            physics.parallax.enabled = false;
+            return;
+        }
+    } catch (_) {}
     physics.init();
 }
 

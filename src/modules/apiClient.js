@@ -733,17 +733,18 @@ async function fetchWithCorsProxyFallback(targetUrl, options) {
         let lastErr = e;
         const tryServerForward = async (endpoint) => {
             try {
-                const hdr = new Headers(options?.headers || {});
+                const targetHdr = new Headers(options?.headers || {});
+                const hdr = new Headers();
                 hdr.set("Content-Type", "application/json");
                 const payload = {
                     url: String(targetUrl || ""),
                     method: String(options?.method || "GET"),
-                    headers: Object.fromEntries(hdr.entries()),
+                    headers: Object.fromEntries(targetHdr.entries()),
                     body: options?.body ?? null
                 };
                 const tok = await getCsrfToken();
                 if (tok && !hdr.has("X-CSRF-Token")) hdr.set("X-CSRF-Token", tok);
-                const r = await fetch(String(endpoint || ""), { method: "POST", headers: hdr, body: JSON.stringify(payload) });
+                const r = await fetch(String(endpoint || ""), { method: "POST", headers: hdr, body: JSON.stringify(payload), credentials: "same-origin" });
                 if (!r.ok) return null;
                 return r;
             } catch (_) {

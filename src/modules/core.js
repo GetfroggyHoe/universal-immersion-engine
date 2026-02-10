@@ -26,7 +26,14 @@ function applyMirrorToCurrent(data) {
             window.extension_settings[EXT_ID] = {};
         }
         const current = window.extension_settings[EXT_ID];
-        if (hasUserData(current)) return false;
+        try {
+            const curAt = Number(current?.__uie_saved_at || 0) || 0;
+            const mirAt = Number(data?.__uie_saved_at || 0) || 0;
+            if (hasUserData(current) && mirAt > 0 && curAt > 0 && mirAt <= curAt + 250) return false;
+            if (hasUserData(current) && mirAt <= 0) return false;
+        } catch (_) {
+            if (hasUserData(current)) return false;
+        }
         for (const k of Object.keys(current)) delete current[k];
         for (const [k, v] of Object.entries(data)) current[k] = v;
 
@@ -106,6 +113,9 @@ function kickMirrorIdbLoad() {
                 const rec = await mirrorDbGet();
                 const data = rec?.data;
                 if (isNonEmptyObject(data)) {
+                    try {
+                        if (!Number(data.__uie_saved_at) && Number(rec?.at || 0)) data.__uie_saved_at = Number(rec.at || 0) || Date.now();
+                    } catch (_) {}
                     mirrorIdbCache = { at: Number(rec?.at || 0) || 0, data };
                     try { localStorage.setItem(MIRROR_IDB_FLAG_KEY, String(mirrorIdbCache.at || Date.now())); } catch (_) {}
                     try { applyMirrorToCurrent(mirrorIdbCache.data); } catch (_) {}
@@ -361,14 +371,33 @@ function restoreFromMirrorIfEmpty() {
         if (!window.extension_settings) window.extension_settings = {};
         if (!window.extension_settings[EXT_ID]) window.extension_settings[EXT_ID] = {};
         const current = window.extension_settings[EXT_ID];
-        if (hasUserData(current)) return;
 
         const payload = readMirrorPayload();
         const data = payload?.data;
         if (!isNonEmptyObject(data)) return;
 
+        try {
+            const curAt = Number(current?.__uie_saved_at || 0) || 0;
+            const mirAt = Number(payload?.at || data?.__uie_saved_at || 0) || 0;
+            if (hasUserData(current) && mirAt > 0 && curAt > 0 && mirAt <= curAt + 250) return;
+            if (hasUserData(current) && mirAt <= 0) return;
+        } catch (_) {
+            if (hasUserData(current)) return;
+        }
+
         for (const k of Object.keys(current)) delete current[k];
         for (const [k, v] of Object.entries(data)) current[k] = v;
+
+        try {
+            setTimeout(() => {
+                try { window.UIE_refreshStateSaves?.(); } catch (_) {}
+                try {
+                    const event = new CustomEvent("uie:state_updated", { detail: { mirror: true } });
+                    window.dispatchEvent(event);
+                } catch (_) {}
+                try { updateLayout(); } catch (_) {}
+            }, 0);
+        } catch (_) {}
     } catch (_) {}
 }
 
@@ -412,6 +441,7 @@ export function saveSettings() {
     const context = getContext();
     if (!isPersistentSettingsReady()) {
         bootstrapTouched = true;
+        try { if (bootstrapSettings && typeof bootstrapSettings === "object") bootstrapSettings.__uie_saved_at = Date.now(); } catch (_) {}
         try { writeMirrorFrom(bootstrapSettings); } catch (_) {}
         if (!saveRetryScheduled) {
             saveRetryScheduled = true;
@@ -429,7 +459,10 @@ export function saveSettings() {
     try { live = getSettings(); } catch (_) { live = null; }
     try { window.UIE_backupMaybe?.(); } catch (_) {}
     try {
-        if (live && typeof live === "object") writeMirrorFrom(live);
+        if (live && typeof live === "object") {
+            try { live.__uie_saved_at = Date.now(); } catch (_) {}
+            writeMirrorFrom(live);
+        }
         else writeMirror();
     } catch (_) {}
     if (window.saveSettingsDebounced) {

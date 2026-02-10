@@ -97,8 +97,15 @@
 #uie-activities-window > .uie-sim-content {
     order: 2 !important;
     flex: 1 !important;
-    overflow-y: auto !important;
+    overflow-y: visible !important;
     width: 100% !important;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+    #uie-stats-window > .uie-rpg-content,
+    #uie-activities-window > .uie-sim-content {
+        overflow-y: auto !important;
+    }
 }
 
 /* Override any side panel styles */

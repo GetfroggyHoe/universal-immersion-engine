@@ -1,7 +1,11 @@
-
-import { getSettings, saveSettings, updateLayout, isMobileUI } from "./core.js";
-import { injectRpEvent } from "./features/rp_log.js";
+import { getSettings, saveSettings, isMobileUI, updateLayout } from "./core.js";
+import { initDragging } from "./dragging.js";
+import { initBattle } from "./battle.js";
+import { init as initInventory } from "./features/items.js";
+import { initShop } from "./shop.js";
 import { notify } from "./notifications.js";
+
+let uieMenuTabSwitchedAt = 0;
 
 async function ensureSettingsWindowLoaded() {
     try {
@@ -16,6 +20,7 @@ async function ensureSettingsWindowLoaded() {
                 const v = Number(window.UIE_BUILD);
                 if (Number.isFinite(v) && v > 0) return v;
             } catch (_) {}
+
             return Date.now();
         })();
 
@@ -934,6 +939,7 @@ function initMenuButtons() {
 
     // Inventory
     $menu.off("click.uieMenuInv").on("click.uieMenuInv", "#uie-btn-inventory", function() {
+        if (Date.now() - Number(uieMenuTabSwitchedAt || 0) < 350) return false;
         openWindow("#uie-inventory-window");
         // Ensure items tab is active by default if not set
         const root = document.getElementById("uie-inventory-window");
@@ -1088,6 +1094,7 @@ function initMenuTabs() {
             return;
         }
 
+        uieMenuTabSwitchedAt = Date.now();
         const tab = $(this).data("tab");
         const target = $("#uie-tab-" + tab);
         if (!target.length) return;
@@ -1098,6 +1105,17 @@ function initMenuTabs() {
         $(".uie-menu-page").hide();
         target.show();
     });
+
+    // Guard against mobile click-through: the tab touch can synthesize a click on the
+    // newly-shown first button (Inventory). Block button clicks briefly after a tab switch.
+    $(document)
+        .off("click.uieMenuTabGuard pointerup.uieMenuTabGuard", "#uie-main-menu button")
+        .on("click.uieMenuTabGuard pointerup.uieMenuTabGuard", "#uie-main-menu button", function(e) {
+            if (Date.now() - Number(uieMenuTabSwitchedAt || 0) < 350) {
+                try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch (_) {}
+                return false;
+            }
+        });
 
     // Settings Tabs Logic
     const $settingsTabs = $("#uie-settings-tabs");

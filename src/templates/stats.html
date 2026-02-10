@@ -11,8 +11,10 @@
             left: 15vw;
             transform: none;
             width: min(500px, 80vw);
-            height: min(600px, 70vh);
+            height: auto;
+            max-height: 90vh;
             position: fixed;
+            overflow: auto !important;
         }
 
         /* Full menu on desktop, normal size on mobile */
@@ -24,6 +26,12 @@
                 max-width: 91vw;
                 height: 87vh;
                 max-height: 87vh;
+            }
+
+            .uie-rpg-content,
+            #uie-stats-window > .uie-rpg-content {
+                overflow-y: auto !important;
+                height: calc(100% - 50px) !important;
             }
         }
 
@@ -103,8 +111,8 @@
         .uie-rpg-content,
         #uie-stats-window > .uie-rpg-content {
             padding: 15px !important;
-            overflow-y: auto !important;
-            height: calc(100% - 50px) !important;
+            overflow-y: visible !important;
+            height: auto !important;
             background-image: url("https://files.catbox.moe/k6bhpb.jpg") !important; /* Subtle texture */
             background-blend-mode: overlay !important;
             background-color: rgba(20,20,25,0.95) !important;

@@ -9,6 +9,7 @@ let callTimerInt = null;
 let activeContact = null; // Tracks who we are texting
 let dialBuf = "";
 let chatClock = null;
+let phoneClockInt = null;
 let arrivalObserver = null;
 let arrivalLastMesId = null;
 let callChatContext = "";
@@ -237,6 +238,7 @@ function syncToMainChat(actionDescription) {
 
 export function initPhone() {
     const $win = $("#uie-phone-window");
+    if (!$win.length) return;
     $win.off("click.phone change.phone input.phone keypress.phone");
     $(document).off("click.phone change.phone input.phone keypress.phone");
 
@@ -246,8 +248,17 @@ export function initPhone() {
         const wasVisible = $p.is(":visible");
         $p.fadeToggle(200);
         if (!wasVisible) {
+            try {
+                if (typeof updateClock === "function") updateClock();
+                if (phoneClockInt) clearInterval(phoneClockInt);
+                phoneClockInt = setInterval(updateClock, 15000);
+            } catch (_) {}
             try { window.UIE_navPush?.("win:#uie-phone-window"); } catch (_) {}
         } else {
+            try {
+                if (phoneClockInt) clearInterval(phoneClockInt);
+                phoneClockInt = null;
+            } catch (_) {}
             try { window.UIE_navPop?.(); } catch (_) {}
         }
     });
@@ -319,8 +330,13 @@ export function initPhone() {
         }
         $(".uie-phone-date").text(date);
     };
-    updateClock();
-    setInterval(updateClock, 15000);
+    try {
+        if ($win.is(":visible")) {
+            updateClock();
+            if (phoneClockInt) clearInterval(phoneClockInt);
+            phoneClockInt = setInterval(updateClock, 15000);
+        }
+    } catch (_) {}
 
     const getChatSnippet = (n = 20) => {
         try {

@@ -11,8 +11,10 @@
             left: 15vw;
             transform: none;
             width: min(500px, 80vw);
-            height: min(600px, 70vh);
+            height: auto;
+            max-height: 90vh;
             position: fixed;
+            overflow: auto !important;
         }
 
         /* Full menu on desktop, normal size on mobile */
@@ -24,6 +26,12 @@
                 max-width: 91vw;
                 height: 87vh;
                 max-height: 87vh;
+            }
+
+            .uie-sim-content,
+            #uie-activities-window > .uie-sim-content {
+                overflow-y: auto !important;
+                height: calc(100% - 50px) !important;
             }
         }
 
@@ -104,8 +112,8 @@
         .uie-sim-content,
         #uie-activities-window > .uie-sim-content {
             padding: 15px !important;
-            height: calc(100% - 50px) !important;
-            overflow-y: auto !important;
+            height: auto !important;
+            overflow-y: visible !important;
             background: #1e1e24 !important;
             /* Optional bg pattern */
             background-image: radial-gradient(#2a2a35 1px, transparent 1px) !important;

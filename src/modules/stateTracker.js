@@ -6,6 +6,122 @@ import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusF
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 import { safeJsonParseObject } from "./jsonUtil.js";
 
+function cloneJsonSafe(v) {
+    try {
+        return JSON.parse(JSON.stringify(v));
+    } catch (_) {
+        return null;
+    }
+}
+
+function ensureUndoStore() {
+    try {
+        const w = typeof window !== "undefined" ? window : globalThis;
+        if (!w.UIE_scanUndo) w.UIE_scanUndo = { byMesId: {}, lastMesId: null };
+        if (!w.UIE_scanUndo.byMesId || typeof w.UIE_scanUndo.byMesId !== "object") w.UIE_scanUndo.byMesId = {};
+        return w.UIE_scanUndo;
+    } catch (_) {
+        return { byMesId: {}, lastMesId: null };
+    }
+}
+
+function readUndoMesIdFromArgs(args) {
+    try {
+        const v = args && args.length ? args[0] : null;
+        const n = Number(v);
+        if (Number.isFinite(n) && n >= 0) return n;
+    } catch (_) {}
+    return null;
+}
+
+function fingerprintChatMessage(m) {
+    try {
+        if (!m || typeof m !== "object") return "";
+        const name = String(m.name ?? "");
+        const isUser = m.is_user ? "1" : "0";
+        const send = String(m.send_date ?? "");
+        const mes = String(m.mes ?? "");
+        const head = mes.length > 240 ? mes.slice(0, 240) : mes;
+        const tail = mes.length > 240 ? mes.slice(-120) : "";
+        return `${isUser}|${name}|${send}|${mes.length}|${head}|${tail}`;
+    } catch (_) {
+        return "";
+    }
+}
+
+function readChatTailFingerprint() {
+    try {
+        const w = typeof window !== "undefined" ? window : globalThis;
+        const arr = Array.isArray(w?.chat) ? w.chat : null;
+        if (!arr || !arr.length) return "";
+        return fingerprintChatMessage(arr[arr.length - 1]);
+    } catch (_) {
+        return "";
+    }
+}
+
+function snapshotScanTouchedState(s) {
+    const keys = [
+        "worldState",
+        "inventory",
+        "currency",
+        "currencySymbol",
+        "currencyRate",
+        "hp",
+        "maxHp",
+        "mp",
+        "maxMp",
+        "life",
+        "character",
+        "quests",
+        "journal",
+        "databank",
+        "phone",
+        "social",
+        "socialMeta",
+        "party",
+        "battle",
+    ];
+    const out = {};
+    for (const k of keys) {
+        if (k in s) out[k] = cloneJsonSafe(s[k]);
+    }
+    return out;
+}
+
+function restoreSnapshotIntoSettings(s, snap) {
+    const keys = [
+        "worldState",
+        "inventory",
+        "currency",
+        "currencySymbol",
+        "currencyRate",
+        "hp",
+        "maxHp",
+        "mp",
+        "maxMp",
+        "life",
+        "character",
+        "quests",
+        "journal",
+        "databank",
+        "phone",
+        "social",
+        "socialMeta",
+        "party",
+        "battle",
+    ];
+    for (const k of keys) {
+        if (Object.prototype.hasOwnProperty.call(snap, k)) {
+            const v = cloneJsonSafe(snap[k]);
+            if (v === null || v === undefined) delete s[k];
+            else s[k] = v;
+        } else {
+            try { delete s[k]; } catch (_) {}
+        }
+    }
+}
+
 /**
  * Ensures the state tracking object exists.
  */
@@ -24,6 +140,38 @@ function ensureState(s) {
     if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
     if (!s.character) s.character = {};
     if (!Array.isArray(s.character.statusEffects)) s.character.statusEffects = [];
+}
+
+function readChatSig() {
+    try {
+        let count = 0;
+        let lastId = "";
+        try {
+            const w = typeof window !== "undefined" ? window : globalThis;
+            if (Array.isArray(w?.chat) && w.chat.length) {
+                count = w.chat.length;
+                const last = w.chat[w.chat.length - 1] || null;
+                lastId = String(last?.mesId ?? last?.mesid ?? last?.id ?? "");
+                return { count, lastId };
+            }
+        } catch (_) {}
+
+        const chatEl = document.getElementById("chat");
+        if (!chatEl) return { count: 0, lastId: "" };
+        const nodes = chatEl.querySelectorAll(".mes");
+        count = nodes.length;
+        const last = nodes[nodes.length - 1] || null;
+        if (last) {
+            lastId =
+                String(last.getAttribute?.("mesid") || "") ||
+                String(last.dataset?.mesId || "") ||
+                String(last.getAttribute?.("data-mes-id") || "") ||
+                String(last.getAttribute?.("data-id") || "");
+        }
+        return { count, lastId };
+    } catch (_) {
+        return { count: 0, lastId: "" };
+    }
 }
 
 function clamp(n, min, max) {
@@ -128,6 +276,22 @@ export async function scanEverything(opts = {}) {
     const force = !!opts?.force;
     if (!force && s.generation?.scanAllEnabled === false) return;
     ensureState(s);
+
+    const sourceMesId = (() => {
+        const n = Number(opts?.sourceMesId);
+        return Number.isFinite(n) && n >= 0 ? n : null;
+    })();
+
+    const undo = ensureUndoStore();
+    try {
+        const sig = readChatSig();
+        undo.lastChatLen = Number(sig?.count || 0) || 0;
+        undo.lastChatTailFp = readChatTailFingerprint();
+    } catch (_) {}
+    if (sourceMesId !== null && !undo.byMesId[String(sourceMesId)]) {
+        undo.byMesId[String(sourceMesId)] = { before: snapshotScanTouchedState(s), at: Date.now() };
+    }
+
     const gate = (() => {
         try {
             const g = (window.UIE_scanEverythingGate = window.UIE_scanEverythingGate || { inFlight: false, lastAt: 0 });
@@ -703,6 +867,10 @@ ${chatSnippet}
 
         if (needsSave) {
             commitStateUpdate({ save: true, layout: true, emit: true });
+            if (sourceMesId !== null) {
+                const u = ensureUndoStore();
+                u.lastMesId = sourceMesId;
+            }
         }
 
     } catch (e) {
@@ -738,18 +906,65 @@ export function initAutoScanning() {
         if (!src || !types) return;
 
         let t = null;
-        const trigger = () => {
+        const trigger = (...args) => {
             try {
                 const s = getSettings();
                 if (!s || s.enabled === false) return;
                 if (s.generation?.scanAllEnabled === false) return;
                 if (s.generation?.scanOnlyOnGenerateButtons === true) return;
             } catch (_) {}
+            const mesId = readUndoMesIdFromArgs(args);
+
+            try {
+                const u = ensureUndoStore();
+                const sig = readChatSig();
+                u.lastChatLen = Number(sig?.count || 0) || 0;
+                u.lastChatTailFp = readChatTailFingerprint();
+            } catch (_) {}
+
             if (t) clearTimeout(t);
-            t = setTimeout(() => { scanEverything().catch(() => {}); }, 400);
+            t = setTimeout(() => { scanEverything({ sourceMesId: mesId }).catch(() => {}); }, 400);
         };
 
         src.on(types.MESSAGE_RECEIVED, trigger);
         src.on(types.GENERATION_ENDED, trigger);
+
+        src.on(types.MESSAGE_DELETED, () => {
+            try {
+                const u = ensureUndoStore();
+                const prevLen = Number(u.lastChatLen || 0) || 0;
+                const prevTailFp = String(u.lastChatTailFp || "");
+
+                const sig = readChatSig();
+                const curLen = Number(sig?.count || 0) || 0;
+                const curTailFp = readChatTailFingerprint();
+
+                const looksLikeSingleDeletion = prevLen > 0 && curLen >= 0 && prevLen === curLen + 1;
+                const tailChanged = prevTailFp && curTailFp !== prevTailFp;
+
+                if (looksLikeSingleDeletion && tailChanged) {
+                    const deletedIndex = curLen; // when last message is deleted, the old last index equals new length
+                    const last = Number(u.lastMesId);
+                    if (Number.isFinite(last) && last === deletedIndex) {
+                        const rec = u.byMesId[String(deletedIndex)];
+                        if (rec && rec.before && typeof rec.before === "object") {
+                            const s2 = getSettings();
+                            restoreSnapshotIntoSettings(s2, rec.before);
+                            delete u.byMesId[String(deletedIndex)];
+                            u.lastMesId = null;
+                            commitStateUpdate({ save: true, layout: true, emit: true, undo: true, mesId: deletedIndex });
+                        }
+                    }
+                } else {
+                    // Middle deletions shift indices; without the deleted ID we can't safely undo.
+                    // Clear undo buffer to avoid restoring the wrong snapshot later.
+                    u.byMesId = {};
+                    u.lastMesId = null;
+                }
+
+                u.lastChatLen = curLen;
+                u.lastChatTailFp = curTailFp;
+            } catch (_) {}
+        });
     } catch (_) {}
 }
