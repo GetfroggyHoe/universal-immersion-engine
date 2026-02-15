@@ -2,6 +2,8 @@ import { getSettings, saveSettings } from "../core.js";
 
 let deleteMode = false;
 let selected = new Set();
+let editingIndex = -1;
+let modalClickLock = 0;
 
 const DEFAULT_TEMPLATE =
 `LIFE TRACKING (JSON ONLY)
@@ -39,14 +41,52 @@ function pct(cur, max) {
 
 /** ✅ Portal modals to <body> so they overlay the shell (not behind / clipped) */
 function portalModalsToBody() {
-  const ids = ["#life-modal-create", "#life-modal-template"];
+  const ids = ["#life-modal-create", "#life-modal-template", "#life-modal-edit"];
   for (const sel of ids) {
-    const el = document.querySelector(sel);
-    if (!el) continue;
-    if (el.dataset.uiePortaled === "1") continue;
-    document.body.appendChild(el);
-    el.dataset.uiePortaled = "1";
+    // 1. Try to find the element ANYWHERE in the document
+    let el = document.querySelector(sel);
+    
+    // 2. If found, but it's inside #uie-view-life, move it to body
+    // If not found, it might be that querySelector missed it inside a shadow root or something (unlikely here)
+    // or it hasn't been rendered yet.
+    
+    if (el) {
+        if (el.parentNode !== document.body) {
+            document.body.appendChild(el);
+            el.dataset.uiePortaled = "1";
+        }
+        // If duplicate IDs exist from repeated template mounts, keep the first one only.
+        const dups = document.querySelectorAll(sel);
+        if (dups.length > 1) {
+          for (let i = 1; i < dups.length; i++) {
+            try { dups[i].remove(); } catch (_) {}
+          }
+        }
+    } else {
+        // Fallback: Look specifically inside the view container
+        const container = document.getElementById("uie-view-life");
+        if (container) {
+            el = container.querySelector(sel);
+            if (el) {
+                document.body.appendChild(el);
+                el.dataset.uiePortaled = "1";
+                const dups = document.querySelectorAll(sel);
+                if (dups.length > 1) {
+                  for (let i = 1; i < dups.length; i++) {
+                    try { dups[i].remove(); } catch (_) {}
+                  }
+                }
+            }
+        }
+    }
   }
+}
+
+function gateModalClick(ms = 220) {
+  const now = Date.now();
+  if (now - modalClickLock < ms) return false;
+  modalClickLock = now;
+  return true;
 }
 
 function render() {
@@ -112,15 +152,16 @@ function render() {
 
 function openCreate() {
   portalModalsToBody();
+  editingIndex = -1;
   $("#life-create-name").val("");
   $("#life-create-color").val("#89b4fa");
   $("#life-create-current").val(0);
   $("#life-create-max").val(100);
   $("#life-create-notes").val("");
-  $("#life-modal-create").css("display", "flex");
+  $("body > #life-modal-create, #life-modal-create").first().css("display", "flex");
 }
 
-function closeCreate() { $("#life-modal-create").hide(); }
+function closeCreate() { $("body > #life-modal-create, #life-modal-create").hide(); }
 
 function openTemplate() {
   const s = getSettings();
@@ -128,10 +169,10 @@ function openTemplate() {
   ensureLife(s);
   portalModalsToBody();
   $("#life-template-text").val(s.life.ai.template || DEFAULT_TEMPLATE);
-  $("#life-modal-template").css("display", "flex");
+  $("body > #life-modal-template, #life-modal-template").first().css("display", "flex");
 }
 
-function closeTemplate() { $("#life-modal-template").hide(); }
+function closeTemplate() { $("body > #life-modal-template, #life-modal-template").hide(); }
 
 function createTrackerFromModal() {
   const s = getSettings();
@@ -144,7 +185,12 @@ function createTrackerFromModal() {
   const max = clamp($("#life-create-max").val(), 0, 999999);
   const notes = String($("#life-create-notes").val() || "").slice(0, 800);
 
-  s.life.trackers.push({ name, color, current: cur, max, notes });
+  if (editingIndex >= 0 && s.life.trackers[editingIndex]) {
+      s.life.trackers[editingIndex] = { name, color, current: cur, max, notes };
+  } else {
+      s.life.trackers.push({ name, color, current: cur, max, notes });
+  }
+  
   saveSettings(s);
 
   closeCreate();
@@ -211,39 +257,56 @@ function saveSettingssafes(s){ saveSafe(s); }
 function saveSettingssafe(s){ saveSafe(s); }
 
 export function init() {
-  portalModalsToBody();
+  // CRITICAL FIX: Do NOT remove existing modals from body if they are already there.
+  // The view template is only loaded ONCE. If we move modals to body, they leave the view.
+  // If we delete them from body here, they are gone forever because the view won't reload the HTML.
+  
+  const ids = ["#life-modal-create", "#life-modal-template", "#life-modal-edit"];
+  const missing = ids.some(id => !document.querySelector(`body > ${id}`));
+  
+  if (missing) {
+      // Only try to portal if we are missing pieces.
+      // This happens on first load (they are in view, not body).
+      portalModalsToBody();
+      setTimeout(portalModalsToBody, 50);
+  }
+
   render();
   updateDeleteUi();
 
-  $(document)
+  // Re-bind document events (safe to call multiple times as we use .off)
+  // CRITICAL: We bind to BODY because the modals are now direct children of BODY.
+  const $body = $("body");
+
+  $body
     .off("click.uieLifeAdd", "#life-btn-add")
     .on("click.uieLifeAdd", "#life-btn-add", (e) => {
       e.preventDefault(); e.stopPropagation();
       openCreate();
     });
 
-  $(document)
+  $body
     .off("click.uieLifeTrash", "#life-btn-trash")
     .on("click.uieLifeTrash", "#life-btn-trash", (e) => {
       e.preventDefault(); e.stopPropagation();
       toggleDeleteMode(!deleteMode);
     });
 
-  $(document)
+  $body
     .off("click.uieLifeDelCancel", "#life-btn-cancel-delete")
     .on("click.uieLifeDelCancel", "#life-btn-cancel-delete", (e) => {
       e.preventDefault(); e.stopPropagation();
       toggleDeleteMode(false);
     });
 
-  $(document)
+  $body
     .off("click.uieLifeDelGo", "#life-btn-delete")
     .on("click.uieLifeDelGo", "#life-btn-delete", (e) => {
       e.preventDefault(); e.stopPropagation();
       deleteSelected();
     });
 
-  $(document)
+  $body
     .off("click.uieLifeTpl", "#life-btn-template")
     .on("click.uieLifeTpl", "#life-btn-template", (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -251,36 +314,47 @@ export function init() {
     });
 
   // Create modal controls
-  $(document)
-    .off("click.uieLifeCreateClose", "#life-create-close, #life-create-cancel")
-    .on("click.uieLifeCreateClose", "#life-create-close, #life-create-cancel", (e) => {
+  $body
+    .off("pointerup.uieLifeCreateClose click.uieLifeCreateClose", "#life-create-close, #life-create-cancel")
+    .on("pointerup.uieLifeCreateClose click.uieLifeCreateClose", "#life-create-close, #life-create-cancel", (e) => {
+      if (!gateModalClick()) return;
       e.preventDefault(); e.stopPropagation();
       closeCreate();
     });
 
-  $(document)
-    .off("click.uieLifeCreateSave", "#life-create-save")
-    .on("click.uieLifeCreateSave", "#life-create-save", (e) => {
+  $body
+    .off("pointerup.uieLifeCreateSave click.uieLifeCreateSave", "#life-create-save")
+    .on("pointerup.uieLifeCreateSave click.uieLifeCreateSave", "#life-create-save", (e) => {
+      if (!gateModalClick()) return;
       e.preventDefault(); e.stopPropagation();
+      
+      // Validation check
+      const name = $("#life-create-name").val();
+      if (!name) {
+          alert("Please enter a name for the tracker.");
+          return;
+      }
+      
       createTrackerFromModal();
     });
 
   // Template modal controls
-  $(document)
-    .off("click.uieLifeTplClose", "#life-template-close")
-    .on("click.uieLifeTplClose", "#life-template-close", (e) => {
+  $body
+    .off("pointerup.uieLifeTplClose click.uieLifeTplClose", "#life-template-close")
+    .on("pointerup.uieLifeTplClose click.uieLifeTplClose", "#life-template-close", (e) => {
+      if (!gateModalClick()) return;
       e.preventDefault(); e.stopPropagation();
       closeTemplate();
     });
 
-  $(document)
+  $body
     .off("click.uieLifeTplReset", "#life-template-reset")
     .on("click.uieLifeTplReset", "#life-template-reset", (e) => {
       e.preventDefault(); e.stopPropagation();
       $("#life-template-text").val(DEFAULT_TEMPLATE);
     });
 
-  $(document)
+  $body
     .off("click.uieLifeTplSave", "#life-template-save")
     .on("click.uieLifeTplSave", "#life-template-save", (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -292,9 +366,57 @@ export function init() {
       saveSafe(s);
       closeTemplate();
     });
+    
+  // Edit modal controls
+  $body
+    .off("pointerup.uieLifeEditClose click.uieLifeEditClose", "#life-edit-close")
+    .on("pointerup.uieLifeEditClose click.uieLifeEditClose", "#life-edit-close", (e) => {
+        if (!gateModalClick()) return;
+        e.preventDefault(); e.stopPropagation();
+        $("#life-modal-edit").hide();
+    });
+    
+  $body
+    .off("click.uieLifeEditSave", "#life-edit-save")
+    .on("click.uieLifeEditSave", "#life-edit-save", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        
+        const s = getSettings();
+        if (!s || editingIndex < 0 || !s.life.trackers[editingIndex]) return;
+        
+        const name = String($("#life-edit-name").val() || "Tracker").slice(0, 60);
+        const color = String($("#life-edit-color").val() || "#89b4fa");
+        const cur = clamp($("#life-edit-current").val(), -999999, 999999);
+        const max = clamp($("#life-edit-max").val(), 0, 999999);
+        const notes = String($("#life-edit-notes").val() || "").slice(0, 800);
+        
+        s.life.trackers[editingIndex] = { name, color, current: cur, max, notes };
+        saveSettings(s);
+        
+        $("#life-modal-edit").hide();
+        render();
+        $(document).trigger("uie:updateVitals");
+    });
+    
+  $body
+    .off("click.uieLifeEditDel", "#life-edit-delete")
+    .on("click.uieLifeEditDel", "#life-edit-delete", (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (!confirm("Delete this tracker?")) return;
+        
+        const s = getSettings();
+        if (!s || editingIndex < 0) return;
+        
+        s.life.trackers.splice(editingIndex, 1);
+        saveSettings(s);
+        
+        $("#life-modal-edit").hide();
+        render();
+        $(document).trigger("uie:updateVitals");
+    });
 
   // Card +/-
-  $(document)
+  $body
     .off("click.uieLifeCard", "#life-list .life-card .life-mini")
     .on("click.uieLifeCard", "#life-list .life-card .life-mini", function (e) {
       e.preventDefault(); e.stopPropagation();
@@ -304,7 +426,7 @@ export function init() {
       if (act === "plus") bump(idx, +1);
     });
 
-  $(document)
+  $body
     .off("click.uieLifePick", "#life-list .life-card.selecting")
     .on("click.uieLifePick", "#life-list .life-card.selecting", function (e) {
       e.preventDefault(); e.stopPropagation();
@@ -313,6 +435,15 @@ export function init() {
       if (selected.has(idx)) selected.delete(idx);
       else selected.add(idx);
       render();
+    });
+
+  $body
+    .off("click.uieLifeOpenEdit", "#life-list .life-card:not(.selecting)")
+    .on("click.uieLifeOpenEdit", "#life-list .life-card:not(.selecting)", function (e) {
+      if ($(e.target).closest(".life-mini, .life-ctrls").length) return;
+      e.preventDefault(); e.stopPropagation();
+      const idx = Number($(this).data("idx"));
+      openEdit(idx);
     });
 }
 

@@ -20,7 +20,6 @@ async function ensureSettingsWindowLoaded() {
                 const v = Number(window.UIE_BUILD);
                 if (Number.isFinite(v) && v > 0) return v;
             } catch (_) {}
-
             return Date.now();
         })();
 
@@ -43,6 +42,75 @@ async function ensureSettingsWindowLoaded() {
     }
 }
 
+function initStWandUieControls() {
+    const inject = () => {
+        const menu = document.getElementById("extensionsMenu");
+        if (!menu) return;
+
+        // Create our container if it doesn't exist
+        let container = document.getElementById("uie_wand_container");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "uie_wand_container";
+            container.className = "extension_container";
+            // Prepend to ensure visibility at the top
+            menu.prepend(container);
+        } else if (container.parentElement !== menu) {
+             // Ensure it's in the menu if it moved
+             menu.prepend(container);
+        }
+
+        // Create our button if it doesn't exist
+        if (!document.getElementById("uie_wand_button")) {
+            const btn = document.createElement("div");
+            btn.id = "uie_wand_button";
+            btn.className = "list-group-item flex-container flexGap5";
+            btn.title = "Run UIE System Scan";
+            btn.style.cursor = "pointer";
+            btn.style.fontWeight = "bold";
+            btn.style.display = "flex";
+            btn.style.alignItems = "center";
+            btn.innerHTML = `
+                <div class="fa-fw fa-solid fa-radar extensionsMenuExtensionButton" style="color:#f1c40f;"></div>
+                <span>UIE Scan Now</span>
+            `;
+            btn.onclick = async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Hide the menu (standard ST behavior)
+                $(menu).hide();
+                $("#extensionsMenuButton").removeClass("active"); // Toggle button state if needed
+
+                try {
+                    const { scanAll } = await import("./orchestration.js");
+                    if (scanAll) scanAll();
+                } catch (err) {
+                    console.error("Scan failed", err);
+                }
+            };
+            container.appendChild(btn);
+        }
+    };
+
+    // Try immediately
+    inject();
+
+    // And watch for changes (in case the menu is re-rendered)
+    const obs = new MutationObserver(() => inject());
+    obs.observe(document.body, { childList: true, subtree: true });
+    
+    // Also specifically watch the menu if possible
+    const menu = document.getElementById("extensionsMenu");
+    if (menu) {
+        const menuObs = new MutationObserver(() => inject());
+        menuObs.observe(menu, { childList: true, subtree: true });
+    }
+
+    // Fallback: Check periodically to ensure it stays visible
+    setInterval(inject, 2000);
+}
+
 // --- SCAVENGE & INTERACTION MODULE ---
 
 export function initInteractions() {
@@ -50,6 +118,13 @@ export function initInteractions() {
     initSpriteInteraction();
     initLauncher();
     initMobileBackNav();
+
+    // Settings drawer (and other delegated UI handlers) must work even if the launcher
+    // is missing/hidden or the user never opens the main menu.
+    try { initMenuTabs(); } catch (_) {}
+    try { initMenuButtons(); } catch (_) {}
+    try { initGenericHandlers(); } catch (_) {}
+    try { initStWandUieControls(); } catch (_) {}
 }
 
 let uieNavInited = false;
@@ -1341,7 +1416,8 @@ function initMenuTabs() {
         try { syncStMainApiPresetsToUie(true); } catch (_) {}
     }, 900);
 
-    // --- General Settings Listeners ---
+    // Scan Now Button (Moved to Wand Menu)
+    // Handler removed from here as the button was removed from settings.
 
     const syncKillSwitchUi = () => {
         try {
@@ -1367,7 +1443,7 @@ function initMenuTabs() {
             const s = getSettings();
             if (!s) return;
 
-            // AI allow toggles (unchecked -> false disables; default is allowed)
+            // AI allow toggles
             if (!s.ai || typeof s.ai !== "object") s.ai = {};
             $("#uie-ai-phone-browser").prop("checked", s.ai.phoneBrowser !== false);
             $("#uie-ai-phone-messages").prop("checked", s.ai.phoneMessages !== false);
@@ -1400,6 +1476,10 @@ function initMenuTabs() {
             $("#uie-feature-codex").prop("checked", s.features.codexEnabled === true);
             $("#uie-feature-codex-auto").prop("checked", s.features.codexAutoExtract === true);
 
+            // Backups
+            // (Buttons are stateless, nothing to sync)
+
+            // Prompts
             const p = (s.generation.promptPrefixes && typeof s.generation.promptPrefixes === "object")
                 ? s.generation.promptPrefixes
                 : (s.generation.promptPrefixes = { byType: {} });
@@ -1410,22 +1490,58 @@ function initMenuTabs() {
             $("#uie-gen-prompt-systemcheck").val(String(p.byType["System Check"] || ""));
             $("#uie-gen-prompt-phonecall").val(String(p.byType["Phone Call"] || ""));
             $("#uie-gen-prompt-image").val(String(p.byType["Image Gen"] || ""));
+
+            // Scale Display
+            const scale = s.ui?.scale || s.uiScale || 1.0;
+            $("#uie-scale-slider").val(scale);
+            $("#uie-scale-display").text(scale.toFixed(1));
+
+            // Launcher Name
+            $("#uie-launcher-name").val(s.launcher?.name || "");
+
+            // Launcher Icon Select
+            const lSrc = s.launcher?.src || "";
+            const lSel = document.getElementById("uie-launcher-icon");
+            if (lSel) {
+                const has = Array.from(lSel.options).some(o => o.value === lSrc);
+                lSel.value = has ? lSrc : "custom";
+            }
+
+            // ComfyUI / Image Gen
+            if (s.imgGen) {
+                $("#uie-img-enable").prop("checked", s.imgGen.enabled === true);
+                $("#uie-img-provider").val(s.imgGen.provider || "openai");
+
+                // Show/Hide blocks
+                const prov = s.imgGen.provider || "openai";
+                $("#uie-img-openai-block").toggle(prov === "openai");
+                $("#uie-img-comfy-block").toggle(prov === "comfy");
+                $("#uie-img-sdwebui-block").toggle(prov === "sdwebui");
+
+                if (s.imgGen.comfy) {
+                    $("#uie-img-comfy-base").val(s.imgGen.comfy.baseUrl || "");
+                    $("#uie-img-comfy-key").val(s.imgGen.comfy.apiKey || "");
+                    $("#uie-img-comfy-workflow").val(s.imgGen.comfy.workflow || "");
+                    $("#uie-img-comfy-posnode").val(s.imgGen.comfy.nodeIds?.positive || "");
+                    $("#uie-img-comfy-negnode").val(s.imgGen.comfy.nodeIds?.negative || "");
+                    $("#uie-img-comfy-outnode").val(s.imgGen.comfy.nodeIds?.output || "");
+                }
+            }
+
         } catch (_) {}
     };
 
     // Sync when the settings drawer is interacted with.
-    $(document).off("click.uieSettingsDrawerSync").on("click.uieSettingsDrawerSync", ".uie-settings-block .inline-drawer-toggle", function () {
+    // Use body delegation to ensure we catch it.
+    $("body").off("click.uieSettingsDrawerSync").on("click.uieSettingsDrawerSync", ".uie-settings-block .inline-drawer-toggle", function () {
         setTimeout(() => { try { syncKillSwitchUi(); } catch (_) {} }, 40);
-    });
-
-    // Extra settings hydration when drawer is opened.
-    $(document).off("click.uieSettingsDrawerSyncMore").on("click.uieSettingsDrawerSyncMore", ".uie-settings-block .inline-drawer-toggle", function () {
         setTimeout(() => { try { syncSettingsDrawerUi(); } catch (_) {} }, 60);
     });
 
     // Also sync shortly after init.
     setTimeout(() => { try { syncKillSwitchUi(); } catch (_) {} }, 900);
     setTimeout(() => { try { syncSettingsDrawerUi(); } catch (_) {} }, 950);
+
 
     const setEnabled = (on) => {
         const s = getSettings();
@@ -1434,6 +1550,9 @@ function initMenuTabs() {
         if (s.enabled === false) {
             try { $("#uie-main-menu").hide(); } catch (_) {}
             try { $(".uie-window, .uie-overlay, .uie-modal, .uie-full-modal").hide(); } catch (_) {}
+            try { $("#uie-launcher").hide(); } catch (_) {}
+        } else {
+            try { $("#uie-launcher").css("display", "flex"); } catch (_) {}
         }
         try { updateLayout(); } catch (_) {}
     };
@@ -1459,7 +1578,8 @@ function initMenuTabs() {
         saveSettings();
     };
 
-    $(document)
+    // Kill Switch Handlers - DELEGATED to BODY to ensure they catch clicks even if re-rendered
+    $("body")
         .off("change.uieKillEnable")
         .on("change.uieKillEnable", "#uie-setting-enable", function (e) {
             e.preventDefault();
@@ -1467,22 +1587,25 @@ function initMenuTabs() {
             setEnabled($(this).prop("checked") === true);
         })
         .off("change.uieKillScanAll")
-        .on("change.uieKillScanAll", "#uie-scanall-enable, #uie-sw-scanall-enable", function (e) {
+        .on("change.uieKillScanAll", "#uie-scanall-enable, #uie-sw-scanall-enable, #uie-wand-scanall-enable", function (e) {
             e.preventDefault();
             e.stopPropagation();
             const on = $(this).prop("checked") === true;
             setScanAll(on);
+            // Sync all checkboxes
             $("#uie-scanall-enable").prop("checked", on);
             $("#uie-sw-scanall-enable").prop("checked", on);
+            $("#uie-wand-scanall-enable").prop("checked", on);
         })
         .off("change.uieKillSysChecks")
-        .on("change.uieKillSysChecks", "#uie-systemchecks-enable, #uie-sw-systemchecks-enable", function (e) {
+        .on("change.uieKillSysChecks", "#uie-systemchecks-enable, #uie-sw-systemchecks-enable, #uie-wand-systemchecks-enable", function (e) {
             e.preventDefault();
             e.stopPropagation();
             const on = $(this).prop("checked") === true;
             setSystemChecks(on);
             $("#uie-systemchecks-enable").prop("checked", on);
             $("#uie-sw-systemchecks-enable").prop("checked", on);
+            $("#uie-wand-systemchecks-enable").prop("checked", on);
         })
         .off("change.uieKillPopups")
         .on("change.uieKillPopups", "#uie-show-popups", function (e) {
@@ -1643,7 +1766,8 @@ function initMenuTabs() {
         try { window.toastr?.success?.(`State '${name}' saved!`, "UIE"); } catch (_) {}
     });
 
-    // Load State
+    // Load State - overwrites all UIE session data; never overwrites settings (launcher, ui, windows, generation, image, chats)
+    const UIE_SETTINGS_KEYS = ["launcher", "ui", "uiScale", "windows", "generation", "image", "chats", "savedStates", "__uie_saved_at"];
     $(document).off("click.uieStateLoad").on("click.uieStateLoad", ".uie-state-load-btn", function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -1654,8 +1778,9 @@ function initMenuTabs() {
         if (s.savedStates && s.savedStates[name]) {
             const loaded = s.savedStates[name];
 
-            // Restore keys
+            // Overwrite all keys except settings (never reset launcher, ui, windows, etc.)
             Object.keys(loaded).forEach(k => {
+                if (UIE_SETTINGS_KEYS.indexOf(k) >= 0) return;
                 s[k] = loaded[k];
             });
 
@@ -1664,9 +1789,12 @@ function initMenuTabs() {
             // Reload UI
             try {
                 updateLayout();
-                // Refresh specific modules if possible
                 import("./inventory.js").then(m => m.initInventory?.());
                 import("./features/stats.js").then(m => m.initStats?.());
+                import("./features/life.js").then(m => m.render?.());
+                import("./features/items.js").then(m => m.render?.());
+                import("./features/skills.js").then(m => m.init?.());
+                import("./features/assets.js").then(m => m.init?.());
             } catch (_) {}
 
             try { window.toastr?.success?.(`State '${name}' loaded!`, "UIE"); } catch (_) {}

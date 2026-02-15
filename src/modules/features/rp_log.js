@@ -19,6 +19,7 @@ export function flushHiddenEvents() {
     if (hiddenEventBuffer.length === 0) return "";
     const events = [...hiddenEventBuffer];
     hiddenEventBuffer.length = 0; // Clear buffer
+    try { window.UIE_rpBufferLen = 0; } catch (_) {}
     return events.join("\n");
 }
 
@@ -33,6 +34,10 @@ export async function injectRpEvent(text, opts = {}) {
   
   // Always buffer for AI context
   hiddenEventBuffer.push(msg);
+  try {
+    window.UIE_rpBufferLen = hiddenEventBuffer.length;
+    window.UIE_rpLastBufferedAt = Date.now();
+  } catch (_) {}
 
   // Show Toast
   try { if (window.toastr) window.toastr.info(msg); } catch (_) {}

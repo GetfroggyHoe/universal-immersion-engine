@@ -58,6 +58,7 @@ export function initStats() {
             if (key === "xp") s.inventory.vitals.xp = Number(val) || 0;
         } else if (type === "char") {
             s.character[key] = val;
+            if (key === "name") s.character.syncPersona = false;
         } else if (type === "stat") {
             s.character.stats[key] = val;
         } else if (type === "label") {
@@ -73,6 +74,11 @@ export function initStats() {
         if (type === "root" && ["hp", "maxHp", "mp", "maxMp", "ap", "maxAp", "xp", "maxXp"].includes(String(key))) {
             import("../inventory.js").then(mod => {
                 if (mod && mod.updateVitals) mod.updateVitals();
+            });
+        }
+        if (type === "char" && key === "level") {
+            import("../inventory.js").then(mod => {
+                if (mod && mod.applyInventoryUi) mod.applyInventoryUi();
             });
         }
         // Don't re-render immediately to avoid losing focus, unless needed?

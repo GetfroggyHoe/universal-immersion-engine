@@ -14,7 +14,7 @@
   :root{ --inv-bg: var(--inv-bg-mobile); }
 }
 
-@media (max-width: 900px), (pointer: coarse) {
+@media (max-width: 700px) {
   #uie-inventory-window{
     padding: 0 !important;
     top: 0 !important;
@@ -570,7 +570,7 @@
     display: none !important;
   }
 
-  @media (max-width: 900px) {
+  @media (max-width: 700px) {
   #uie-inventory-window .uie-inv-body {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr auto;
@@ -589,7 +589,7 @@
   }
 }
 
-@media (max-width: 700px), (pointer: coarse) {
+@media (max-width: 700px) {
   #uie-inventory-window {
     padding: 0;
   }
@@ -798,36 +798,45 @@
   }
 }
 
-@media (max-width: 700px), (pointer: coarse) {
-  #uie-inventory-window .uie-view-pane{
-    overflow: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-  }
-  #uie-inventory-window .uie-inv-content{ padding: 10px; }
+@media (max-width: 700px) {
   #uie-inv-sparkle-menu.uie-create-menu {
     position: fixed !important;
     inset: 0 !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    max-height: 100vh !important;
-    border-radius: 0 !important;
-    overflow: auto !important;
-    z-index: 2147483652 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 2147483655 !important;
+  }
+  #uie-inv-sparkle-menu .uie-create-row {
+    flex-wrap: wrap;
+  }
+  #uie-inv-sparkle-menu .uie-create-row > * {
+    flex: 1 1 auto;
+  }
+  #uie-create-qty {
+    flex: 0 0 60px !important;
+    width: 60px !important;
   }
 }
 
 #uie-inv-sparkle-menu.uie-create-menu{
+  position: absolute;
+  top: 70px;
+  right: 40px;
+  z-index: 2147483646;
   width: 340px;
   max-height: min(560px, calc(100vh - 24px));
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 18px;
   border: 1px solid rgba(225,193,122,0.40);
   background: rgba(15,10,8,0.94);
   box-shadow: 0 18px 55px rgba(0,0,0,0.75);
   padding: 12px;
+  box-sizing: border-box;
+}
+
+#uie-inv-sparkle-menu.uie-create-menu * {
+  box-sizing: border-box;
 }
 #uie-inv-sparkle-menu.uie-create-menu::before{
   content:"";
@@ -961,7 +970,7 @@
   #uie-inv-sparkle-menu .uie-create-quick button{ min-width:72px; }
 }
 
-@media (max-width: 700px), (pointer: coarse) {
+@media (max-width: 700px) {
   #uie-inventory-window[data-active-tab="equipment"] #paper-doll,
   #uie-inventory-window[data-active-tab="equipment"] #bottom-stats,
   #uie-inventory-window[data-active-tab="equipment"] #uie-inv-mobile-ident,
@@ -999,23 +1008,24 @@
         <div class="uie-inv-icon" onclick="UIE_openGuide('guide-inventory')" title="Help" data-i18n-title="inv.help"><i class="fa-solid fa-circle-question"></i></div>
         <div class="uie-inv-icon" id="uie-inv-pencil" title="Edit Mode" data-i18n-title="inv.edit_mode"><i class="fa-solid fa-pencil"></i></div>
         <div class="uie-inv-icon" id="uie-inv-sparkle" title="Creation Station" data-i18n-title="inv.creation_station"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-        <div id="uie-inv-sparkle-menu" class="uie-create-menu" style="display:none; position:absolute; top:70px; right:40px; z-index:2147483646;">
+        <div id="uie-inv-sparkle-menu" class="uie-create-menu" style="display:none;">
           <div class="uie-create-top">
             <div class="uie-create-title" data-i18n="inv.creation_station">Creation Station</div>
             <div id="uie-create-status" class="uie-create-status"></div>
             <div id="uie-create-close" class="uie-create-close">×</div>
           </div>
 
-          <div class="uie-create-row" style="margin-bottom:6px;">
-            <select id="uie-create-kind" class="uie-create-select" style="flex:2;">
-              <option value="item" data-i18n="inv.create.kind.item">Item</option>
-              <option value="class" data-i18n="inv.create.kind.class">Create Class</option>
-              <option value="skill" data-i18n="inv.create.kind.skill">Skill</option>
-              <option value="asset" data-i18n="inv.create.kind.asset">Asset</option>
-              <option value="status" data-i18n="inv.create.kind.status">Status Effects</option>
+          <div class="uie-create-row" style="display:flex; gap:10px; margin-bottom:10px;">
+            <select id="uie-create-kind" class="uie-create-select" style="flex:1;">
+              <option value="item" selected>Item</option>
+              <option value="skill">Skill</option>
+              <option value="asset">Asset</option>
+              <option value="class">Class</option>
+              <option value="status">Status</option>
+              <option value="currency">Currency</option>
             </select>
-            <input id="uie-create-qty" type="number" min="1" max="5" value="1" placeholder="#" title="Quantity" data-i18n-title="inv.create.quantity" style="width:46px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 5px; font-weight:900; text-align:center;">
-            <button id="uie-create-run" class="uie-create-btn" style="flex:1;" data-i18n="inv.create.run">Create</button>
+            <input id="uie-create-qty" type="number" min="1" max="20" value="1" placeholder="#" title="Quantity" data-i18n-title="inv.create.quantity" style="width:46px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 5px; font-weight:900; text-align:center;">
+            <button id="uie-create-run" class="uie-create-btn" title="Generate" data-i18n-title="inv.create.generate" style="flex:0 0 auto;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
           </div>
 
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-left:4px;">
@@ -1026,15 +1036,14 @@
 
           <textarea id="uie-create-desc" class="uie-create-desc" placeholder="Describe what you’re creating (optional)…" data-i18n-placeholder="inv.create.desc_placeholder"></textarea>
 
-          <div class="uie-create-quick">
-            <div class="qbox">
-              <input id="uie-create-money" type="number" min="0" step="1" placeholder="+Money">
-              <button id="uie-create-add-currency" data-i18n="inv.common.add">Add</button>
-            </div>
-            <div class="qbox">
-              <input id="uie-create-xp" type="number" min="0" step="1" placeholder="+XP">
-              <button id="uie-create-add-xp" data-i18n="inv.common.add">Add</button>
-            </div>
+          <div class="uie-create-quick" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <select id="uie-create-quick-type" style="height:36px; min-width:100px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;">
+              <option value="money">+ Money</option>
+              <option value="xp">+ XP</option>
+              <option value="both">+ Money & XP</option>
+            </select>
+            <input id="uie-create-quick-amount" type="number" min="0" step="1" placeholder="Amount" value="0" style="width:80px; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 10px;">
+            <button id="uie-create-quick-add" style="height:36px; padding:0 16px; border-radius:10px; border:1px solid rgba(46,204,113,0.4); background:rgba(46,204,113,0.2); color:#2ecc71; font-weight:bold; cursor:pointer;" data-i18n="inv.common.add">Add</button>
           </div>
 
           <div style="margin-top:10px; display:flex; gap:10px;">
@@ -1043,6 +1052,31 @@
           </div>
 
           <div id="uie-create-staging" style="display:none; flex-direction:column; gap:10px; margin-top:15px; border-top:1px solid rgba(255,255,255,0.15); padding-top:10px;"></div>
+        </div>
+
+        <!-- Create Class reset modal: larger on desktop, light overlay (no big black box) -->
+        <div id="uie-class-reset-modal" class="uie-overlay" style="display:none; position:fixed; inset:0; z-index:2147483655; background:rgba(0,0,0,0.25); backdrop-filter:blur(2px); align-items:center; justify-content:center;">
+          <div class="uie-class-reset-box" style="width:min(560px,95vw); min-width:320px; background:rgba(28,22,18,0.98); border:1px solid rgba(203,163,92,0.45); border-radius:16px; padding:24px; box-shadow:0 12px 40px rgba(0,0,0,0.35);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+              <h3 style="margin:0; color:#cba35c; font-size:1.1em;" data-i18n="inv.class.reset_title">Apply New Class – What to Reset?</h3>
+              <button id="uie-class-reset-close" style="background:none; border:none; color:#888; font-size:20px; cursor:pointer; padding:0 4px;">×</button>
+            </div>
+            <div style="font-size:0.9em; color:#aaa; margin-bottom:14px;" data-i18n="inv.class.reset_desc">Select which modules to reset with this new class. Unchecked items will be merged with existing data.</div>
+            <div id="uie-class-reset-checks" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="skills"> <span data-i18n="inv.class.reset_skills">Skills</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="assets"> <span data-i18n="inv.class.reset_assets">Assets & Abilities</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="stats"> <span data-i18n="inv.class.reset_stats">Stats</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="bars"> <span data-i18n="inv.class.reset_bars">Bars (HP/MP/AP/XP)</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="life"> <span data-i18n="inv.class.reset_life">Life Trackers</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="items"> <span data-i18n="inv.class.reset_items">Items</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="equipment"> <span data-i18n="inv.class.reset_equipment">Equipment</span></label>
+              <label style="display:flex; align-items:center; gap:8px; cursor:pointer; color:#ccc;"><input type="checkbox" class="uie-class-reset-cb" data-reset="statusEffects"> <span data-i18n="inv.class.reset_status">Status Effects</span></label>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+              <button id="uie-class-reset-cancel" style="padding:8px 16px; background:rgba(150,150,150,0.2); border:1px solid #555; color:#ccc; border-radius:8px; cursor:pointer;" data-i18n="inv.common.cancel">Cancel</button>
+              <button id="uie-class-reset-apply" style="padding:8px 20px; background:rgba(203,163,92,0.25); border:1px solid rgba(203,163,92,0.5); color:#cba35c; border-radius:8px; cursor:pointer; font-weight:bold;" data-i18n="inv.class.apply">Apply Class</button>
+            </div>
+          </div>
         </div>
         <div class="uie-inv-icon" id="uie-inv-gear" title="Inventory Settings" data-i18n-title="inv.settings"><i class="fa-solid fa-gear"></i></div>
         <div id="uie-inv-gear-menu" style="display:none; position:absolute; top:70px; right:124px; width:280px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(10,6,5,0.92); backdrop-filter: blur(6px); padding:10px; z-index:2147483670;">
@@ -1188,5 +1222,25 @@
 <template id="uie-template-create-station-overlay">
   <div id="uie-create-station-overlay" class="uie-overlay" style="display:none; position:fixed; inset:0; z-index:2147483650; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center;">
     <div id="uie-create-station-shell" style="width:min(380px, 92vw); height:min(600px, 90vh); position:relative;"></div>
+  </div>
+</template>
+
+<template id="uie-template-rebirth-modal">
+  <div id="uie-rebirth-modal" style="position:fixed; inset:0; z-index:2147483647; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box;">
+    <div style="width:min(640px,100%); max-height:90vh; overflow:auto; background:linear-gradient(145deg, rgba(30,22,35,0.98), rgba(20,15,25,0.98)); border:1px solid rgba(155,89,182,0.5); border-radius:16px; padding:24px; box-shadow:0 16px 48px rgba(0,0,0,0.5);">
+      <div style="font-weight:900; font-size:1.2em; color:#d2b4de; margin-bottom:8px;">Choose Your Rebirth Path</div>
+      <div style="font-size:0.9em; color:rgba(255,255,255,0.75); margin-bottom:16px;">Select a medallion. This cannot be undone.</div>
+      <div class="uie-rebirth-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(160px, 1fr)); gap:12px;"></div>
+      <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+        <button id="uie-rebirth-cancel" style="padding:10px 20px; border-radius:10px; border:1px solid rgba(255,255,255,0.2); background:rgba(255,255,255,0.08); color:#ccc; font-weight:bold; cursor:pointer;">Cancel</button>
+      </div>
+    </div>
+  </div>
+</template>
+<template id="uie-template-rebirth-card">
+  <div class="uie-medal-card" style="border:1px solid rgba(155,89,182,0.4); border-radius:12px; padding:12px; background:rgba(0,0,0,0.3); cursor:pointer; transition:transform 0.15s, box-shadow 0.15s;" data-id="">
+    <img class="uie-medal-img" alt="" style="width:64px; height:64px; object-fit:cover; border-radius:8px; display:block; margin:0 auto 8px;">
+    <div class="uie-medal-name" style="font-weight:900; color:#e8daef; font-size:0.9em; text-align:center; margin-bottom:6px;"></div>
+    <div class="uie-medal-desc" style="font-size:0.75em; color:rgba(255,255,255,0.7); line-height:1.3; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical;"></div>
   </div>
 </template>

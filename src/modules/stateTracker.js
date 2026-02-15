@@ -6,6 +6,80 @@ import { normalizeStatusList, normalizeStatusEffect, statusKey } from "./statusF
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 import { safeJsonParseObject } from "./jsonUtil.js";
 
+function defaultEventTypes() {
+    return {
+        MESSAGE_RECEIVED: "message_received",
+        GENERATION_ENDED: "generation_ended",
+        MESSAGE_DELETED: "message_deleted",
+    };
+}
+
+async function resolveStEventBus() {
+    const w = (typeof window !== "undefined" ? window : globalThis);
+    const ok = (src) => !!(src && typeof src.on === "function");
+    const normTypes = (t) => (t && typeof t === "object") ? t : null;
+
+    try {
+        if (ok(w?.eventSource)) return { src: w.eventSource, types: normTypes(w.event_types) || defaultEventTypes() };
+    } catch (_) {}
+
+    try {
+        const m = await import("/script.js");
+        if (ok(m?.eventSource)) return { src: m.eventSource, types: normTypes(m.event_types) || defaultEventTypes() };
+    } catch (_) {}
+
+    return { src: null, types: null };
+}
+
+function initDomAutoScanningFallback() {
+    try {
+        if (window.UIE_domAutoScanBound) return;
+        window.UIE_domAutoScanBound = true;
+        window.UIE_domAutoScanBoundAt = Date.now();
+    } catch (_) {}
+
+    let t = null;
+    const schedule = () => {
+        try {
+            const s = getSettings();
+            if (!s || s.enabled === false) return;
+            if (s.generation?.scanAllEnabled === false) return;
+            // If the real ST event bus is bound, only scan here when the user explicitly
+            // wants scans to happen only on generate buttons (avoid double scanning).
+            if (window.UIE_autoScanHasEventBus === true && s.generation?.scanOnlyOnGenerateButtons !== true) return;
+        } catch (_) {}
+
+        if (t) clearTimeout(t);
+        t = setTimeout(() => {
+            try { window.UIE_autoScanLastRunAt = Date.now(); } catch (_) {}
+            scanEverything({}).catch((e) => {
+                try { window.UIE_autoScanLastError = String(e?.message || e || ""); } catch (_) {}
+            });
+        }, 350);
+    };
+
+    try {
+        document.body.addEventListener("click", (e) => {
+            try {
+                const el = e?.target && e.target.closest ? e.target.closest("button, a, [role='button'], input[type='button'], input[type='submit']") : null;
+                if (!el) return;
+                const id = String(el.id || "");
+                const testid = String(el.getAttribute?.("data-testid") || "");
+                const cls = String(el.className || "");
+                const blob = `${id} ${testid} ${cls}`.toLowerCase();
+                const match =
+                    blob.includes("send") ||
+                    blob.includes("continue") ||
+                    blob.includes("regenerate") ||
+                    blob.includes("regen");
+                if (!match) return;
+                try { window.UIE_autoScanLastTriggerAt = Date.now(); } catch (_) {}
+                schedule();
+            } catch (_) {}
+        }, true);
+    } catch (_) {}
+}
+
 function cloneJsonSafe(v) {
     try {
         return JSON.parse(JSON.stringify(v));
@@ -14,14 +88,193 @@ function cloneJsonSafe(v) {
     }
 }
 
+function readChatFingerprintList() {
+    try {
+        const w = typeof window !== "undefined" ? window : globalThis;
+        const arr = Array.isArray(w?.chat) ? w.chat : null;
+        if (!arr || !arr.length) return [];
+        const out = new Array(arr.length);
+        for (let i = 0; i < arr.length; i++) out[i] = fingerprintChatMessage(arr[i]);
+        return out;
+    } catch (_) {
+        return [];
+    }
+}
+
+function deepEqual(a, b) {
+    try {
+        if (a === b) return true;
+        if (typeof a !== typeof b) return false;
+        if (a === null || b === null) return a === b;
+        if (typeof a !== "object") return a === b;
+        return JSON.stringify(a) === JSON.stringify(b);
+    } catch (_) {
+        return false;
+    }
+}
+
+function getByPath(root, path) {
+    let cur = root;
+    for (const p of path) {
+        if (cur == null) return undefined;
+        cur = cur[p];
+    }
+    return cur;
+}
+
+function setByPath(root, path, value) {
+    if (!path.length) return;
+    let cur = root;
+    for (let i = 0; i < path.length - 1; i++) {
+        const p = path[i];
+        if (cur[p] == null || typeof cur[p] !== "object") {
+            cur[p] = typeof path[i + 1] === "number" ? [] : {};
+        }
+        cur = cur[p];
+    }
+    cur[path[path.length - 1]] = value;
+}
+
+function chooseArrayKeyField(arrA, arrB) {
+    try {
+        const fields = ["id", "name", "slotId", "key", "title", "kind"];
+        const all = (Array.isArray(arrA) ? arrA : []).concat(Array.isArray(arrB) ? arrB : []);
+        if (!all.length) return null;
+        if (!all.every((x) => x && typeof x === "object" && !Array.isArray(x))) return null;
+        for (const f of fields) {
+            const vals = all.map((x) => x?.[f]).filter((v) => typeof v === "string" || typeof v === "number");
+            if (vals.length !== all.length) continue;
+            const set = new Set(vals.map((v) => String(v)));
+            if (set.size !== vals.length) continue;
+            return f;
+        }
+    } catch (_) {}
+    return null;
+}
+
+function diffValues(before, after, path, ops) {
+    if (deepEqual(before, after)) return;
+
+    const aIsArr = Array.isArray(before);
+    const bIsArr = Array.isArray(after);
+    if (aIsArr && bIsArr) {
+        const keyField = chooseArrayKeyField(before, after);
+        if (!keyField) {
+            ops.push({ type: "set", path, before: cloneJsonSafe(before), after: cloneJsonSafe(after) });
+            return;
+        }
+
+        const mapA = new Map();
+        const mapB = new Map();
+        for (const el of before) mapA.set(String(el[keyField]), el);
+        for (const el of after) mapB.set(String(el[keyField]), el);
+
+        for (const [k, aEl] of mapA.entries()) {
+            if (!mapB.has(k)) {
+                ops.push({ type: "array_remove", path, keyField, key: k, before: cloneJsonSafe(aEl), after: null });
+            }
+        }
+        for (const [k, bEl] of mapB.entries()) {
+            if (!mapA.has(k)) {
+                ops.push({ type: "array_add", path, keyField, key: k, before: null, after: cloneJsonSafe(bEl) });
+            }
+        }
+        for (const [k, aEl] of mapA.entries()) {
+            if (!mapB.has(k)) continue;
+            const bEl = mapB.get(k);
+            if (deepEqual(aEl, bEl)) continue;
+            ops.push({ type: "array_set", path, keyField, key: k, before: cloneJsonSafe(aEl), after: cloneJsonSafe(bEl) });
+        }
+        return;
+    }
+
+    const aIsObj = before && typeof before === "object" && !aIsArr;
+    const bIsObj = after && typeof after === "object" && !bIsArr;
+    if (aIsObj && bIsObj) {
+        const keys = new Set(Object.keys(before).concat(Object.keys(after)));
+        for (const k of keys) diffValues(before[k], after[k], path.concat([k]), ops);
+        return;
+    }
+
+    ops.push({ type: "set", path, before: cloneJsonSafe(before), after: cloneJsonSafe(after) });
+}
+
+function diffSnapshots(beforeSnap, afterSnap) {
+    const ops = [];
+    try {
+        const keys = new Set(Object.keys(beforeSnap || {}).concat(Object.keys(afterSnap || {})));
+        for (const k of keys) diffValues(beforeSnap?.[k], afterSnap?.[k], [k], ops);
+    } catch (_) {}
+    return ops;
+}
+
+function applyUndoOps(s, ops) {
+    try {
+        if (!Array.isArray(ops) || !ops.length) return false;
+        let changed = false;
+        for (const op of ops) {
+            if (!op || typeof op !== "object") continue;
+            const path = Array.isArray(op.path) ? op.path : [];
+            if (!path.length) continue;
+
+            if (op.type === "set") {
+                const cur = getByPath(s, path);
+                if (!deepEqual(cur, op.after)) continue;
+                setByPath(s, path, cloneJsonSafe(op.before));
+                changed = true;
+                continue;
+            }
+
+            if (op.type === "array_add" || op.type === "array_remove" || op.type === "array_set") {
+                const arr = getByPath(s, path);
+                if (!Array.isArray(arr)) continue;
+                const keyField = String(op.keyField || "");
+                const key = String(op.key || "");
+                if (!keyField || !key) continue;
+
+                const idx = arr.findIndex((x) => x && typeof x === "object" && String(x?.[keyField]) === key);
+
+                if (op.type === "array_add") {
+                    if (idx === -1) continue;
+                    if (op.after && !deepEqual(arr[idx], op.after)) continue;
+                    arr.splice(idx, 1);
+                    changed = true;
+                    continue;
+                }
+
+                if (op.type === "array_remove") {
+                    if (idx !== -1) continue;
+                    if (!op.before) continue;
+                    arr.push(cloneJsonSafe(op.before));
+                    changed = true;
+                    continue;
+                }
+
+                if (op.type === "array_set") {
+                    if (idx === -1) continue;
+                    if (op.after && !deepEqual(arr[idx], op.after)) continue;
+                    if (op.before == null) continue;
+                    arr[idx] = cloneJsonSafe(op.before);
+                    changed = true;
+                    continue;
+                }
+            }
+        }
+        return changed;
+    } catch (_) {
+        return false;
+    }
+}
+
 function ensureUndoStore() {
     try {
         const w = typeof window !== "undefined" ? window : globalThis;
-        if (!w.UIE_scanUndo) w.UIE_scanUndo = { byMesId: {}, lastMesId: null };
+        if (!w.UIE_scanUndo) w.UIE_scanUndo = { byMesId: {}, byFp: {}, lastMesId: null, lastChatFps: null };
         if (!w.UIE_scanUndo.byMesId || typeof w.UIE_scanUndo.byMesId !== "object") w.UIE_scanUndo.byMesId = {};
+        if (!w.UIE_scanUndo.byFp || typeof w.UIE_scanUndo.byFp !== "object") w.UIE_scanUndo.byFp = {};
         return w.UIE_scanUndo;
     } catch (_) {
-        return { byMesId: {}, lastMesId: null };
+        return { byMesId: {}, byFp: {}, lastMesId: null, lastChatFps: null };
     }
 }
 
@@ -345,8 +598,8 @@ export async function scanEverything(opts = {}) {
     }
 
     // --- PHASE 2: AI SCAN (Everything Else) ---
-    // Only proceed if system checks are allowed
-    if (s.enabled === false || s.generation?.allowSystemChecks === false) return;
+    // Only proceed if system checks are allowed, UNLESS forced by user
+    if (!force && (s.enabled === false || s.generation?.allowSystemChecks === false)) return;
 
     const ctx = getContext ? getContext() : {};
     const userName = String(ctx.name1 || "User").trim();
@@ -415,7 +668,8 @@ Chat:
 ${chatSnippet}
 `;
 
-    const res = await generateContent(prompt, "Unified State Scan");
+    const scanType = force ? "Unified State Scan (User)" : "Unified State Scan";
+    const res = await generateContent(prompt, scanType);
     if (!res) {
         if (force) {
             try { notify("warning", "Scan blocked: enable 'Allow System Checks (AI)' in UIE Settings.", "Scan", "scanBlocked"); } catch (_) {}
@@ -479,28 +733,26 @@ ${chatSnippet}
             const dhp = Number(data.stats.hp);
             const dmp = Number(data.stats.mp);
             if (Number.isFinite(dhp) && dhp !== 0) {
-                const max = Number.isFinite(Number(s.maxHp)) ? Number(s.maxHp) : 100;
-                s.hp = clamp(Number(s.hp ?? max), 0, max);
-                s.hp = clamp(s.hp + dhp, 0, max);
-                if (dhp < 0) notify("warning", `${dhp} HP`, "Damage", "combat");
-                else notify("success", `+${dhp} HP`, "Healed", "combat");
+                const maxHp = Number(s.maxHp ?? 100);
+                const curHp = Number(s.hp ?? maxHp);
+                s.hp = clamp(curHp + dhp, 0, Number.isFinite(maxHp) ? maxHp : 100);
                 needsSave = true;
             }
             if (Number.isFinite(dmp) && dmp !== 0) {
-                const max = Number.isFinite(Number(s.maxMp)) ? Number(s.maxMp) : 50;
-                s.mp = clamp(Number(s.mp ?? max), 0, max);
-                s.mp = clamp(s.mp + dmp, 0, max);
+                const maxMp = Number(s.maxMp ?? 50);
+                const curMp = Number(s.mp ?? maxMp);
+                s.mp = clamp(curMp + dmp, 0, Number.isFinite(maxMp) ? maxMp : 50);
                 needsSave = true;
             }
         }
 
         // 3.2 Skills
-        if (data.skills && (typeof data.skills === "object" || Array.isArray(data.skills))) {
-            const add = Array.isArray(data.skills) ? data.skills : (Array.isArray(data.skills.add) ? data.skills.add : []);
+        if (data.skills && typeof data.skills === "object") {
+            const skillAdd = Array.isArray(data.skills.add) ? data.skills.add : [];
             if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
             const have = new Set(s.inventory.skills.map(x => String(x?.name || "").trim().toLowerCase()).filter(Boolean));
             let added = 0;
-            for (const sk of add.slice(0, 40)) {
+            for (const sk of skillAdd.slice(0, 40)) {
                 const nm = String(sk?.name || "").trim();
                 if (!nm) continue;
                 const key = nm.toLowerCase();
@@ -879,6 +1131,23 @@ ${chatSnippet}
     } finally {
         try { if (window.UIE_scanEverythingGate) window.UIE_scanEverythingGate.inFlight = false; } catch (_) {}
     }
+
+    // Store per-message undo patch after scan completed
+    try {
+        if (sourceMesId !== null && beforeSnap && undoFp) {
+            const afterSnap = snapshotScanTouchedState(getSettings());
+            const ops = diffSnapshots(beforeSnap, afterSnap);
+            const u = ensureUndoStore();
+            u.byFp[undoFp] = { at: Date.now(), mesId: sourceMesId, fp: undoFp, ops };
+            try {
+                const keys = Object.keys(u.byFp);
+                if (keys.length > 120) {
+                    keys.sort((a, b) => Number(u.byFp[a]?.at || 0) - Number(u.byFp[b]?.at || 0));
+                    for (let i = 0; i < keys.length - 120; i++) delete u.byFp[keys[i]];
+                }
+            } catch (_) {}
+        }
+    } catch (_) {}
 }
 
 /**
@@ -894,16 +1163,39 @@ export function getWorldState() {
 export const scanWorldState = scanEverything;
 
 // Event-based auto scan (no interval)
-export function initAutoScanning() {
+export async function initAutoScanning() {
     try {
-        if (window.UIE_autoScanBound) return;
-        window.UIE_autoScanBound = true;
-    } catch (_) {}
+        try {
+            if (!window.UIE_scanNow) {
+                window.UIE_scanNow = (opts = {}) => scanEverything({ ...(opts || {}), force: opts?.force === true });
+            }
+        } catch (_) {}
 
-    try {
-        const src = window.eventSource;
-        const types = window.event_types;
-        if (!src || !types) return;
+        const bus = await resolveStEventBus();
+        const src = bus?.src;
+        const types = bus?.types;
+        if (!src || !types) {
+            try {
+                const k = "__uieAutoScanRetry";
+                const n = Number(window[k] || 0) || 0;
+                if (n < 120) {
+                    window[k] = n + 1;
+                    setTimeout(() => { try { void initAutoScanning(); } catch (_) {} }, 250);
+                }
+            } catch (_) {}
+
+            try { initDomAutoScanningFallback(); } catch (_) {}
+            return;
+        }
+
+        try { window.UIE_autoScanHasEventBus = true; } catch (_) {}
+
+        try {
+            if (window.UIE_autoScanBound) return;
+            window.UIE_autoScanBound = true;
+            try { window.UIE_autoScanBoundAt = Date.now(); } catch (_) {}
+            try { if (window.UIE_DEBUG === true) console.log("[UIE] AutoScanning bound"); } catch (_) {}
+        } catch (_) {}
 
         let t = null;
         const trigger = (...args) => {
@@ -913,6 +1205,11 @@ export function initAutoScanning() {
                 if (s.generation?.scanAllEnabled === false) return;
                 if (s.generation?.scanOnlyOnGenerateButtons === true) return;
             } catch (_) {}
+
+            try {
+                window.UIE_autoScanLastTriggerAt = Date.now();
+                if (window.UIE_DEBUG === true) console.log("[UIE] AutoScanning trigger", args);
+            } catch (_) {}
             const mesId = readUndoMesIdFromArgs(args);
 
             try {
@@ -920,51 +1217,64 @@ export function initAutoScanning() {
                 const sig = readChatSig();
                 u.lastChatLen = Number(sig?.count || 0) || 0;
                 u.lastChatTailFp = readChatTailFingerprint();
+                u.lastChatFps = readChatFingerprintList();
             } catch (_) {}
 
             if (t) clearTimeout(t);
-            t = setTimeout(() => { scanEverything({ sourceMesId: mesId }).catch(() => {}); }, 400);
+            try { window.UIE_autoScanLastScheduledAt = Date.now(); } catch (_) {}
+            t = setTimeout(() => {
+                try { window.UIE_autoScanLastRunAt = Date.now(); } catch (_) {}
+                // Debounce check: ensure we don't run if another scan started very recently
+                const now = Date.now();
+                if (window.UIE_scanEverythingGate && (now - (window.UIE_scanEverythingGate.lastAt || 0) < 2000)) return;
+                
+                scanEverything({ sourceMesId: mesId }).catch((e) => {
+                    try { window.UIE_autoScanLastError = String(e?.message || e || ""); } catch (_) {}
+                });
+            }, 800); // Increased debounce from 400 to 800
         };
 
-        src.on(types.MESSAGE_RECEIVED, trigger);
-        src.on(types.GENERATION_ENDED, trigger);
+        try { src.on(types.MESSAGE_RECEIVED, trigger); } catch (_) { try { src.on("message_received", trigger); } catch (_) {} }
+        try { src.on(types.GENERATION_ENDED, trigger); } catch (_) { try { src.on("generation_ended", trigger); } catch (_) {} }
 
-        src.on(types.MESSAGE_DELETED, () => {
+        try { src.on(types.MESSAGE_DELETED, () => {
+            try { window.UIE_autoScanLastDeleteAt = Date.now(); } catch (_) {}
             try {
                 const u = ensureUndoStore();
-                const prevLen = Number(u.lastChatLen || 0) || 0;
-                const prevTailFp = String(u.lastChatTailFp || "");
+                const prevFps = Array.isArray(u.lastChatFps) ? u.lastChatFps : [];
+                const curFps = readChatFingerprintList();
+
+                // Identify missing fingerprints (single deletion)
+                const prevSet = new Map();
+                for (const fp of prevFps) prevSet.set(fp, (prevSet.get(fp) || 0) + 1);
+                for (const fp of curFps) {
+                    const n = prevSet.get(fp) || 0;
+                    if (n <= 1) prevSet.delete(fp);
+                    else prevSet.set(fp, n - 1);
+                }
+                const missing = Array.from(prevSet.entries())
+                    .flatMap(([fp, n]) => new Array(Math.max(0, n | 0)).fill(fp));
+
+                if (missing.length === 1) {
+                    const deletedFp = missing[0];
+                    const rec = u.byFp?.[deletedFp];
+                    if (rec && Array.isArray(rec.ops) && rec.ops.length) {
+                        const s2 = getSettings();
+                        const changed = applyUndoOps(s2, rec.ops);
+                        delete u.byFp[deletedFp];
+                        u.lastMesId = null;
+                        if (changed) commitStateUpdate({ save: true, layout: true, emit: true, undo: true, fp: deletedFp });
+                    }
+                }
 
                 const sig = readChatSig();
                 const curLen = Number(sig?.count || 0) || 0;
-                const curTailFp = readChatTailFingerprint();
-
-                const looksLikeSingleDeletion = prevLen > 0 && curLen >= 0 && prevLen === curLen + 1;
-                const tailChanged = prevTailFp && curTailFp !== prevTailFp;
-
-                if (looksLikeSingleDeletion && tailChanged) {
-                    const deletedIndex = curLen; // when last message is deleted, the old last index equals new length
-                    const last = Number(u.lastMesId);
-                    if (Number.isFinite(last) && last === deletedIndex) {
-                        const rec = u.byMesId[String(deletedIndex)];
-                        if (rec && rec.before && typeof rec.before === "object") {
-                            const s2 = getSettings();
-                            restoreSnapshotIntoSettings(s2, rec.before);
-                            delete u.byMesId[String(deletedIndex)];
-                            u.lastMesId = null;
-                            commitStateUpdate({ save: true, layout: true, emit: true, undo: true, mesId: deletedIndex });
-                        }
-                    }
-                } else {
-                    // Middle deletions shift indices; without the deleted ID we can't safely undo.
-                    // Clear undo buffer to avoid restoring the wrong snapshot later.
-                    u.byMesId = {};
-                    u.lastMesId = null;
-                }
-
                 u.lastChatLen = curLen;
-                u.lastChatTailFp = curTailFp;
+                u.lastChatTailFp = readChatTailFingerprint();
+                u.lastChatFps = curFps;
             } catch (_) {}
-        });
+        }); } catch (_) { try { src.on("message_deleted", () => {}); } catch (_) {} }
+
+        try { initDomAutoScanningFallback(); } catch (_) {}
     } catch (_) {}
 }

@@ -9,6 +9,76 @@ import { notify } from "./notifications.js";
 let orchestrationEnabled = true;
 
 /**
+ * Trigger Databank/UIE Content Scan
+ */
+export async function scanAll() {
+    try {
+        notify("info", "Starting Full UIE Scan...", "Scanner");
+        console.log("[UIE] Starting manual scanAll...");
+
+        let itemsFound = 0;
+
+        // 1. Scan Scavenge/Loot (if enabled)
+        try {
+            const { spawnScavengeNodes } = await import("./interaction.js");
+            spawnScavengeNodes();
+            // We don't know if items are found until clicked, but we can notify nodes spawned
+            notify("info", "Scavenge nodes refreshed", "Scanner");
+        } catch (e) { console.warn("[UIE] Scavenge scan failed", e); }
+
+        // 2. Scan Databank/World Info
+        try {
+            // Check if Vector Storage extension is available and active
+            // The command is /db-ingest or /databank-ingest
+            if (typeof window.slash_commands !== "undefined" && window.slash_commands["db-ingest"]) {
+                // Execute SillyTavern's slash command for vector ingestion
+                // This updates the databank/inventory index
+                await window.slash_commands["db-ingest"].callback({}, ""); 
+                notify("success", "Databank/Inventory Source Scanned", "Scanner");
+            } else {
+                console.warn("[UIE] Vector Storage extension not found or command missing.");
+                // Fallback: Try to trigger UIE's internal databank scan if it exists
+                const { initDatabank } = await import("./databank.js");
+                initDatabank?.();
+                notify("info", "Internal Databank Refreshed", "Scanner");
+            }
+        } catch (e) { console.warn("[UIE] Databank scan failed", e); }
+
+        // 3. Scan Inventory (UIE internal)
+        try {
+            // Force re-initialization of inventory module to reload data
+            const inv = await import("./features/items.js");
+            if (inv.init) {
+                inv.init();
+                notify("success", "Inventory List Updated", "Scanner");
+            }
+            // Also try legacy path if needed
+            const invLegacy = await import("./inventory.js");
+            if (invLegacy.initInventory) invLegacy.initInventory();
+        } catch (e) { console.warn("[UIE] Inventory scan failed", e); }
+
+        // 4. Scan World/Map
+        try {
+            const { initWorld } = await import("./world.js");
+            initWorld?.();
+            notify("info", "World Map Data Synced", "Scanner");
+        } catch (e) { console.warn("[UIE] World scan failed", e); }
+
+        // 5. Force update of UI layouts
+        try {
+            const { updateLayout } = await import("./core.js");
+            updateLayout();
+        } catch (_) {}
+
+        notify("success", "Full System Scan Complete. All modules synchronized.", "Scanner");
+
+    } catch (e) {
+        console.error("[UIE] ScanAll Error:", e);
+        notify("error", "Scan Failed: " + e.message, "Scanner");
+    }
+}
+
+/**
  * Check if current chat is a group chat
  */
 function isGroupChat() {

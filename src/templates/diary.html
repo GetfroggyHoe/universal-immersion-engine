@@ -1,18 +1,23 @@
 <div id="uie-diary-window" class="uie-book-overlay" style="display:none;">
     <style>
-        #uie-diary-window{
+        #uie-diary-window {
             position: fixed;
             inset: auto;
-            top: 80px;
-            left: 80px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: min(760px, 92vw);
             height: min(760px, 92vh);
             z-index: 20005;
             display: none;
             background: transparent;
             backdrop-filter: none;
+            padding: 0;
+            align-items: stretch;
+            justify-content: stretch;
         }
-        #uie-diary-window .uie-book-container{
+
+        #uie-diary-window .uie-book-container {
             border-radius: 18px;
             border: 2px solid rgba(203, 163, 92, 0.65);
             background: linear-gradient(180deg, rgba(225, 205, 170, 0.95) 0%, rgba(205, 180, 140, 0.95) 100%);
@@ -20,9 +25,11 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            position: absolute;
-            inset: 0;
+            position: relative;
+            width: 100%;
+            height: 100%;
         }
+
         #uie-diary-window .uie-book-container::before {
             content: "";
             position: absolute;
@@ -33,6 +40,7 @@
             opacity: 0.12;
             pointer-events: none;
         }
+
         #uie-diary-window .uie-book-container::after {
             content: "";
             position: absolute;
@@ -44,28 +52,50 @@
             opacity: 0.55;
             pointer-events: none;
         }
-        #uie-diary-window .uie-book-container{
+
+        #uie-diary-window .uie-book-container {
             background-image:
                 linear-gradient(90deg, rgba(0,0,0,0.12), rgba(0,0,0,0) 12%, rgba(0,0,0,0) 88%, rgba(0,0,0,0.10)),
                 linear-gradient(180deg, rgba(225, 205, 170, 0.95) 0%, rgba(205, 180, 140, 0.95) 100%);
         }
-        @media (max-width: 700px), (pointer: coarse) {
-            #uie-diary-window{
-                inset: 0;
-                top: auto;
-                left: auto;
-                width: 100vw;
-                height: 100vh;
-                background: transparent;
-                backdrop-filter: none;
+
+        /* MOBILE LAYOUT - Mimic Inventory Fullscreen */
+        @media (max-width: 700px) {
+            #uie-diary-window {
+                position: fixed !important;
+                inset: 0 !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                transform: none !important;
+                padding: 0 !important;
+                background: transparent !important;
+                border-radius: 0 !important;
             }
-            #uie-diary-window .uie-book-container{
-                position: absolute;
-                inset: 12px;
-                border-radius: 18px;
+
+            #uie-diary-window .uie-book-container {
+                width: 100% !important;
+                height: 100% !important;
+                border-radius: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                margin: 0 !important;
+            }
+
+            /* Adjust header for mobile */
+            #uie-diary-window .uie-diary-header {
+                padding: 12px 14px !important;
+                background: rgba(255,255,255,0.45) !important;
+            }
+
+            /* Hide decorative spine on mobile if needed, or adjust */
+            #uie-diary-window .uie-book-container::after {
+                width: 20px; /* Thinner spine shadow */
             }
         }
-        #uie-diary-window .uie-diary-header{
+
+        #uie-diary-window .uie-diary-header {
             display: flex;
             align-items: center;
             gap: 10px;
@@ -78,7 +108,8 @@
             position: relative;
             z-index: 10;
         }
-        #uie-diary-window .uie-diary-input{
+
+        #uie-diary-window .uie-diary-input {
             flex: 1;
             width: 100%;
             box-sizing: border-box;
@@ -94,6 +125,7 @@
             position: relative;
             z-index: 1;
         }
+
         #uie-diary-window .uie-diary-subject {
             width: 100%;
             box-sizing: border-box;
@@ -108,68 +140,50 @@
             font-weight: bold;
             margin-bottom: 0;
         }
-        #uie-diary-window .uie-diary-btn{ cursor:pointer; }
 
-        #uie-diary-window .uie-book-container{
-            width: min(760px, 92vw);
-            height: min(760px, 92vh);
-        }
-        @media (max-width: 700px), (pointer: coarse) {
-            #uie-diary-window{
-                align-items: flex-start;
-                justify-content: center;
-                padding-top: 12vh;
-                box-sizing: border-box;
-            }
-            #uie-diary-window .uie-book-container{
-                width: 96vw;
-                height: 85vh;
-                position: fixed;
-                left: 2vw;
-                top: 12vh;
-            }
-        }
+        #uie-diary-window .uie-diary-btn { cursor: pointer; }
 
-        #uie-diary-sticker-layer { position:absolute; inset:0; pointer-events:none; z-index:5; overflow:hidden; }
-        .uie-diary-sticker { 
-            position:absolute; 
-            width:80px; height:80px; 
+        #uie-diary-sticker-layer { position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden; }
+
+        .uie-diary-sticker {
+            position: absolute;
+            width: 80px; height: 80px;
             filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
-            pointer-events:auto; 
-            touch-action:none; 
-            cursor:grab;
-            display:flex; align-items:center; justify-content:center;
+            pointer-events: auto;
+            touch-action: none;
+            cursor: grab;
+            display: flex; align-items: center; justify-content: center;
             transition: transform 0.1s;
         }
-        .uie-diary-sticker:active { transform: scale(1.05); cursor:grabbing; z-index:100; }
-        .uie-diary-sticker img { width:100%; height:100%; object-fit:contain; pointer-events:none; }
-        .uie-diary-sticker .uie-diary-sticker-x { 
-            position:absolute; top:-10px; right:-10px; 
-            width:24px; height:24px; 
-            border-radius:50%; 
-            background:#ff3b30; color:white; 
-            font-weight:bold; cursor:pointer; 
-            display:grid; place-items:center; 
+        .uie-diary-sticker:active { transform: scale(1.05); cursor: grabbing; z-index: 100; }
+        .uie-diary-sticker img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .uie-diary-sticker .uie-diary-sticker-x {
+            position: absolute; top: -10px; right: -10px;
+            width: 24px; height: 24px;
+            border-radius: 50%;
+            background: #ff3b30; color: white;
+            font-weight: bold; cursor: pointer;
+            display: grid; place-items: center;
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-            font-size:14px;
-            opacity:0; transition:opacity 0.2s;
+            font-size: 14px;
+            opacity: 0; transition: opacity 0.2s;
         }
-        .uie-diary-sticker:hover .uie-diary-sticker-x, .uie-diary-sticker.active .uie-diary-sticker-x { opacity:1; }
-        
-        #uie-diary-sticker-drawer { position:absolute; left:0; right:0; bottom:0; top:0; display:none; align-items:flex-end; justify-content:center; background:rgba(0,0,0,0.55); z-index:20020; }
-        #uie-diary-sticker-drawer .uie-sticker-sheet { width:min(680px, 94vw); max-height:82vh; border-radius:18px 18px 0 0; border:1px solid rgba(255,255,255,0.14); background:rgba(18,16,12,0.96); color:#fff; overflow:hidden; display:flex; flex-direction:column; }
-        #uie-diary-sticker-drawer .uie-sticker-head { display:flex; gap:10px; align-items:center; padding:12px; border-bottom:1px solid rgba(255,255,255,0.10); }
-        #uie-diary-sticker-drawer .uie-sticker-title { font-weight:900; letter-spacing:0.4px; }
-        #uie-diary-sticker-drawer .uie-sticker-btn { height:34px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.06); color:#fff; font-weight:900; cursor:pointer; }
-        #uie-diary-sticker-drawer .uie-sticker-close { margin-left:auto; height:34px; width:42px; border-radius:12px; border:1px solid rgba(243,139,168,0.35); background:rgba(255,255,255,0.06); color:#f38ba8; font-weight:900; cursor:pointer; }
-        #uie-diary-sticker-tabs { padding:10px 12px; display:flex; gap:8px; flex-wrap:wrap; border-bottom:1px solid rgba(255,255,255,0.08); }
-        .uie-sticker-tab { height:32px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.18); color:#ddd; font-weight:900; cursor:pointer; }
-        .uie-sticker-tab.active { background:#cba35c; color:#000; border-color:rgba(0,0,0,0.25); }
-        #uie-sticker-grid { padding:12px; display:grid; grid-template-columns: repeat(6, 1fr); gap:10px; overflow:auto; }
+        .uie-diary-sticker:hover .uie-diary-sticker-x, .uie-diary-sticker.active .uie-diary-sticker-x { opacity: 1; }
+
+        #uie-diary-sticker-drawer { position: absolute; left: 0; right: 0; bottom: 0; top: 0; display: none; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0.55); z-index: 20020; }
+        #uie-diary-sticker-drawer .uie-sticker-sheet { width: min(680px, 94vw); max-height: 82vh; border-radius: 18px 18px 0 0; border: 1px solid rgba(255,255,255,0.14); background: rgba(18,16,12,0.96); color: #fff; overflow: hidden; display: flex; flex-direction: column; }
+        #uie-diary-sticker-drawer .uie-sticker-head { display: flex; gap: 10px; align-items: center; padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+        #uie-diary-sticker-drawer .uie-sticker-title { font-weight: 900; letter-spacing: 0.4px; }
+        #uie-diary-sticker-drawer .uie-sticker-btn { height: 34px; padding: 0 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06); color: #fff; font-weight: 900; cursor: pointer; }
+        #uie-diary-sticker-drawer .uie-sticker-close { margin-left: auto; height: 34px; width: 42px; border-radius: 12px; border: 1px solid rgba(243,139,168,0.35); background: rgba(255,255,255,0.06); color: #f38ba8; font-weight: 900; cursor: pointer; }
+        #uie-diary-sticker-drawer .uie-sticker-tabs { padding: 10px 12px; display: flex; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .uie-sticker-tab { height: 32px; padding: 0 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.18); color: #ddd; font-weight: 900; cursor: pointer; }
+        .uie-sticker-tab.active { background: #cba35c; color: #000; border-color: rgba(0,0,0,0.25); }
+        #uie-sticker-grid { padding: 12px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; overflow: auto; }
         @media (max-width: 520px) { #uie-sticker-grid { grid-template-columns: repeat(4, 1fr); } }
-        .uie-sticker-tile { width:100%; aspect-ratio:1; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); overflow:hidden; cursor:pointer; display:grid; place-items:center; }
-        .uie-sticker-tile img { width:100%; height:100%; object-fit:contain; background:transparent; }
-        #uie-sticker-empty { padding:12px; color:rgba(255,255,255,0.75); font-weight:800; }
+        .uie-sticker-tile { width: 100%; aspect-ratio: 1; border-radius: 14px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); overflow: hidden; cursor: pointer; display: grid; place-items: center; }
+        .uie-sticker-tile img { width: 100%; height: 100%; object-fit: contain; background: transparent; }
+        #uie-sticker-empty { padding: 12px; color: rgba(255,255,255,0.75); font-weight: 800; }
     </style>
     <div class="uie-book-container">
         <div class="uie-diary-header">
@@ -189,15 +203,15 @@
         </div>
         <input type="file" id="uie-diary-photo-file" accept="image/*" style="display:none;">
         <input type="file" id="uie-sticker-import-files" accept=".png,.gif,.jpg,.jpeg,.svg,image/*" multiple style="display:none;">
-        
+
         <input id="uie-diary-title" class="uie-diary-subject" type="text" placeholder="Subject / Title...">
-        
+
         <div id="uie-diary-sticker-layer"></div>
         <textarea id="uie-diary-text" class="uie-diary-input" placeholder="Today's journey..."></textarea>
 
-        <div style="margin-top:20px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="margin-top:auto; padding:16px; display:flex; justify-content:space-between; align-items:center; border-top:1px solid rgba(74,46,22,0.15);">
             <button class="uie-diary-btn" id="uie-diary-prev" style="background:none; border:none; color:#5d4037; font-family:serif; font-weight:bold;">&larr; Previous</button>
-            <button class="uie-diary-btn" id="uie-diary-new" style="background:none; border:2px solid #5d4037; border-radius:20px; color:#5d4037; font-weight:bold;">New Page</button>
+            <button class="uie-diary-btn" id="uie-diary-new" style="background:none; border:2px solid #5d4037; border-radius:20px; color:#5d4037; font-weight:bold; padding:4px 16px;">New Page</button>
             <button class="uie-diary-btn" id="uie-diary-next" style="background:none; border:none; color:#5d4037; font-family:serif; font-weight:bold;">Next &rarr;</button>
         </div>
 
@@ -208,7 +222,7 @@
                     <button class="uie-sticker-btn" id="uie-sticker-import">Import Pack</button>
                     <button class="uie-sticker-close" id="uie-sticker-close">×</button>
                 </div>
-                <div id="uie-diary-sticker-tabs"></div>
+                <div id="uie-diary-sticker-tabs" class="uie-sticker-tabs"></div>
                 <div id="uie-sticker-grid"></div>
                 <div id="uie-sticker-empty" style="display:none;"></div>
             </div>

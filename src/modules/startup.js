@@ -346,15 +346,60 @@ export function injectSettingsUI() {
         const content = root.find(".inline-drawer-content");
         const icon = root.find(".inline-drawer-icon");
 
-        if (content.is(":animated")) return;
+        // Force toggle logic regardless of animation state to fix "stuck" drawers
+        // if (content.is(":animated")) return;
 
-        if (content.is(":visible")) {
+        if (content.is(":visible") && content.height() > 10) {
             content.slideUp(200);
             icon.css("transform", "rotate(-90deg)");
         } else {
             content.slideDown(200);
             icon.css("transform", "rotate(0deg)");
         }
+    });
+
+    // Reset Chat Data Listener
+    $("body").off("click.uieResetChat").on("click.uieResetChat", "#uie-reset-chat-data", async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!confirm("Are you sure? This will wipe ALL inventory, stats, and UIE data for this chat only.")) return;
+        
+        const s2 = getSettings();
+        // Reset logic
+        s2.inventory = { items: [], equipped: [], skills: [], assets: [], vitals: {} };
+        s2.character = { 
+            name: "User", className: "Adventurer", level: 1, 
+            stats: { str:10, dex:10, con:10, int:10, wis:10, cha:10, per:10, luk:10, agi:10, vit:10, end:10, spi:10 },
+            statusEffects: []
+        };
+        s2.currency = 0;
+        s2.xp = 0;
+        s2.hp = 100; s2.maxHp = 100;
+        s2.mp = 50; s2.maxMp = 50;
+        s2.ap = 10; s2.maxAp = 10;
+        // Clear other modules
+        s2.calendar = {};
+        s2.map = {};
+        s2.social = {};
+        s2.diary = {};
+        s2.databank = {};
+        s2.activities = {};
+        
+        // Save
+        const { saveSettings, updateLayout } = await import("./core.js");
+        saveSettings();
+        updateLayout();
+        
+        // Notify
+        try { window.toastr?.success?.("Current chat data reset complete.", "UIE"); } catch (_) {}
+        
+        // Reload views if open
+        try { (await import("./inventory.js")).updateVitals?.(); } catch (_) {}
+        try { (await import("./inventory.js")).applyInventoryUi?.(); } catch (_) {}
+        try { (await import("./features/items.js")).render?.(); } catch (_) {}
+        try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+        try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+        try { (await import("./features/equipment.js")).init?.(); } catch (_) {}
     });
 }
 

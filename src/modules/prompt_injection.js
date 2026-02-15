@@ -2,34 +2,66 @@
 import { extension_prompt_types, setExtensionPrompt, event_types, eventSource } from '/script.js';
 import { rootProtocolBlock } from './apiClient.js';
 import { flushHiddenEvents, peekHiddenEvents } from './features/rp_log.js';
+import { getSettings } from './core.js';
 
 const PROMPT_ID = 'universal_immersion_engine_prompt';
 
+let initTries = 0;
+let retryInterval = null;
+
 export function initPromptInjection() {
-    console.log("[UIE] Initializing prompt injection...");
+    try {
+        const w = typeof window !== "undefined" ? window : globalThis;
+        const es = eventSource ?? w?.eventSource;
+        const et = event_types ?? w?.event_types;
 
-    // Update prompt when user sends a message (before AI replies)
-    eventSource.on(event_types.MESSAGE_RECEIVED, async () => {
-        await updateUiePrompt();
-    });
+        if (!es || !et || typeof es.on !== "function") {
+            initTries++;
+            if (initTries < 120) {
+                setTimeout(initPromptInjection, 250);
+            } else {
+                console.error("[UIE] Failed to find eventSource after 30s.");
+            }
+            return;
+        }
 
-    // Update when a message is generated (to clear buffer if any events happened during generation?)
-    eventSource.on(event_types.GENERATION_ENDED, async () => {
-        // Drain any buffered RP-log events after a generation completes so they don't
-        // repeat forever in later prompts.
-        try { flushHiddenEvents(); } catch (_) {}
-        await updateUiePrompt();
-    });
+        if (w?.UIE_promptBound) return;
+        w.UIE_promptBound = true;
+        w.UIE_promptBoundAt = Date.now();
 
-    // Initial update
-    setTimeout(updateUiePrompt, 2000);
+        console.log("[UIE] Initializing prompt injection...");
 
-    // Update on buffer change (debounced)
-    let deb = null;
-    $(document).on("uie:events-buffered", () => {
-        if (deb) clearTimeout(deb);
-        deb = setTimeout(updateUiePrompt, 500);
-    });
+        es.on(et.MESSAGE_RECEIVED, async () => {
+            await updateUiePrompt();
+        });
+
+        es.on(et.GENERATION_ENDED, async () => {
+            try { flushHiddenEvents(); } catch (_) {}
+            await updateUiePrompt();
+        });
+
+        setTimeout(() => {
+            console.log("[UIE] Triggering initial prompt update");
+            updateUiePrompt();
+        }, 2000);
+
+        const $ = w?.jQuery ?? w?.$;
+        if (typeof $ === "function" && typeof $().on === "function") {
+            let deb = null;
+            $(document).on("uie:events-buffered", () => {
+                if (deb) clearTimeout(deb);
+                deb = setTimeout(updateUiePrompt, 500);
+            });
+        }
+
+        if (retryInterval) clearInterval(retryInterval);
+        retryInterval = setInterval(() => {
+            updateUiePrompt();
+        }, 60000);
+
+    } catch (e) {
+        console.error("[UIE] initPromptInjection fatal error", e?.message ?? e);
+    }
 }
 
 let isUpdating = false;
@@ -38,6 +70,7 @@ export async function updateUiePrompt() {
     if (isUpdating) return;
     isUpdating = true;
     try {
+        try { window.UIE_promptLastUpdateAt = Date.now(); } catch (_) {}
         // Do NOT flush here. We want buffered RP events to be available for the next
         // generation call (either SillyTavern chat generation or UIE module generation).
         const events = peekHiddenEvents();
@@ -64,6 +97,7 @@ export async function updateUiePrompt() {
 
     } catch (e) {
         console.error("[UIE] Prompt update failed", e);
+        try { window.UIE_promptLastError = String(e?.message || e || ""); } catch (_) {}
     } finally {
         isUpdating = false;
     }

@@ -375,7 +375,9 @@ function bind() {
   });
 
   doc.off("click.uieItemModalClose", "#uie-item-modal-close").on("click.uieItemModalClose", "#uie-item-modal-close", (e) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault(); 
+    e.stopPropagation();
+    e.stopImmediatePropagation();
     closeItemModal();
   });
 
@@ -383,6 +385,7 @@ function bind() {
     if (e.target !== this) return;
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
     closeItemModal();
   });
 

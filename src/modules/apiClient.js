@@ -1057,6 +1057,8 @@ export async function generateContent(prompt, type) {
     const useTurbo = turboReady && !turboBlockTypes.has(String(type || "").trim());
 
     if (type === "Logic" || type === "JSON") type = "System Check";
+    
+    // Block regular system checks if disabled, but allow user-forced ones
     if ((type === "System Check" || type === "Unified State Scan") && s?.generation?.allowSystemChecks === false) {
         try {
             const last = String(window.UIE_lastSystemCheckBlockedType || "");
@@ -1111,7 +1113,7 @@ export async function generateContent(prompt, type) {
     if(type === "Webpage") system = "You are a UI Engine. Output ONLY raw valid HTML for an immersive/interactive UI. No markdown, no code fences. Avoid <script> unless absolutely necessary. Prefer CSS-only interaction.";
     if(type === "Phone Call") system = "You are speaking on a phone call. Output ONLY the words spoken (dialogue only). No narration, no actions, no stage directions, no quotes, no markdown, no brackets. one short line.";
     system = [customSystem, logicSystem, system].filter(Boolean).join("\n\n");
-    if (type === "System Check" || type === "Unified State Scan" || type === "Shop" || type === "Journal Quests") {
+    if (type === "System Check" || type === "Unified State Scan" || type === "Unified State Scan (User)" || type === "Shop" || type === "Journal Quests") {
         const strict = [
             "STRICT MODE:",
             type === "Journal Quests"
@@ -1131,7 +1133,7 @@ export async function generateContent(prompt, type) {
     const rawBase = String(prompt || "").trim();
     const lockedPrompt = /^\[UIE_LOCKED\]/i.test(rawBase);
     const base = rawBase.replace(/^\[UIE_LOCKED\]\s*/i, "").trim();
-    const wantsJson = (type === "System Check" || type === "Unified State Scan" || type === "Journal Quests");
+    const wantsJson = (type === "System Check" || type === "Unified State Scan" || type === "Unified State Scan (User)" || type === "Journal Quests");
     const prefixes = (() => {
         try {
             const typeKey = String(type || "").trim();

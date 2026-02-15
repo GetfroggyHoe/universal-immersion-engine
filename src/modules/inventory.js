@@ -69,6 +69,151 @@ function ensureModel(s) {
   if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
 }
 
+function applyClassWithResets(s, obj, resets) {
+  if (!s || !obj) return;
+  if (!s.character) s.character = {};
+  if (!s.character.stats || typeof s.character.stats !== "object") s.character.stats = {};
+  if (!Array.isArray(s.character.statusEffects)) s.character.statusEffects = [];
+  if (!s.inventory) s.inventory = {};
+  if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
+  if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
+  if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+  if (!Array.isArray(s.inventory.equipped)) s.inventory.equipped = [];
+
+  const dedupeByName = (arr) => {
+    const seen = new Set();
+    const out = [];
+    for (const it of arr) {
+      const nm = String(it?.name || it?.title || it || "").trim();
+      const k = nm.toLowerCase();
+      if (!nm || seen.has(k)) continue;
+      seen.add(k);
+      out.push(it);
+    }
+    return out;
+  };
+
+  const cn = String(obj?.className || obj?.class || obj?.name || "").trim();
+  if (cn) s.character.className = cn.slice(0, 60);
+
+  const lvl = Number(obj?.level);
+  if (Number.isFinite(lvl) && lvl >= 1) s.character.level = Math.max(1, Math.floor(lvl));
+
+  if (resets.stats) {
+    const st = obj?.stats && typeof obj.stats === "object" ? obj.stats : null;
+    if (st) {
+      s.character.stats = {};
+      for (const k of Object.keys(st)) {
+        const v = Number(st[k]);
+        if (Number.isFinite(v)) s.character.stats[k] = v;
+      }
+    }
+  } else {
+    const st = obj?.stats && typeof obj.stats === "object" ? obj.stats : null;
+    if (st) {
+      for (const k of Object.keys(st)) {
+        const v = Number(st[k]);
+        if (Number.isFinite(v)) s.character.stats[k] = v;
+      }
+    }
+  }
+
+  if (resets.bars) {
+    const hp = Number(obj?.stats?.con ?? obj?.stats?.str ?? 10);
+    const mp = Number(obj?.stats?.int ?? obj?.stats?.wis ?? 10);
+    const ap = Number(obj?.stats?.dex ?? obj?.stats?.agi ?? 10);
+    s.hp = Math.max(1, hp * 2);
+    s.maxHp = s.hp;
+    s.mp = Math.max(0, mp * 2);
+    s.maxMp = s.mp;
+    s.ap = Math.max(0, ap);
+    s.maxAp = s.ap;
+    s.xp = 0;
+    s.maxXp = 100;
+  }
+
+  if (resets.statusEffects) {
+    s.character.statusEffects = [];
+  }
+  const fxArr = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
+  const mergedFx = [...s.character.statusEffects];
+  for (const it of fxArr) {
+    const v = String(it || "").trim();
+    if (!v) continue;
+    if (!mergedFx.includes(v)) mergedFx.push(v);
+  }
+  s.character.statusEffects = mergedFx.slice(0, 25);
+
+  if (resets.skills) {
+    const newSkills = Array.isArray(obj?.skills) ? obj.skills : [];
+    s.inventory.skills = dedupeByName(newSkills.map(x => (typeof x === "string" ? { kind: "skill", name: x, description: "" } : { kind: "skill", ...x }))).slice(0, 120);
+  } else {
+    const newSkills = Array.isArray(obj?.skills) ? obj.skills : [];
+    s.inventory.skills = dedupeByName([...s.inventory.skills, ...newSkills.map(x => (typeof x === "string" ? { kind: "skill", name: x, description: "" } : { kind: "skill", ...x }))]).slice(0, 120);
+  }
+
+  const rawAssets = Array.isArray(obj?.assets) ? obj.assets : (Array.isArray(obj?.abilities) ? obj.abilities : []);
+  const newAssets = rawAssets.map(x => (typeof x === "string" ? { kind: "asset", name: x, description: "" } : { kind: "asset", name: x?.name ?? x?.title ?? "Asset", description: x?.description ?? "", ...x }));
+  if (resets.assets) {
+    s.inventory.assets = dedupeByName(newAssets).slice(0, 160);
+  } else {
+    s.inventory.assets = dedupeByName([...s.inventory.assets, ...newAssets]).slice(0, 160);
+  }
+
+  if (resets.items) {
+    const newItems = Array.isArray(obj?.items) ? obj.items : [];
+    s.inventory.items = dedupeByName(newItems.map(x => (typeof x === "string" ? { kind: "item", name: x, description: "" } : { kind: "item", ...x }))).slice(0, 400);
+  } else {
+    const newItems = Array.isArray(obj?.items) ? obj.items : [];
+    s.inventory.items = dedupeByName([...s.inventory.items, ...newItems.map(x => (typeof x === "string" ? { kind: "item", name: x, description: "" } : { kind: "item", ...x }))]).slice(0, 400);
+  }
+
+  if (resets.equipment) {
+    s.inventory.equipped = [];
+  }
+  const eq = Array.isArray(obj?.equipment) ? obj.equipment : [];
+  for (const x of eq) {
+    const slotId = String(x?.slotId || "").trim();
+    if (!slotId) continue;
+    const item = {
+      slotId,
+      name: String(x?.name || "").trim().slice(0, 80) || slotId.toUpperCase(),
+      type: String(x?.type || "equip").trim().slice(0, 40),
+      rarity: String(x?.rarity || "common").trim().slice(0, 24),
+      statusEffects: Array.isArray(x?.statusEffects) ? x.statusEffects.map(v => String(v || "").trim()).filter(Boolean).slice(0, 10) : [],
+      img: String(x?.img || "").trim()
+    };
+    const idx = s.inventory.equipped.findIndex(e => String(e?.slotId || "") === slotId);
+    if (idx >= 0) s.inventory.equipped[idx] = { ...s.inventory.equipped[idx], ...item };
+    else s.inventory.equipped.push(item);
+  }
+
+  if (resets.life) {
+    if (!s.life) s.life = {};
+    s.life.trackers = [];
+  }
+  if (!s.life) s.life = {};
+  if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
+  const trackers = Array.isArray(obj?.trackers) ? obj.trackers : [];
+  if (trackers.length) {
+    const existingNames = new Set(s.life.trackers.map(t => String(t?.name || "").toLowerCase()));
+    for (const t of trackers) {
+      const name = String(t?.name || t?.title || "Tracker").trim().slice(0, 60);
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (existingNames.has(key)) continue;
+      existingNames.add(key);
+      s.life.trackers.push({
+        name,
+        current: Math.max(0, Number(t?.current ?? t?.max ?? 100)),
+        max: Math.max(1, Number(t?.max ?? 100)),
+        color: String(t?.color || "#89b4fa").slice(0, 20),
+        notes: String(t?.notes || "").slice(0, 200)
+      });
+    }
+  }
+}
+
 let fxManagerHandlersBound = false;
 
 function ensureStatusManager() {
@@ -326,7 +471,8 @@ const performRebirth = (medalId) => {
     updateVitals();
     applyInventoryUi(); // Update Rebirth button visibility
     notify("success", "REBIRTH COMPLETE! You are now a Legend.", "System", "levelUp");
-    injectRpEvent(`[System: REBIRTH COMPLETE! Character has been reborn. Path chosen: ${def.name}. Level reset to 1.]`);
+    const medName = (MEDALLIONS[medalId] && MEDALLIONS[medalId].name) ? MEDALLIONS[medalId].name : String(medalId);
+    injectRpEvent(`[System: REBIRTH COMPLETE! Character has been reborn. Path chosen: ${medName}. Level reset to 1.]`);
 };
 
 // --- AUTOMATED LOOT & STATUS SCANNER ---
@@ -479,7 +625,7 @@ function applyLevelingProgress(s) {
   }
 }
 
-function applyInventoryUi() {
+export function applyInventoryUi() {
   const s = getSettings();
   if (!s) return;
   ensureInventoryUi(s);
@@ -563,7 +709,8 @@ function applyInventoryUi() {
 
   // Rebirth Option Visibility
   const s2 = getSettings();
-  const canRebirth = (s2?.character?.level >= 150 && !s2?.character?.reborn);
+  const levelNum = Number(s2?.character?.level ?? 0);
+  const canRebirth = levelNum >= 150 && !s2?.character?.reborn;
   const rbBtn = document.getElementById("uie-inv-rebirth-opt");
   if (rbBtn) rbBtn.style.display = canRebirth ? "block" : "none";
 
@@ -861,6 +1008,41 @@ function openCreateStation() {
       console.warn("[UIE] Creation Station menu not found.");
       return;
   }
+
+  // Desktop: Toggle dropdown
+  if (!isMobileLayout()) {
+      if (menu.dataset.uiePortaled !== "1") {
+          document.body.appendChild(menu);
+          menu.dataset.uiePortaled = "1";
+      }
+
+      if (menu.style.display === "block") {
+          closeCreateStation();
+      } else {
+          const btn = document.getElementById("uie-inv-sparkle");
+          if (btn) {
+              const rect = btn.getBoundingClientRect();
+              menu.style.position = "fixed";
+              menu.style.zIndex = "2147483655";
+              // Align right edge
+              const w = 340; 
+              let left = rect.right - w;
+              if (left < 10) left = 10;
+              menu.style.top = `${rect.bottom + 10}px`;
+              menu.style.left = `${left}px`;
+              menu.style.right = "auto";
+              menu.style.bottom = "auto";
+              menu.style.width = "340px";
+              menu.style.height = "auto";
+              menu.style.transform = "none";
+              menu.style.margin = "0";
+          }
+          menu.style.display = "block";
+          createStation.open = true;
+      }
+      return;
+  }
+
   ensureCreateStationOverlay();
   const ov = document.getElementById("uie-create-station-overlay");
   const shell = document.getElementById("uie-create-station-shell");
@@ -897,6 +1079,13 @@ function closeCreateStation() {
   const ov = document.getElementById("uie-create-station-overlay");
   if (ov) ov.style.display = "none";
   if (!menu) { createStation.open = false; return; }
+  
+  if (!isMobileLayout()) {
+      menu.style.display = "none";
+      createStation.open = false;
+      return;
+  }
+
   menu.style.display = "none";
   menu.style.inset = "";
   menu.style.width = "";
@@ -969,11 +1158,20 @@ export function initInventory() {
       await ensureRouteLoaded(routes[tab]);
     });
 
-  $sparkle.on("click.uieLootScan", "#uie-create-scan-loot", async function (e) {
+  $sparkle.off("click.uieLootScan", "#uie-create-scan-loot")
+    .on("click.uieLootScan", "#uie-create-scan-loot", async function (e) {
       e.preventDefault();
       e.stopPropagation();
-      closeCreateStation();
-      await scanLootAndStatus(true);
+      const btn = $(this);
+      if (btn.prop("disabled")) return;
+      
+      btn.prop("disabled", true).css("opacity", "0.5").text("Scanning...");
+      try {
+        closeCreateStation();
+        await scanLootAndStatus(true);
+      } finally {
+        btn.prop("disabled", false).css("opacity", "1").text("Scan Chat Log");
+      }
     });
 
   $sparkle.off("click.uieWarRoomScan", "#uie-create-scan-warroom")
@@ -1047,10 +1245,12 @@ export function initInventory() {
         s.character.level = val;
       } else {
         s.character[key] = String(val).trim();
+        if (key === "name") s.character.syncPersona = false;
       }
 
       saveSettings();
-      // No need to re-render immediately as it might kill focus
+      updateVitals();
+      if (key === "level") applyInventoryUi();
     });
 
   const editName = () => {
@@ -1229,7 +1429,7 @@ export function initInventory() {
       e.stopPropagation();
       const s2 = getSettings();
       ensureModel(s2);
-      if (!(Number(s2?.character?.level || 0) >= 150 && !s2?.character?.reborn)) return;
+      if (!(Number(s2?.character?.level ?? 0) >= 150 && !s2?.character?.reborn)) return;
       const gm = document.getElementById("uie-inv-gear-menu");
       if (gm) gm.style.display = "none";
       renderRebirthModal();
@@ -1279,6 +1479,48 @@ export function initInventory() {
       closeCreateStation();
     });
 
+  function closeClassResetModal() {
+    const $m = $("#uie-class-reset-modal");
+    $m.hide().removeData("uie-class-obj").removeData("uie-class-status-el");
+  }
+
+  $(document).off("click.uieClassReset")
+    .on("click.uieClassReset", "#uie-class-reset-apply", async function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const $m = $("#uie-class-reset-modal");
+      const obj = $m.data("uie-class-obj");
+      const statusEl = $m.data("uie-class-status-el");
+      if (!obj) { closeClassResetModal(); return; }
+      const resets = {};
+      $(".uie-class-reset-cb").each(function () {
+        const k = $(this).data("reset");
+        if (k) resets[k] = $(this).is(":checked");
+      });
+      const s2 = getSettings();
+      applyClassWithResets(s2, obj, resets);
+      saveSettings();
+      updateVitals();
+      closeClassResetModal();
+      try { (await import("./features/equipment_rpg.js")).render?.(); } catch (_) {}
+      try { (await import("./features/items.js")).render?.(); } catch (_) {}
+      try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+      try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+      try { (await import("./features/life.js")).render?.(); } catch (_) {}
+      if (statusEl) statusEl.textContent = "Done!";
+    })
+    .on("click.uieClassReset", "#uie-class-reset-cancel, #uie-class-reset-close", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const statusEl = $("#uie-class-reset-modal").data("uie-class-status-el");
+      closeClassResetModal();
+      if (statusEl) statusEl.textContent = "";
+    });
+
+  $("#uie-class-reset-modal").on("click", function (e) {
+    if (e.target === this) closeClassResetModal();
+  });
+
   $sparkle.off("click.uieCreationStation", "#uie-create-run")
     .on("click.uieCreationStation", "#uie-create-run", async function (e) {
       e.preventDefault();
@@ -1290,14 +1532,10 @@ export function initInventory() {
 
       const kind = String($("#uie-create-kind").val() || "item");
       const desc = String($("#uie-create-desc").val() || "").trim().slice(0, 600);
-      const qty = Math.max(1, Math.min(5, Number($("#uie-create-qty").val() || 1)));
+      const qty = Math.max(1, Math.min(20, Number($("#uie-create-qty").val() || 1)));
       const genImg = $("#uie-create-gen-img").is(":checked");
 
       const st = document.getElementById("uie-create-status");
-      if (kind === "currency" || kind === "xp") {
-        if (st) st.textContent = "Use +Money / +XP below";
-        return;
-      }
       if (st) st.textContent = "Creating…";
 
       const chat = await getChatTranscriptText({ maxMessages: 30, maxChars: 2600 });
@@ -1308,21 +1546,23 @@ export function initInventory() {
       // Determine if we use Staging Area
       const useStaging = ["item", "skill", "asset"].includes(kind);
       const isArrayReq = useStaging && qty > 1;
+      if (kind === "currency") {
+        if (st) st.textContent = "Use + Money / XP below.";
+        return;
+      }
 
       let prompt = "";
       if (kind === "class") {
-          prompt = `${base}Return ONLY JSON: {"className":"","level":1,"stats":{"str":10,"dex":10,"con":10,"int":10,"wis":10,"cha":10,"per":10,"luk":10,"agi":10,"vit":10,"end":10,"spi":10},"skills":[{"name":"","description":""}],"assets":[{"name":"","description":""}],"items":[{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}],"equipment":[{"slotId":"","name":"","type":"","rarity":"","statusEffects":[""],"img":""}],"statusEffects":[""]}\nRules:\n- If user requested a specific level, set it.\n- If not requested, use Current level.\n- Keep arrays short (<= 10 each)\nCurrent level: ${Number(s2.character?.level || 1)}\nPersona:${persona}\nContext:\n${chat}`;
+          prompt = `${base}Return ONLY JSON: {"className":"","level":1,"stats":{"str":10,"dex":10,"con":10,"int":10,"wis":10,"cha":10,"per":10,"luk":10,"agi":10,"vit":10,"end":10,"spi":10},"skills":[{"name":"","description":""}],"assets":[{"name":"","description":""}],"items":[{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}],"equipment":[{"slotId":"","name":"","type":"","rarity":"","statusEffects":[""],"img":""}],"statusEffects":[""],"trackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}]}\nRules:\n- If user requested a specific level, set it.\n- If not requested, use Current level.\n- Keep arrays short (<= 10 each). Always include at least 2-4 assets (class abilities/features) and 2-4 trackers (e.g. HP, MP, Stamina, Mana).\n- assets: class abilities, features, or resources (name + description).\n- trackers: life trackers for this class. Use colors like #ef4444 (red), #22c55e (green), #3b82f6 (blue).\nCurrent level: ${Number(s2.character?.level || 1)}\nPersona:${persona}\nContext:\n${chat}`;
       } else if (kind === "status") {
           prompt = `${base}Return ONLY JSON: {"statusEffects":[""]}\nRules:\n- 0-6 short strings\nPersona:${persona}\nContext:\n${chat}`;
       } else {
-          // Item / Skill / Asset / Activity
+          // Item / Skill / Asset
           const schema = kind === "skill"
             ? `{"name":"","description":"","skillType":"active|passive","statusEffects":[""],"mods":{"str":0,"dex":0,"int":0}}`
             : kind === "asset"
               ? `{"name":"","description":"","category":"","location":"","statusEffects":[""]}`
-              : kind === "activity"
-                ? `{"name":"","description":"","duration":60,"stats":{"str":0,"xp":10}}`
-                : `{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}`;
+              : `{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}`;
 
           if (isArrayReq) {
               prompt = `${base}Return ONLY JSON Array of ${qty} items: [${schema}, ...]\nPersona:${persona}\nContext:\n${chat}`;
@@ -1338,100 +1578,30 @@ export function initInventory() {
         try { obj = JSON.parse(String(res).replace(/```json|```/g, "").trim()); } catch (_) { obj = null; }
         if (!obj || typeof obj !== "object") return;
 
-        if (kind === "class" || kind === "status" || kind === "activity") {
-             if (kind === "activity") {
-                 const newAct = {
-                     id: "custom_" + Date.now(),
-                     name: String(obj.name || "New Activity").slice(0, 60),
-                     duration: Math.max(10, Number(obj.duration) || 60),
-                     stats: obj.stats || { xp: 5 }
-                 };
-                 if (!s2.activities) s2.activities = {};
-                 if (!Array.isArray(s2.activities.custom)) s2.activities.custom = [];
-                 s2.activities.custom.push(newAct);
-                 saveSettings();
-                 notify("success", `Created activity: ${newAct.name}`, "Activities");
-                 try { (await import("./features/activities.js")).render?.(); } catch (_) {}
-                 if (st) st.textContent = "Done!";
-                 return;
-             }
+        if (kind === "class" || kind === "status") {
              if (kind === "class") {
-                  if (!s2.character) s2.character = {};
-                  if (!s2.character.stats || typeof s2.character.stats !== "object") s2.character.stats = {};
-                  if (!Array.isArray(s2.character.statusEffects)) s2.character.statusEffects = [];
-                  if (!Array.isArray(s2.inventory.skills)) s2.inventory.skills = [];
-                  if (!Array.isArray(s2.inventory.assets)) s2.inventory.assets = [];
-                  if (!Array.isArray(s2.inventory.items)) s2.inventory.items = [];
-                  if (!Array.isArray(s2.inventory.equipped)) s2.inventory.equipped = [];
-
-                  const cn = String(obj?.className || obj?.class || obj?.name || "").trim();
-                  if (cn) s2.character.className = cn.slice(0, 60);
-                  const lvl = Number(obj?.level);
-                  if (Number.isFinite(lvl) && lvl >= 1) s2.character.level = Math.max(1, Math.floor(lvl));
-
-                  const st = obj?.stats && typeof obj.stats === "object" ? obj.stats : null;
-                  if (st) {
-                    for (const k of Object.keys(st)) {
-                      const v = Number(st[k]);
-                      if (Number.isFinite(v)) s2.character.stats[k] = v;
+                  // Show reset modal and let user choose what to reset
+                  const $modal = $("#uie-class-reset-modal");
+                  if ($modal.length) {
+                    if ($modal[0].parentNode !== document.body) {
+                      document.body.appendChild($modal[0]);
                     }
+                    $modal.css("display", "flex");
+                    $modal.data("uie-class-obj", obj);
+                    $modal.data("uie-class-status-el", st);
+                    if (st) st.textContent = "Select what to reset, then Apply";
+                  } else {
+                    applyClassWithResets(s2, obj, { skills: true, assets: true, stats: true, bars: true, life: true, items: true, equipment: true, statusEffects: true });
+                    saveSettings();
+                    updateVitals();
+                    try { (await import("./features/equipment_rpg.js")).render?.(); } catch (_) {}
+                    try { (await import("./features/items.js")).render?.(); } catch (_) {}
+                    try { (await import("./features/skills.js")).init?.(); } catch (_) {}
+                    try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+                    try { (await import("./features/life.js")).render?.(); } catch (_) {}
+                    if (st) st.textContent = "Done!";
                   }
-
-                  const fxArr = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
-                  const mergedFx = [...s2.character.statusEffects];
-                  for (const it of fxArr) {
-                    const v = String(it || "").trim();
-                    if (!v) continue;
-                    if (!mergedFx.includes(v)) mergedFx.push(v);
-                  }
-                  s2.character.statusEffects = mergedFx.slice(0, 25);
-
-                  // Helper
-                  const dedupeByName = (arr) => {
-                    const seen = new Set();
-                    const out = [];
-                    for (const it of arr) {
-                      const nm = String(it?.name || it?.title || it || "").trim();
-                      const k = nm.toLowerCase();
-                      if (!nm || seen.has(k)) continue;
-                      seen.add(k);
-                      out.push(it);
-                    }
-                    return out;
-                  };
-
-                  const newSkills = Array.isArray(obj?.skills) ? obj.skills : [];
-                  s2.inventory.skills = dedupeByName([...s2.inventory.skills, ...newSkills.map(x => (typeof x === "string" ? { kind: "skill", name: x, description: "" } : { kind: "skill", ...x }))]).slice(0, 120);
-
-                  const newAssets = Array.isArray(obj?.assets) ? obj.assets : [];
-                  s2.inventory.assets = dedupeByName([...s2.inventory.assets, ...newAssets.map(x => (typeof x === "string" ? { kind: "asset", name: x, description: "" } : { kind: "asset", ...x }))]).slice(0, 160);
-
-                  const newItems = Array.isArray(obj?.items) ? obj.items : [];
-                  s2.inventory.items = dedupeByName([...s2.inventory.items, ...newItems.map(x => (typeof x === "string" ? { kind: "item", name: x, description: "" } : { kind: "item", ...x }))]).slice(0, 400);
-
-                  const eq = Array.isArray(obj?.equipment) ? obj.equipment : [];
-                  for (const x of eq) {
-                    const slotId = String(x?.slotId || "").trim();
-                    if (!slotId) continue;
-                    const item = {
-                      slotId,
-                      name: String(x?.name || "").trim().slice(0, 80) || slotId.toUpperCase(),
-                      type: String(x?.type || "equip").trim().slice(0, 40),
-                      rarity: String(x?.rarity || "common").trim().slice(0, 24),
-                      statusEffects: Array.isArray(x?.statusEffects) ? x.statusEffects.map(v => String(v || "").trim()).filter(Boolean).slice(0, 10) : [],
-                      img: String(x?.img || "").trim()
-                    };
-                    const idx = s2.inventory.equipped.findIndex(e => String(e?.slotId || "") === slotId);
-                    if (idx >= 0) s2.inventory.equipped[idx] = { ...s2.inventory.equipped[idx], ...item };
-                    else s2.inventory.equipped.push(item);
-                  }
-
-                  saveSettings();
-                  updateVitals();
-                  try { const mod = await import("./features/equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
-                  try { (await import("./features/items.js")).render?.(); } catch (_) {}
-                  try { (await import("./features/skills.js")).init?.(); } catch (_) {}
-                  try { (await import("./features/assets.js")).init?.(); } catch (_) {}
+                  return;
              } else {
                   // Status
                   const newFx = Array.isArray(obj?.statusEffects) ? obj.statusEffects : [];
@@ -1588,22 +1758,22 @@ export function initInventory() {
       });
   });
 
-  $sparkle.off("click.uieCreateQuickAdd", "#uie-create-add-currency, #uie-create-add-xp")
-    .on("click.uieCreateQuickAdd", "#uie-create-add-currency, #uie-create-add-xp", function (e) {
+  $sparkle.off("click.uieCreateQuickAdd", "#uie-create-quick-add")
+    .on("click.uieCreateQuickAdd", "#uie-create-quick-add", function (e) {
       e.preventDefault();
       e.stopPropagation();
       const s2 = getSettings();
       ensureModel(s2);
       ensureInventoryUi(s2);
 
-      const sym = String(s2.currencySymbol || "G");
-      const isCur = this && this.id === "uie-create-add-currency";
-      const inputId = isCur ? "#uie-create-money" : "#uie-create-xp";
-      const raw = String($(inputId).val() || "").trim();
+      const quickType = String($("#uie-create-quick-type").val() || "money");
+      const raw = String($("#uie-create-quick-amount").val() || "").trim();
       const amt = Math.max(0, Math.round(Number(raw || 0)));
       if (!amt) return;
 
-      if (isCur) {
+      const sym = String(s2.currencySymbol || "G");
+      let did = false;
+      if (quickType === "money" || quickType === "both") {
         s2.currency = Math.max(0, Number(s2.currency || 0) + amt);
         let curItem = s2.inventory.items.find(it => String(it?.type || "").toLowerCase() === "currency" && String(it?.symbol || "") === sym);
         if (!curItem) {
@@ -1613,16 +1783,20 @@ export function initInventory() {
           curItem.qty = Number(s2.currency || 0);
         }
         notify("success", `+ ${amt} ${sym}`, "Currency", "currency");
-        $(inputId).val("");
-      } else {
+        did = true;
+      }
+      if (quickType === "xp" || quickType === "both") {
         s2.xp = Number(s2.xp || 0) + amt;
         applyLevelingProgress(s2);
         notify("success", `+ ${amt} XP`, "XP", "xp");
-        $(inputId).val("");
+        did = true;
       }
-      saveSettings();
-      updateVitals();
-      try { import("./features/items.js").then(mod => { if (mod?.render) mod.render(); }); } catch (_) {}
+      if (did) {
+        $("#uie-create-quick-amount").val("");
+        saveSettings();
+        updateVitals();
+        try { import("./features/items.js").then(mod => { if (mod?.render) mod.render(); }); } catch (_) {}
+      }
     });
 
   $win.off("click.uieInvFullscreen", "#uie-inv-fullscreen-toggle")
@@ -1702,7 +1876,8 @@ export function initInventory() {
     if (pane && pane.children.length === 0) renderFallbackItemsGrid();
   }, 250);
 
-  // Auto-Scan Observer
+  // Auto-Scan Observer - DISABLED to prevent double scanning (StateTracker handles this via events)
+  /*
   const chat = document.querySelector("#chat");
   if (chat && !window.UIE_lootObserver) {
       window.UIE_lootObserver = new MutationObserver(() => {
@@ -1711,6 +1886,7 @@ export function initInventory() {
       });
       window.UIE_lootObserver.observe(chat, { childList: true, subtree: true });
   }
+  */
 }
 
 function fxIconClass(raw) {
@@ -2006,7 +2182,8 @@ export function updateVitals() {
   try {
     const ctx = getContext?.();
     const personaName = String(ctx?.name1 || "").trim();
-    if (personaName && s.character.syncPersona !== false) {
+    // Only overwrite name with ST persona when explicitly syncing (syncPersona === true). Otherwise keep user's custom name.
+    if (personaName && s.character.syncPersona === true) {
       s.character.name = personaName;
     }
   } catch (_) {}

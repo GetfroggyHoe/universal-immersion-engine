@@ -258,7 +258,19 @@ const DICTS = {
         "inv.editor.pick_image": "Pick Image",
         "inv.common.add": "Add",
         "inv.common.save": "Save",
-        "inv.common.close": "Close"
+        "inv.common.close": "Close",
+        "inv.common.cancel": "Cancel",
+        "inv.class.reset_title": "Apply New Class – What to Reset?",
+        "inv.class.reset_desc": "Select which modules to reset with this new class. Unchecked items will be merged with existing data.",
+        "inv.class.reset_skills": "Skills",
+        "inv.class.reset_assets": "Assets & Abilities",
+        "inv.class.reset_stats": "Stats",
+        "inv.class.reset_bars": "Bars (HP/MP/AP/XP)",
+        "inv.class.reset_life": "Life Trackers",
+        "inv.class.reset_items": "Items",
+        "inv.class.reset_equipment": "Equipment",
+        "inv.class.reset_status": "Status Effects",
+        "inv.class.apply": "Apply Class"
     },
     ko: {
         "lang.en": "영어",
@@ -426,7 +438,19 @@ const DICTS = {
         "inv.editor.pick_image": "이미지 선택",
         "inv.common.add": "추가",
         "inv.common.save": "저장",
-        "inv.common.close": "닫기"
+        "inv.common.close": "닫기",
+        "inv.common.cancel": "취소",
+        "inv.class.reset_title": "새 클래스 적용 – 초기화할 항목?",
+        "inv.class.reset_desc": "이 새 클래스로 초기화할 모듈을 선택하세요. 선택하지 않은 항목은 기존 데이터와 병합됩니다.",
+        "inv.class.reset_skills": "스킬",
+        "inv.class.reset_assets": "자산 및 능력",
+        "inv.class.reset_stats": "스탯",
+        "inv.class.reset_bars": "바 (HP/MP/AP/XP)",
+        "inv.class.reset_life": "생명 트래커",
+        "inv.class.reset_items": "아이템",
+        "inv.class.reset_equipment": "장비",
+        "inv.class.reset_status": "상태 효과",
+        "inv.class.apply": "클래스 적용"
     }
 };
 

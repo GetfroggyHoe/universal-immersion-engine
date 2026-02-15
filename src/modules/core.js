@@ -252,10 +252,10 @@ function writeMirror() {
         localStorage.setItem(MIRROR_KEY, safeJson(payload) || "");
     } catch (e) {
         try {
-            console.error("[UIE] Failed to write settings mirror", e);
+            console.warn("[UIE] localStorage mirror write failed, using IndexedDB backup", e?.message ?? e);
             if (!window.UIE_mirrorWriteErrorShown) {
                 window.UIE_mirrorWriteErrorShown = true;
-                window.toastr?.warning?.("UIE could not write to localStorage; using fallback storage.", "UIE");
+                window.toastr?.info?.("UIE is using backup storage (localStorage full or unavailable). Your data is still saved.", "UIE");
             }
         } catch (_) {}
 
@@ -270,7 +270,7 @@ function writeMirror() {
                 try { applyMirrorToCurrent(mirrorIdbCache.data); } catch (_) {}
             }).catch((err) => {
                 try {
-                    console.error("[UIE] Failed to write settings mirror to IndexedDB", err);
+                    console.error("[UIE] IndexedDB mirror write failed", err);
                     window.toastr?.error?.("UIE could not persist settings (storage failed).", "UIE");
                 } catch (_) {}
             });
@@ -285,10 +285,10 @@ function writeMirrorFrom(data) {
         localStorage.setItem(MIRROR_KEY, safeJson(payload) || "");
     } catch (e) {
         try {
-            console.error("[UIE] Failed to write settings mirror", e);
+            console.warn("[UIE] localStorage mirror write failed, using IndexedDB backup", e?.message ?? e);
             if (!window.UIE_mirrorWriteErrorShown) {
                 window.UIE_mirrorWriteErrorShown = true;
-                window.toastr?.warning?.("UIE could not write to localStorage; using fallback storage.", "UIE");
+                window.toastr?.info?.("UIE is using backup storage (localStorage full or unavailable). Your data is still saved.", "UIE");
             }
         } catch (_) {}
 
@@ -457,6 +457,10 @@ export function saveSettings() {
     // BEFORE we persist to mirror / ST disk. Otherwise we can end up saving an empty bucket.
     let live = null;
     try { live = getSettings(); } catch (_) { live = null; }
+    
+    // Ensure chat state is synced before saving
+    try { saveCurrentChatState(); } catch (_) {}
+
     try { window.UIE_backupMaybe?.(); } catch (_) {}
     try {
         if (live && typeof live === "object") {
@@ -495,6 +499,13 @@ export function commitStateUpdate(opts = {}) {
         window.dispatchEvent(event);
     }
 }
+
+try {
+    window.UIE = window.UIE || {};
+    window.UIE.getSettings = getSettings;
+    window.UIE.saveSettings = saveSettings;
+    window.UIE.commitStateUpdate = commitStateUpdate;
+} catch (_) {}
 
 export function failsafeRecover(opts = {}) {
     try { kickMirrorIdbLoad(); } catch (_) {}
@@ -678,6 +689,118 @@ export function isMobileUI() {
     return $(window).width() < 800 || navigator.maxTouchPoints > 0;
 }
 
+// --- CHAT PERSISTENCE ---
+let lastChatId = null;
+// savedStates is global (library of manual saves) - never per-chat, never reset on new chat
+const SESSION_KEYS = [
+    "inventory", "character", "currency", "currencySymbol", "currencyRate", 
+    "calendar", "map", "social", "diary", "databank", "activities",
+    "xp", "hp", "mp", "ap", "maxHp", "maxMp", "maxAp", "maxXp", "life", "image"
+];
+
+function saveCurrentChatState() {
+    if (!lastChatId) return;
+    const s = getSettings();
+    if (!s.chats) s.chats = {};
+    
+    const data = {};
+    let hasData = false;
+    for (const k of SESSION_KEYS) {
+        if (s[k] !== undefined) {
+            data[k] = s[k];
+            hasData = true;
+        }
+    }
+    
+    if (hasData) {
+        s.chats[lastChatId] = JSON.parse(safeJson(data));
+    }
+}
+
+function loadChatState(chatId) {
+    const s = getSettings();
+    
+    // First, ensure we save the PREVIOUS chat state if we switched
+    if (lastChatId && lastChatId !== chatId) {
+        saveCurrentChatState();
+    }
+    
+    lastChatId = chatId;
+    
+    if (!chatId) return; // No chat loaded
+    
+    const saved = s.chats?.[chatId];
+    
+    if (saved) {
+        // Restore saved data
+        for (const k of SESSION_KEYS) {
+            if (saved[k] !== undefined) {
+                s[k] = JSON.parse(safeJson(saved[k]));
+            } else {
+                delete s[k];
+            }
+        }
+    } else {
+        // New chat or no data: Reset session keys to defaults
+        for (const k of SESSION_KEYS) {
+            delete s[k];
+        }
+    }
+    
+    // Re-hydrate defaults
+    sanitizeSettings();
+    
+    // Persist chat state to disk (save current chat storage + session state)
+    try { saveSettings(); } catch (_) {}
+    
+    // Notify system
+    setTimeout(() => {
+        try { window.UIE_refreshStateSaves?.(); } catch (_) {}
+        try {
+            const event = new CustomEvent("uie:state_updated", { detail: { chatLoad: true } });
+            window.dispatchEvent(event);
+        } catch (_) {}
+        try { updateLayout(); } catch (_) {}
+        
+        // Refresh specific modules that might be stale
+        try { import("./features/life.js").then(m => m.render?.()); } catch (_) {}
+        try { import("./features/items.js").then(m => m.render?.()); } catch (_) {}
+        try { import("./features/skills.js").then(m => m.init?.()); } catch (_) {}
+        try { import("./features/assets.js").then(m => m.init?.()); } catch (_) {}
+    }, 50);
+}
+
+// Hook into saveSettings to ensure we keep the chat storage updated
+const originalSave = saveSettings;
+// We can't easily wrap the export, so we inject logic inside saveSettings via the existing function structure
+// or we add a periodic check.
+
+function checkChatIdAndLoad() {
+    try {
+        const ctx = getContext();
+        const cid = ctx ? ctx.chatId : null;
+        if (cid !== lastChatId) {
+            if (lastChatId !== null) {
+                console.log(`[UIE] Chat changed: ${lastChatId} -> ${cid}`);
+                loadChatState(cid);
+            } else {
+                lastChatId = cid;
+                if (cid) loadChatState(cid);
+            }
+        }
+    } catch (_) {}
+}
+
+let chatPollInterval = null;
+function initChatPersistence() {
+    if (chatPollInterval) return;
+    checkChatIdAndLoad();
+    chatPollInterval = setInterval(checkChatIdAndLoad, 1000);
+}
+
+// Start monitoring
+initChatPersistence();
+
 export function updateLayout() {
     const s = getSettings();
 
@@ -807,3 +930,70 @@ $("body").off("click.uieCurrencySave").on("click.uieCurrencySave", "#uie-currenc
     updateLayout(); // Refresh UI if currency is displayed
     try { window.toastr?.success?.("Economy settings saved.", "UIE"); } catch (_) {}
 });
+
+$("body")
+    .off("change.uieCoreKill")
+    .on("change.uieCoreKill", "#uie-setting-enable", function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const on = $(this).prop("checked") === true;
+        console.log("[UIE] Kill Switch toggled:", on);
+        try { window.UIE_lastCoreToggle = { id: String(this?.id || ""), on, at: Date.now() }; } catch (_) {}
+        const s = getSettings();
+        s.enabled = on === true;
+        saveSettings();
+        try {
+            document.querySelectorAll("#uie-setting-enable").forEach((el) => {
+                try { el.checked = on; } catch (_) {}
+            });
+        } catch (_) {}
+        if (s.enabled === false) {
+            try { $("#uie-main-menu").hide(); } catch (_) {}
+            try { $(".uie-window, .uie-overlay, .uie-modal, .uie-full-modal").hide(); } catch (_) {}
+        }
+        try { updateLayout(); } catch (_) {}
+    })
+    .off("change.uieCoreScanAll")
+    .on("change.uieCoreScanAll", "#uie-scanall-enable, #uie-sw-scanall-enable, #uie-wand-scanall-enable", function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const on = $(this).prop("checked") === true;
+        try { window.UIE_lastCoreToggle = { id: String(this?.id || ""), on, at: Date.now() }; } catch (_) {}
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        s.generation.scanAllEnabled = on === true;
+        saveSettings();
+        try {
+            document.querySelectorAll("#uie-scanall-enable, #uie-sw-scanall-enable, #uie-wand-scanall-enable").forEach((el) => {
+                try { el.checked = on; } catch (_) {}
+            });
+        } catch (_) {}
+    })
+    .off("change.uieCoreSysChecks")
+    .on("change.uieCoreSysChecks", "#uie-systemchecks-enable, #uie-sw-systemchecks-enable, #uie-wand-systemchecks-enable", function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const on = $(this).prop("checked") === true;
+        try { window.UIE_lastCoreToggle = { id: String(this?.id || ""), on, at: Date.now() }; } catch (_) {}
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        s.generation.allowSystemChecks = on === true;
+        saveSettings();
+        try {
+            document.querySelectorAll("#uie-systemchecks-enable, #uie-sw-systemchecks-enable, #uie-wand-systemchecks-enable").forEach((el) => {
+                try { el.checked = on; } catch (_) {}
+            });
+        } catch (_) {}
+    })
+    .off("change.uieCorePopups")
+    .on("change.uieCorePopups", "#uie-show-popups", function (e) {
+        try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+        const on = $(this).prop("checked") === true;
+        try { window.UIE_lastCoreToggle = { id: String(this?.id || ""), on, at: Date.now() }; } catch (_) {}
+        const s = getSettings();
+        if (!s.ui || typeof s.ui !== "object") s.ui = {};
+        s.ui.showPopups = on === true;
+        saveSettings();
+        try {
+            document.querySelectorAll("#uie-show-popups").forEach((el) => {
+                try { el.checked = on; } catch (_) {}
+            });
+        } catch (_) {}
+    });

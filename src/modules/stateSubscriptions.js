@@ -5,7 +5,7 @@ export function initStateSubscriptions() {
     mounted = true;
     try {
         let t = null;
-        $(document).off("uie:stateUpdated.uieRefresh").on("uie:stateUpdated.uieRefresh", () => {
+        const handle = () => {
             if (t) clearTimeout(t);
             t = setTimeout(async () => {
                 try {
@@ -35,6 +35,9 @@ export function initStateSubscriptions() {
                     }
                 } catch (_) {}
             }, 80);
-        });
+        };
+
+        $(document).off("uie:stateUpdated.uieRefresh").on("uie:stateUpdated.uieRefresh", handle);
+        try { window.addEventListener("uie:state_updated", handle, { passive: true }); } catch (_) {}
     } catch (_) {}
 }
