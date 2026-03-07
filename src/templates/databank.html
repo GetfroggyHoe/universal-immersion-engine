@@ -1,0 +1,83 @@
+﻿<style>
+  #uie-databank-window{ top: 80px; left: 80px; transform:none; flex-direction: column !important; overflow: hidden; }
+  #uie-databank-window .uie-header{ height: 32px !important; min-height: 32px !important; padding: 0 8px !important; flex-shrink: 0 !important; display: flex !important; align-items: center !important; z-index: 10 !important; font-size: 0.9em !important; }
+  #uie-databank-window .uie-header h2{ font-size: 1.1em !important; margin: 0 !important; line-height: 1 !important; }
+  #uie-databank-window .uie-db-tab{ display: flex; align-items: center; justify-content: center; flex: 1 1 0 !important; min-width: 0 !important; padding: 7px 11px !important; font-size: 13px !important; line-height: 1.1 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  #uie-db-tabs{ display:flex; flex-direction: row !important; align-items: center; flex: 0 0 auto; width: 100%; gap: 0 !important; padding: 0 !important; }
+  #uie-databank-window .uie-content{ flex: 1 1 auto; min-height: 0; }
+  @media (max-width: 700px), ((pointer: coarse) and (hover: none)) {
+    #uie-databank-window {
+      width: 94vw;
+      height: 80vh;
+      max-width: 94vw;
+      max-height: 80vh;
+    }
+  }
+</style>
+<div id="uie-databank-window" class="uie-window" style="display:none; width:450px; height:600px; background:#0b101c; color:#00f0ff; border:1px solid #00f0ff; box-shadow:0 0 15px rgba(0,240,255,0.2);">
+    <div class="uie-header" style="border-bottom:1px solid #00f0ff; padding:12px; display:flex; align-items:center; background:rgba(0,240,255,0.1);">
+        <i class="fa-solid fa-database" style="margin-right:8px;"></i>
+        <h2 style="margin:0; font-size:16px; letter-spacing:2px;">DATABANK</h2>
+        <i class="fa-solid fa-circle-question" onclick="uie.phone.openBooksGuide('guide-journal')" style="margin-left:auto; margin-right:10px; cursor:pointer; font-size:16px;" title="Help"></i>
+        <i id="uie-databank-close" class="fa-solid fa-xmark uie-close-btn" style="cursor:pointer; font-size:18px;"></i>
+    </div>
+    
+    <div id="uie-db-tabs" style="display:flex; border-bottom:1px solid rgba(0,240,255,0.3); gap:0; padding:0; overflow-x:auto; overflow-y:hidden; white-space:nowrap;">
+        <div class="uie-db-tab active" data-tab="memories" style="flex:1 1 0; min-width:0; text-align:center; cursor:pointer; font-weight:bold; background:rgba(0,240,255,0.1); border-right:1px solid rgba(0,240,255,0.1);">MEMORIES</div>
+        <div class="uie-db-tab" data-tab="social" style="flex:1 1 0; min-width:0; text-align:center; cursor:pointer; font-weight:bold; color:rgba(0,240,255,0.5); border-right:1px solid rgba(0,240,255,0.1);">SOCIAL</div>
+        <div class="uie-db-tab" data-tab="state" style="flex:1 1 0; min-width:0; text-align:center; cursor:pointer; font-weight:bold; color:rgba(0,240,255,0.5);">WORLD STATE</div>
+    </div>
+
+    <div class="uie-content" style="padding:0; overflow-y:auto; flex:1; min-height:0;">
+        <!-- MEMORIES VIEW -->
+        <div id="uie-db-view-memories" style="padding:15px;">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                <button id="uie-db-scan" style="background:rgba(0,240,255,0.1); border:1px solid #00f0ff; color:#00f0ff; padding:6px 12px; cursor:pointer; font-weight:bold; font-size:12px; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-brain"></i> ARCHIVE MEMORY
+                </button>
+            </div>
+            <div id="uie-db-meta" style="font-size:11px; color:rgba(0,240,255,0.65); margin:-6px 0 10px; letter-spacing:0.6px;"></div>
+            <div id="uie-db-list"></div>
+        </div>
+
+        <!-- STATE VIEW -->
+        <div id="uie-db-view-state" style="display:none; padding:15px;">
+            <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+                <button id="uie-db-state-scan" style="background:rgba(0,240,255,0.1); border:1px solid #00f0ff; color:#00f0ff; padding:6px 12px; cursor:pointer; font-weight:bold; font-size:12px; display:flex; align-items:center; gap:6px;">
+                    <i class="fa-solid fa-arrows-rotate"></i> SCAN / REFRESH
+                </button>
+            </div>
+            <div id="uie-db-state-content"></div>
+        </div>
+
+        <!-- SOCIAL VIEW -->
+        <div id="uie-db-view-social" style="display:none; padding:15px;">
+            <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px;">
+                <input id="uie-db-social-search" type="text" placeholder="Search profiles..." style="flex:1; background:rgba(0,0,0,0.25); border:1px solid rgba(0,240,255,0.3); color:#fff; padding:8px 10px; outline:none;">
+                <button id="uie-db-social-scan" style="background:rgba(0,240,255,0.1); border:1px solid #00f0ff; color:#00f0ff; padding:8px 10px; cursor:pointer; font-weight:900; font-size:11px; display:flex; align-items:center; gap:6px; white-space:nowrap;">
+                    <i class="fa-solid fa-arrows-rotate"></i> SCAN DATABANK
+                </button>
+            </div>
+            <div id="uie-db-social-list"></div>
+        </div>
+    </div>
+</div>
+
+<div id="uie-db-social-mem-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65); z-index:10080;">
+    <div style="position:absolute; inset:14px; margin:auto; max-width:760px; max-height:86vh; overflow:auto; background:#0b101c; border:1px solid rgba(0,240,255,0.35); box-shadow:0 0 20px rgba(0,240,255,0.12); padding:14px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div style="font-weight:900; letter-spacing:1px; color:#00f0ff;">SOCIAL MEMORIES</div>
+            <div id="uie-db-social-mem-sub" style="margin-left:auto; font-size:12px; color:rgba(0,240,255,0.65);"></div>
+            <i class="fa-solid fa-xmark" id="uie-db-social-mem-close" style="cursor:pointer; color:#00f0ff;"></i>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button id="uie-db-social-mem-scan" style="background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">SCAN FROM CHAT</button>
+            <button id="uie-db-social-mem-add" style="background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">ADD</button>
+            <button id="uie-db-social-mem-inject" style="background:rgba(0,240,255,0.1); border:1px solid rgba(0,240,255,0.35); color:#00f0ff; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">INJECT TO CHAT</button>
+            <button id="uie-db-social-mem-clear" style="background:rgba(255,59,48,0.10); border:1px solid rgba(255,59,48,0.35); color:#ff3b30; padding:6px 10px; cursor:pointer; font-weight:900; font-size:12px;">CLEAR</button>
+        </div>
+        <div id="uie-db-social-mem-list" style="margin-top:12px;"></div>
+        <div id="uie-db-social-mem-empty" style="display:none; text-align:center; color:rgba(0,240,255,0.55); margin-top:18px;">NO MEMORIES SAVED</div>
+    </div>
+</div>
+

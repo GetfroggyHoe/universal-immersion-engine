@@ -1,0 +1,804 @@
+﻿<style>
+  /* --- CORE VARIABLES & THEMING --- */
+  #uie-party-window {
+    --bg-base: rgba(10, 12, 16, 0.85);
+    --bg-panel: rgba(255, 255, 255, 0.03);
+    --bg-panel-hover: rgba(255, 255, 255, 0.07);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --accent-gold: #cba35c;
+    --accent-gold-glow: rgba(203, 163, 92, 0.3);
+    --accent-cyan: #00e5ff;
+    --text-main: #f0f0f0;
+    --text-muted: #8a8a9e;
+    --danger: #ff3366;
+    
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: auto;
+    transform: none;
+    isolation: isolate;
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    max-width: none;
+    background: var(--bg-base); 
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--border-color);
+    border-radius: 0;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05);
+    display: flex; 
+    flex-direction: column;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+  }
+
+  /* --- SCROLLBARS --- */
+  #uie-party-window *::-webkit-scrollbar { width: 6px; height: 6px; }
+  #uie-party-window *::-webkit-scrollbar-track { background: transparent; }
+  #uie-party-window *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+  #uie-party-window *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+  /* --- HEADER & CONTROLS --- */
+  #uie-party-window .uie-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 16px 20px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border-color);
+  }
+  #uie-party-name { color: var(--text-main); font-weight: 700; font-size: 1.1em; }
+  #uie-party-leader { color: var(--accent-gold); font-weight: 600; }
+  .uie-controls i {
+    color: var(--text-muted); font-size: 16px; transition: all 0.2s; padding: 6px; border-radius: 6px;
+  }
+  .uie-controls i:hover { color: var(--text-main); background: var(--bg-panel-hover); }
+
+  /* --- NAVIGATION TABS --- */
+  #uie-party-tabs {
+    display: flex; gap: 4px; padding: 12px 16px 0;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .uie-party-tab {
+    flex: 1; min-width: 80px; padding: 10px 14px;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    color: var(--text-muted) !important;
+    font-size: 0.85em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    cursor: pointer; transition: all 0.2s;
+    border-radius: 8px 8px 0 0 !important;
+  }
+  .uie-party-tab:hover { color: var(--text-main) !important; background: var(--bg-panel) !important; }
+  /* Override JS inline styles for active tab */
+  .uie-party-tab[style*="rgba(241,196,15"] {
+    color: var(--accent-gold) !important;
+    border-bottom: 2px solid var(--accent-gold) !important;
+    background: linear-gradient(0deg, var(--accent-gold-glow) 0%, transparent 100%) !important;
+  }
+
+  /* --- BODY & COMMON ELEMENTS --- */
+  #uie-party-body { flex: 1; overflow-y: auto; padding: 20px; }
+  
+  #uie-party-window input,
+  #uie-party-window select,
+  #uie-party-window textarea,
+  #uie-party-window button,
+  #uie-party-member-modal input,
+  #uie-party-member-modal select,
+  #uie-party-member-modal textarea,
+  #uie-party-member-modal button {
+    font-family: inherit; border-radius: 8px !important; transition: all 0.2s; outline: none;
+  }
+  #uie-party-window input[type="text"],
+  #uie-party-window input[type="number"],
+  #uie-party-window select,
+  #uie-party-window textarea,
+  #uie-party-member-modal input[type="text"],
+  #uie-party-member-modal input[type="number"],
+  #uie-party-member-modal select,
+  #uie-party-member-modal textarea {
+    background: rgba(0,0,0,0.3) !important; border: 1px solid var(--border-color) !important;
+    color: var(--text-main) !important; padding: 10px 14px !important; font-size: 0.9em;
+  }
+  #uie-party-window input:focus,
+  #uie-party-window select:focus,
+  #uie-party-window textarea:focus,
+  #uie-party-member-modal input:focus,
+  #uie-party-member-modal select:focus,
+  #uie-party-member-modal textarea:focus { border-color: var(--accent-gold) !important; box-shadow: 0 0 0 2px var(--accent-gold-glow); }
+
+  /* Standard Buttons */
+  #uie-party-window button:not(.uie-party-tab):not(.party-mini):not(.form-mv),
+  #uie-party-member-modal button:not(.party-mm-tab):not(.party-mini):not(.form-mv) {
+    background: var(--bg-panel) !important; border: 1px solid var(--border-color) !important;
+    color: var(--text-main) !important; font-weight: 600 !important; cursor: pointer; padding: 10px 16px;
+  }
+  #uie-party-window button:not(.uie-party-tab):hover,
+  #uie-party-member-modal button:not(.party-mm-tab):hover { background: var(--bg-panel-hover) !important; transform: translateY(-1px); }
+
+  /* --- ROSTER CARDS --- */
+  .party-row {
+    background: var(--bg-panel) !important; border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important; padding: 12px !important; margin-bottom: 10px;
+    transition: all 0.2s ease;
+  }
+  .party-row:hover { background: rgba(255,255,255,0.06) !important; border-color: rgba(255,255,255,0.15) !important; transform: scale(1.01); }
+  .party-row.active { border-color: var(--accent-gold) !important; box-shadow: 0 0 15px var(--accent-gold-glow); }
+  
+  .party-row-img-container {
+    width: 56px !important; height: 56px !important; border-radius: 10px !important;
+    background: #000 !important; border: 1px solid rgba(255,255,255,0.1);
+  }
+  .party-mini { background: rgba(0,0,0,0.4) !important; color: var(--text-muted); }
+  .party-mini:hover { color: var(--text-main); background: rgba(255,255,255,0.1) !important; }
+
+  /* --- STATS & VITALS --- */
+  .stats-grid > div {
+    background: rgba(0,0,0,0.2) !important; border: 1px solid rgba(255,255,255,0.05) !important;
+    border-radius: 8px !important; padding: 8px 12px !important;
+  }
+
+  .party-tracker-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .party-tracker-title {
+    font-size: 0.78em;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 900;
+  }
+  .party-member-trackers {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+  .party-tracker-card {
+    border: 1px solid rgba(255,255,255,0.10);
+    background: rgba(0,0,0,0.24);
+    border-radius: 12px;
+    padding: 8px;
+  }
+  .party-tracker-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .party-tracker-name {
+    font-size: 0.85em;
+    font-weight: 900;
+    color: var(--text-main);
+    max-width: 115px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .party-tracker-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.18);
+    flex: 0 0 auto;
+  }
+  .party-tracker-meta {
+    font-size: 0.75em;
+    color: rgba(255,255,255,0.78);
+    font-weight: 800;
+    font-family: monospace;
+  }
+  .party-tracker-bar {
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 6px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .party-tracker-fill {
+    height: 100%;
+    width: 0%;
+    background: #89b4fa;
+  }
+  .party-tracker-notes {
+    margin-top: 6px;
+    font-size: 0.72em;
+    color: rgba(255,255,255,0.65);
+    font-weight: 700;
+    line-height: 1.3;
+    max-height: 44px;
+    overflow: auto;
+  }
+  .party-tracker-controls {
+    margin-top: 7px;
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+  }
+  .party-tracker-controls button {
+    padding: 5px 8px !important;
+    min-width: 32px;
+    font-size: 0.78em;
+    font-weight: 900 !important;
+  }
+
+  #uie-party-tracker-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 2147483660;
+    align-items: center;
+    justify-content: center;
+    padding: 14px;
+  }
+  #uie-party-tracker-modal .box {
+    width: 100%;
+    max-width: 460px;
+    max-height: 88vh;
+    overflow: auto;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,.12);
+    background: rgba(20,18,28,.96);
+    padding: 12px;
+  }
+  #uie-party-tracker-modal input[type="text"],
+  #uie-party-tracker-modal input[type="number"],
+  #uie-party-tracker-modal textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,.10);
+    background: rgba(255,255,255,.03);
+    color: #f6e7c8;
+    outline: none;
+  }
+  #uie-party-tracker-modal textarea { resize: none; height: 110px; }
+  #uie-party-tracker-modal .grid { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  #uie-party-tracker-modal .row { display: flex; gap: 10px; margin-top: 10px; }
+  #uie-party-tracker-modal .row button { flex: 1; }
+  #uie-party-tracker-modal .danger { border-color: rgba(243,139,168,.35)!important; color: #f38ba8!important; }
+  #uie-party-tracker-modal .colorwrap { display: flex; align-items: center; gap: 10px; }
+  #uie-party-tracker-modal input[type="color"] { width: 44px; height: 44px; border-radius: 12px; border: 1px solid rgba(255,255,255,.10); background: transparent; padding: 0; }
+
+  /* --- GEAR SLOTS --- */
+  .gear-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px !important; }
+  .party-slot {
+    background: linear-gradient(135deg, rgba(255,255,255,0.02), rgba(0,0,0,0.2)) !important;
+    border: 1px solid var(--border-color) !important; border-radius: 12px !important; padding: 12px !important;
+    transition: all 0.2s; cursor: pointer;
+  }
+  .party-slot:hover { border-color: var(--accent-cyan) !important; box-shadow: inset 0 0 15px rgba(0,229,255,0.1); }
+
+  /* --- MEMBER EQUIP PAPER DOLL --- */
+  .party-mm-equip-layout {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  .party-paperdoll-pane {
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+    max-width: 100%;
+  }
+  #party-paperdoll-pick.party-paperdoll-pick {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+    max-width: min(100%, 70vw);
+    max-height: 72vh;
+    padding: 6px;
+    border-radius: 16px;
+    border: 2px dashed rgba(255,255,255,0.15);
+    overflow: hidden;
+    background: rgba(0,0,0,0.2);
+    transition: all 0.2s;
+  }
+  #party-paperdoll-pick.party-paperdoll-pick.has-image {
+    border-style: solid;
+  }
+  #party-paperdoll-pick .party-paperdoll-img {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: calc(72vh - 12px);
+    object-fit: contain;
+    object-position: center;
+    border-radius: 12px;
+    background: rgba(0,0,0,0.1);
+  }
+  #party-paperdoll-pick .party-paperdoll-empty {
+    padding: 16px 14px;
+    opacity: 0.75;
+    font-weight: 900;
+    color: rgba(255,255,255,0.78);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+
+  /* --- MODAL (MEMBER CARD) --- */
+  #uie-party-member-modal { backdrop-filter: blur(8px); background: rgba(0,0,0,0.6) !important; }
+  #uie-party-member-card {
+    background: rgba(15, 12, 18, 0.95) !important; border: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: 0 25px 60px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+    border-radius: 20px !important;
+  }
+  .uie-party-member-header { border-bottom: 1px solid rgba(255,255,255,0.05) !important; padding: 20px !important; }
+
+  /* --- MOBILE RESPONSIVENESS --- */
+  @media (max-width: 700px), (pointer: coarse) {
+    #uie-party-window {
+      width: 100vw !important; height: 100vh !important; max-height: none !important; max-width: none !important;
+      border-radius: 0 !important; top: 0 !important; left: 0 !important; transform: none !important;
+    }
+    #uie-party-member-card { border-radius: 0 !important; }
+    #party-paperdoll-pick.party-paperdoll-pick {
+      max-width: 100%;
+      max-height: 56vh;
+    }
+    #party-paperdoll-pick .party-paperdoll-img {
+      max-height: calc(56vh - 12px);
+    }
+  }
+</style>
+
+<div id="uie-party-window" class="uie-window" style="display:none;">
+    <div class="uie-header">
+        <div class="uie-info">
+            <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px; font-size:1.4em;">PARTY</h2>
+            <div style="font-size:0.8em; color:var(--text-muted); margin-top:4px;">
+                <span id="uie-party-name">My Party</span>
+                <span style="opacity:0.6; margin:0 6px;">â€¢</span>
+                Leader: <span id="uie-party-leader">â€”</span>
+            </div>
+        </div>
+        <div class="uie-controls">
+            <i class="fa-solid fa-circle-info" onclick="uie.phone.openBooksGuide('guide-party')" title="Party Manual"></i>
+            <i class="fa-solid fa-pen-to-square" id="uie-party-bg-edit" title="Change Background"></i>
+            <i class="fa-solid fa-file-export" id="uie-party-export" title="Export"></i>
+            <i class="fa-solid fa-file-import" id="uie-party-import" title="Import"></i>
+            <i class="fa-solid fa-xmark uie-close-btn" id="uie-party-close"></i>
+        </div>
+    </div>
+
+    <div id="uie-party-tabs">
+        <button class="uie-party-tab" data-tab="roster">Roster</button>
+        <button class="uie-party-tab" data-tab="sheet">Member</button>
+        <button class="uie-party-tab" data-tab="tactics">Tactics</button>
+        <button class="uie-party-tab" data-tab="formation">Formation</button>
+        <button class="uie-party-tab" data-tab="inventory">Inventory</button>
+    </div>
+
+    <div style="padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.05); display:flex; gap:12px; align-items:center;">
+        <input id="uie-party-name-input" type="text" placeholder="Enter Party Name..." style="flex:1;">
+        <button id="uie-party-save-meta" style="color:var(--accent-gold)!important; border-color:var(--accent-gold-glow)!important; background:rgba(203,163,92,0.1)!important;">Save</button>
+    </div>
+
+    <div id="uie-party-body"></div>
+
+    <div id="uie-party-member-modal" style="display:none; position:absolute; inset:0; z-index:2147483651;">
+        <div id="uie-party-member-card" style="position:absolute; inset:20px; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="uie-party-member-header no-drag" style="display:flex; align-items:center; gap:10px;">
+                <div id="uie-party-member-title" style="font-weight:900; font-size:1.2em; letter-spacing:0.5px; text-transform:uppercase;">Member</div>
+                <div style="margin-left:auto; display:flex; gap:10px;">
+                    <div id="uie-party-member-bg-edit" title="Change Background" style="width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.05); display:grid; place-items:center; cursor:pointer; transition:all 0.2s;"><i class="fa-solid fa-image"></i></div>
+                    <div id="uie-party-member-close" title="Close" style="width:36px; height:36px; border-radius:10px; background:rgba(255,255,255,0.05); display:grid; place-items:center; cursor:pointer; transition:all 0.2s; color:var(--danger);"><i class="fa-solid fa-xmark"></i></div>
+                </div>
+            </div>
+            <div id="uie-party-member-content" style="flex:1; min-height:0; overflow:auto; padding:20px;"></div>
+        </div>
+    </div>
+
+    <div id="uie-party-tracker-modal" class="life-modal" style="display:none;">
+        <div class="box" id="party-track-modal-box">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+                <h3 id="party-track-modal-title" style="margin:0; font-size:14px; font-weight:900;">Tracker</h3>
+                <button class="life-btn" id="party-track-modal-close" title="Close">âœ–</button>
+            </div>
+
+            <div class="grid">
+                <input type="text" id="party-track-modal-name" placeholder="Name (e.g., Stamina)">
+                <div class="colorwrap">
+                    <input type="color" id="party-track-modal-color" value="#89b4fa">
+                    <div style="font-weight:900;color:rgba(255,255,255,.7);">Color</div>
+                </div>
+
+                <input type="number" id="party-track-modal-current" placeholder="Current" value="0" min="-999999" max="999999">
+                <input type="number" id="party-track-modal-max" placeholder="Max" value="100" min="1" max="999999">
+
+                <textarea id="party-track-modal-notes" placeholder="Notes (optional)."></textarea>
+            </div>
+
+            <div class="row">
+                <button class="life-btn danger" id="party-track-modal-delete" style="display:none;">Delete</button>
+                <button class="life-btn" id="party-track-modal-cancel">Cancel</button>
+                <button class="life-btn" id="party-track-modal-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="uie-party-file" accept="image/*" style="display:none;">
+</div>
+
+<template id="uie-party-roster-controls">
+    <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px;">
+        <button id="party-add" style="flex:1;"><i class="fa-solid fa-plus"></i> Add Member</button>
+        <button id="party-import-user" style="flex:1;"><i class="fa-solid fa-user"></i> Import User</button>
+        <button id="party-import-char" style="flex:1;"><i class="fa-solid fa-comments"></i> Import Char</button>
+    </div>
+    <div class="party-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+    <div class="party-empty" style="display:none; text-align:center; padding:60px; color:var(--text-muted);">
+        <i class="fa-solid fa-users-slash" style="font-size:48px; margin-bottom:16px; opacity:0.5;"></i>
+        <div style="font-size:1.1em; font-weight:600;">No party members yet.</div>
+    </div>
+</template>
+
+<template id="uie-party-roster-item">
+    <div class="party-row" style="display:flex; gap:16px; align-items:center; cursor:pointer;">
+        <div class="party-row-img-container" style="overflow:hidden; display:grid; place-items:center;"></div>
+        <div style="flex:1; min-width:0;">
+            <div class="party-row-name" style="font-weight:800; font-size:1.1em; margin-bottom:4px; letter-spacing:0.5px;"></div>
+            <div class="party-row-desc" style="font-size:0.85em; color:var(--accent-gold); font-weight:600;"></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+            <button class="party-mini" data-act="leader" title="Make Leader" style="width:36px; height:36px; border-radius:10px; border:none; cursor:pointer;"><i class="fa-solid fa-crown"></i></button>
+            <button class="party-mini" data-act="toggleActive" title="Toggle Active" style="width:36px; height:36px; border-radius:10px; border:none; cursor:pointer;"><i class="fa-solid fa-power-off"></i></button>
+            <button class="party-mini" data-act="edit" title="Edit" style="width:36px; height:36px; border-radius:10px; border:none; cursor:pointer;"><i class="fa-solid fa-pen"></i></button>
+            <button class="party-mini" data-act="delete" title="Remove" style="width:36px; height:36px; border-radius:10px; border:none; cursor:pointer; color:var(--danger);"><i class="fa-solid fa-trash"></i></button>
+        </div>
+    </div>
+</template>
+
+<template id="uie-party-sheet-view">
+    <div style="display:flex; gap:20px; margin-bottom:24px; align-items:center; background:rgba(0,0,0,0.2); padding:16px; border-radius:16px; border:1px solid rgba(255,255,255,0.05);">
+        <div class="sheet-portrait" style="width:90px; height:90px; border-radius:16px; background:rgba(0,0,0,0.5); overflow:hidden; position:relative; border:2px solid rgba(255,255,255,0.1);"></div>
+        <div style="flex:1;">
+            <div class="sheet-name" style="font-size:1.6em; font-weight:900; color:var(--accent-gold); text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;"></div>
+            <div class="sheet-details" style="color:var(--text-main); font-size:0.95em; font-weight:600;"></div>
+        </div>
+        <select class="party-sheet-member-select" style="max-width:160px; font-weight:600;"></select>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:16px; margin-bottom:24px;">
+        <div style="background:rgba(0,0,0,0.2); border-radius:16px; padding:16px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; justify-content:center;">
+            <div style="font-size:0.75em; color:var(--text-muted); font-weight:800; letter-spacing:1px; margin-bottom:12px;">VITALS</div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px; align-items:center;">
+                <span style="color:var(--danger); font-weight:800; font-size:0.85em;">HP</span> 
+                <span class="val-hp" style="font-weight:900; font-family:monospace; font-size:1.1em;"></span>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="color:#00e5ff; font-weight:800; font-size:0.85em;">MP</span> 
+                <span class="val-mp" style="font-weight:900; font-family:monospace; font-size:1.1em;"></span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; align-items:center;">
+                <span style="color:#f1c40f; font-weight:800; font-size:0.85em;">AP</span>
+                <span class="val-ap" style="font-weight:900; font-family:monospace; font-size:1.1em;"></span>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; align-items:center;">
+                <span style="color:#2ecc71; font-weight:800; font-size:0.85em;">XP</span>
+                <span class="val-xp" style="font-weight:900; font-family:monospace; font-size:1.1em;"></span>
+            </div>
+        </div>
+        <div class="stats-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;"></div>
+    </div>
+    <div class="party-tracker-toolbar">
+        <div class="party-tracker-title">Member Trackers</div>
+        <button id="party-track-add" style="padding:6px 10px!important; font-size:0.8em;">+ Tracker</button>
+    </div>
+    <div class="party-member-trackers"></div>
+    <div style="display:flex; gap:4px; background:rgba(0,0,0,0.4); border-radius:12px; padding:6px; margin-bottom:12px;">
+        <button class="uie-party-subtab active" data-sub="stats" style="flex:1; border:none!important; background:rgba(255,255,255,0.1)!important; color:#fff; border-radius:8px;">Biography</button>
+        <button class="uie-party-subtab" data-sub="css" style="flex:1; border:none!important; background:transparent!important; color:var(--text-muted); border-radius:8px;">Custom CSS</button>
+    </div>
+    <div id="pm-sub-stats" class="bio-text" style="background:rgba(0,0,0,0.2); padding:16px; border-radius:12px; min-height:120px; white-space:pre-wrap; font-size:0.95em; line-height:1.5; border:1px solid rgba(255,255,255,0.05);"></div>
+    <div id="pm-sub-css" class="css-text" style="display:none; background:rgba(0,20,10,0.3); padding:16px; border-radius:12px; min-height:120px; white-space:pre-wrap; font-family:monospace; font-size:0.85em; color:#00ff88; border:1px solid rgba(0,255,136,0.1);"></div>
+</template>
+
+<template id="uie-party-stat-row">
+    <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; background:rgba(0,0,0,0.2); padding:10px; border-radius:10px;">
+        <span class="stat-lbl" style="color:var(--text-muted); font-size:0.75em; font-weight:800; margin-bottom:4px;"></span>
+        <span class="stat-val" style="font-weight:900; font-size:1.2em; color:var(--text-main);"></span>
+    </div>
+</template>
+
+<template id="uie-party-tracker-row">
+    <div class="party-tracker-card life-card" data-track-kind="" data-track-key="" data-track-id="">
+        <div class="party-tracker-top">
+            <div style="display:flex; align-items:center; gap:8px; min-width:0;">
+                <div class="party-tracker-dot"></div>
+                <div class="party-tracker-name"></div>
+            </div>
+            <div class="party-tracker-meta"></div>
+        </div>
+        <div class="party-tracker-bar"><div class="party-tracker-fill"></div></div>
+        <div class="party-tracker-notes" style="display:none;"></div>
+        <div class="party-tracker-controls life-ctrls">
+            <button class="party-track-btn life-mini" data-act="minus" title="Decrease">-</button>
+            <button class="party-track-btn life-mini" data-act="plus" title="Increase">+</button>
+            <button class="party-track-edit life-mini" style="display:none;" title="Edit Tracker">Edit</button>
+            <button class="party-track-del life-mini" style="display:none; color:var(--danger)!important;" title="Delete Tracker">Del</button>
+        </div>
+    </div>
+</template>
+
+<template id="uie-party-gear-view">
+    <div style="margin-bottom:20px; display:flex; justify-content:flex-end;">
+        <select class="party-gear-member-select" style="min-width:180px; font-weight:600;"></select>
+    </div>
+    <div class="gear-grid"></div>
+</template>
+
+<template id="uie-party-gear-slot">
+    <div class="party-slot" style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
+        <div class="slot-icon-container" style="width:54px; height:54px; display:grid; place-items:center; border-radius:8px; background:rgba(0,0,0,0.4);"></div>
+        <div class="slot-label" style="font-size:0.75em; color:var(--text-muted); font-weight:800; text-transform:uppercase; text-align:center; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+    </div>
+</template>
+
+<template id="uie-party-inventory-view">
+    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+        <button class="party-inv-add" style="background:rgba(255,255,255,0.1)!important; border-color:rgba(255,255,255,0.2)!important;">+ Add Item</button>
+    </div>
+    <div class="party-inv-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+    <div class="party-inv-empty" style="display:none; text-align:center; padding:50px; color:var(--text-muted); font-style:italic;">Inventory is currently empty.</div>
+</template>
+
+<template id="uie-party-inventory-item">
+    <div style="display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.2); padding:12px 16px; border-radius:12px; border:1px solid rgba(255,255,255,0.05);">
+        <div style="width:40px; height:40px; border-radius:10px; background:rgba(255,255,255,0.05); display:grid; place-items:center; color:var(--text-muted);"><i class="fa-solid fa-box"></i></div>
+        <div style="flex:1;">
+            <div class="inv-name" style="font-weight:800; font-size:1.05em; margin-bottom:2px;"></div>
+            <div class="inv-type" style="font-size:0.8em; color:var(--accent-gold); text-transform:uppercase; letter-spacing:0.5px;"></div>
+        </div>
+        <button class="party-inv-del" style="background:transparent!important; border:none!important; color:var(--danger)!important; font-size:1.2em;"><i class="fa-solid fa-trash"></i></button>
+    </div>
+</template>
+
+<template id="uie-party-tactics-view">
+    <div style="background:rgba(0,0,0,0.2); padding:20px; border-radius:16px; border:1px solid rgba(255,255,255,0.05); margin-bottom:24px;">
+        <div style="font-size:0.85em; font-weight:900; color:var(--accent-gold); margin-bottom:16px; letter-spacing:1px;">GLOBAL STRATEGY</div>
+        <div style="display:flex; gap:16px; align-items:center; margin-bottom:16px; flex-wrap:wrap;">
+            <label style="color:var(--text-muted); font-size:0.9em; font-weight:600;">Party Preset:</label>
+            <select class="party-tac-preset" style="flex:1; min-width:150px;"></select>
+        </div>
+        <div style="display:flex; gap:24px; flex-wrap:wrap;">
+            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:0.9em; font-weight:600;">
+                <input type="checkbox" class="party-tac-conserve" style="width:18px; height:18px;"> Conserve Party Mana
+            </label>
+            <label style="display:flex; gap:8px; align-items:center; cursor:pointer; font-size:0.9em; font-weight:600;">
+                <input type="checkbox" class="party-tac-protect-leader" style="width:18px; height:18px;"> Protect Leader
+            </label>
+        </div>
+    </div>
+    <div class="tactics-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+    <div class="tactics-empty" style="display:none; text-align:center; padding:30px; color:var(--text-muted);">No active members for tactics.</div>
+</template>
+
+<template id="uie-party-tactics-row">
+    <div style="background:var(--bg-panel); padding:16px; border-radius:12px; border:1px solid var(--border-color);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:12px; align-items:center;">
+            <div>
+                <div class="tac-name" style="font-weight:800; font-size:1.1em; color:var(--text-main);"></div>
+                <div class="tac-details" style="font-size:0.85em; color:var(--accent-gold); font-weight:600;"></div>
+            </div>
+            <label style="font-size:0.85em; display:flex; align-items:center; gap:6px; color:var(--text-muted); font-weight:600; cursor:pointer;">
+                <input type="checkbox" class="member-tac-mana" style="width:16px; height:16px;"> MP Saver
+            </label>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:12px;">
+            <div>
+                <div style="font-size:0.7em; color:var(--text-muted); font-weight:800; margin-bottom:4px; letter-spacing:0.5px;">PRESET</div>
+                <select class="member-tac-preset" style="width:100%;"></select>
+            </div>
+            <div>
+                <div style="font-size:0.7em; color:var(--text-muted); font-weight:800; margin-bottom:4px; letter-spacing:0.5px;">FOCUS TARGET</div>
+                <select class="member-tac-focus" style="width:100%;"></select>
+            </div>
+            <div>
+                <div style="font-size:0.7em; color:var(--text-muted); font-weight:800; margin-bottom:4px; letter-spacing:0.5px;">PROTECT ALLY</div>
+                <select class="member-tac-protect" style="width:100%;"></select>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="uie-party-formation-view">
+    <div class="formation-lanes" style="display:flex; flex-direction:column; gap:20px;"></div>
+</template>
+
+<template id="uie-party-formation-lane">
+    <div style="background:rgba(0,0,0,0.2); padding:16px; border-radius:16px; border:1px solid rgba(255,255,255,0.05);">
+        <div class="lane-title" style="font-weight:900; color:var(--accent-gold); margin-bottom:16px; text-transform:uppercase; letter-spacing:1px; font-size:0.9em;"></div>
+        <div class="lane-list" style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;"></div>
+        <div class="lane-empty" style="display:none; text-align:center; padding:16px; color:var(--text-muted); font-size:0.9em; font-style:italic; background:rgba(255,255,255,0.02); border-radius:8px;">Empty Lane</div>
+        <div style="display:flex; gap:12px;">
+            <select class="form-add-select" style="flex:1;"></select>
+            <button class="form-add-btn" style="background:rgba(255,255,255,0.1)!important;">Assign</button>
+        </div>
+    </div>
+</template>
+
+<template id="uie-party-formation-member">
+    <div class="party-form-member" style="display:flex; align-items:center; gap:12px; background:var(--bg-panel); padding:10px 14px; border-radius:10px; border:1px solid rgba(255,255,255,0.05);">
+        <div style="flex:1;">
+            <div class="form-mem-name" style="font-weight:800;"></div>
+            <div class="form-mem-details" style="font-size:0.8em; color:var(--text-muted); font-weight:600;"></div>
+        </div>
+        <select class="form-role" style="width:110px; font-size:0.85em; padding:6px 10px!important;"></select>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+            <button class="form-mv-up" style="width:28px; height:24px; background:rgba(255,255,255,0.05)!important; border:none!important; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-chevron-up"></i></button>
+            <button class="form-mv-down" style="width:28px; height:24px; background:rgba(255,255,255,0.05)!important; border:none!important; border-radius:6px; cursor:pointer;"><i class="fa-solid fa-chevron-down"></i></button>
+        </div>
+        <button class="form-rm" style="width:36px; height:36px; margin-left:8px; background:rgba(255,51,102,0.1)!important; border:1px solid rgba(255,51,102,0.2)!important; color:var(--danger)!important; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+</template>
+
+<template id="uie-party-modal-layout-desktop">
+    <div style="display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:12px;">
+        <button class="party-mm-tab" data-tab="sheet" style="flex:1; height:40px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:800; cursor:pointer; transition:all 0.2s;">Sheet</button>
+        <button class="party-mm-tab" data-tab="equip" style="flex:1; height:40px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:800; cursor:pointer; transition:all 0.2s;">Equipment</button>
+        <button class="party-mm-tab" data-tab="skills" style="flex:1; height:40px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:800; cursor:pointer; transition:all 0.2s;">Skills</button>
+    </div>
+    <div id="party-mm-pane-sheet" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:8px;"></div>
+    <div id="party-mm-pane-equip" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:8px;"></div>
+    <div id="party-mm-pane-skills" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:8px;"></div>
+</template>
+
+<template id="uie-party-modal-layout-mobile">
+    <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; margin-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px; position:sticky; top:0; background:rgba(10,12,16,0.92); z-index:2;">
+        <button class="party-mm-tab" data-tab="sheet" style="height:38px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:900; font-size:0.78em; letter-spacing:0.4px; cursor:pointer; transition:all 0.2s;">Sheet</button>
+        <button class="party-mm-tab" data-tab="equip" style="height:38px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:900; font-size:0.78em; letter-spacing:0.4px; cursor:pointer; transition:all 0.2s;">Equip</button>
+        <button class="party-mm-tab" data-tab="skills" style="height:38px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:900; font-size:0.78em; letter-spacing:0.4px; cursor:pointer; transition:all 0.2s;">Skills</button>
+    </div>
+    <div id="party-mm-pane-sheet" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:0;"></div>
+    <div id="party-mm-pane-equip" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:0;"></div>
+    <div id="party-mm-pane-skills" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:0;"></div>
+</template>
+
+<template id="uie-party-modal-layout">
+    <div style="display:flex; gap:8px; margin-bottom:24px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:12px;">
+        <button class="party-mm-tab" data-tab="sheet" style="flex:1; height:40px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:800; cursor:pointer; transition:all 0.2s;">Sheet</button>
+        <button class="party-mm-tab" data-tab="equip" style="flex:1; height:40px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:800; cursor:pointer; transition:all 0.2s;">Equipment</button>
+        <button class="party-mm-tab" data-tab="skills" style="flex:1; height:40px; border-radius:10px; border:none!important; background:transparent!important; color:var(--text-muted); font-weight:800; cursor:pointer; transition:all 0.2s;">Skills</button>
+    </div>
+    <div id="party-mm-pane-sheet" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:8px;"></div>
+    <div id="party-mm-pane-equip" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:8px;"></div>
+    <div id="party-mm-pane-skills" style="display:none; flex:1; min-height:0; overflow:auto; padding-right:8px;"></div>
+</template>
+
+<template id="uie-party-modal-sheet-pane">
+    <div style="display:flex; gap:20px; margin-bottom:24px;">
+        <div class="sheet-portrait-container" style="width:120px; height:150px; border-radius:16px; background:rgba(0,0,0,0.5); border:2px solid rgba(255,255,255,0.1); overflow:hidden; display:flex; align-items:center; justify-content:center; flex-shrink:0;"></div>
+        <div style="flex:1; display:flex; flex-direction:column; gap:12px;">
+            <input id="party-mm-name" type="text" placeholder="Character Name" style="width:100%; background:transparent!important; border:none!important; border-bottom:2px solid rgba(255,255,255,0.1)!important; color:#fff!important; font-size:1.8em; font-weight:900; padding:4px 0!important; border-radius:0!important;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <input id="party-mm-class" type="text" placeholder="Class" style="background:rgba(255,255,255,0.05)!important; border:1px solid rgba(255,255,255,0.1)!important;">
+                <select id="party-mm-role" style="background:rgba(255,255,255,0.05)!important; border:1px solid rgba(255,255,255,0.1)!important;"></select>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; background:rgba(0,0,0,0.2); padding:8px 12px; border-radius:8px;">
+                <span style="color:var(--text-muted); font-size:0.85em; font-weight:800; letter-spacing:1px;">LEVEL</span>
+                <input id="party-mm-level" type="number" style="width:80px; background:rgba(255,255,255,0.1)!important; border:none!important; padding:6px 10px!important; font-weight:800;">
+            </div>
+        </div>
+    </div>
+
+    <div class="vitals-section" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:30px;"></div>
+
+    <div class="party-tracker-toolbar" style="margin-bottom:8px;">
+        <div class="party-tracker-title">Life Trackers</div>
+        <button id="party-mm-track-add" style="display:none; padding:6px 10px!important; font-size:0.8em;">+ Tracker</button>
+    </div>
+    <div class="party-member-trackers" style="margin-bottom:22px;"></div>
+
+    <div style="margin-bottom:30px;">
+        <div style="font-size:0.85em; font-weight:900; color:var(--accent-gold); margin-bottom:12px; letter-spacing:1px;">ATTRIBUTES</div>
+        <div class="stats-grid" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;"></div>
+    </div>
+
+    <div style="margin-bottom:24px;">
+        <div style="font-size:0.85em; font-weight:900; color:var(--accent-cyan); margin-bottom:12px; letter-spacing:1px;">STATUS EFFECTS</div>
+        <div class="status-fx-list" style="display:flex; gap:8px; flex-wrap:wrap; min-height:36px; background:rgba(0,0,0,0.2); padding:12px; border-radius:12px;"></div>
+        <input id="party-mm-fx" type="text" placeholder="e.g. Poisoned, Stunned" style="width:100%; margin-top:12px; display:none;">
+    </div>
+
+    <button id="party-mm-save" style="display:none; width:100%; padding:14px; background:rgba(203,163,92,0.15)!important; border:1px solid rgba(203,163,92,0.3)!important; color:var(--accent-gold)!important; font-size:1.1em; letter-spacing:1px;">Save Changes</button>
+</template>
+
+<template id="uie-party-modal-bar">
+    <div style="background:rgba(0,0,0,0.3); border-radius:12px; padding:12px; border:1px solid rgba(255,255,255,0.05);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:8px; align-items:center;">
+            <span class="bar-lbl" style="font-size:0.8em; color:var(--text-muted); font-weight:800; letter-spacing:1px;"></span>
+            <span class="bar-text" style="font-size:0.9em; font-weight:800; font-family:monospace;"></span>
+        </div>
+        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden; box-shadow:inset 0 1px 3px rgba(0,0,0,0.5);">
+            <div class="bar-fill" style="height:100%; width:50%; transition:width 0.4s ease;"></div>
+        </div>
+    </div>
+</template>
+
+<template id="uie-party-modal-stat-input">
+    <div style="background:rgba(255,255,255,0.02); border-radius:10px; padding:10px; text-align:center; border:1px solid rgba(255,255,255,0.05);">
+        <div class="stat-lbl" style="font-size:0.7em; color:var(--text-muted); margin-bottom:6px; font-weight:800; letter-spacing:0.5px;"></div>
+        <input class="stat-val" type="number" style="width:100%; background:rgba(0,0,0,0.4)!important; border:1px solid transparent!important; color:var(--text-main)!important; font-weight:900; text-align:center; font-size:1.2em; padding:6px!important;">
+    </div>
+</template>
+
+<template id="uie-party-modal-equip-pane">
+    <div class="party-mm-equip-layout">
+        <div class="party-paperdoll-pane">
+            <div id="party-paperdoll-pick" class="party-paperdoll-pick"></div>
+        </div>
+        <div class="equip-rows" style="flex:1 1 260px; display:flex; flex-direction:column; gap:12px;"></div>
+    </div>
+    <button class="party-mm-save-btn" id="party-mm-save" style="display:none; width:100%; margin-top:24px; padding:14px; background:rgba(203,163,92,0.15)!important; border:1px solid rgba(203,163,92,0.3)!important; color:var(--accent-gold)!important; font-size:1.1em; letter-spacing:1px;">Save Equipment</button>
+</template>
+
+<template id="uie-party-modal-equip-row">
+    <div style="display:flex; flex-direction:column; gap:4px;">
+        <div class="eq-lbl" style="font-size:0.75em; color:var(--text-muted); font-weight:800; margin-left:4px; text-transform:uppercase; letter-spacing:0.5px;"></div>
+        <input class="eq-val" type="text" style="width:100%;">
+    </div>
+</template>
+
+<template id="uie-party-modal-skills-pane">
+    <div class="rebirth-section" style="display:none; background:linear-gradient(90deg, rgba(176,38,255,0.1), transparent); border-left:4px solid #b026ff; padding:16px; margin-bottom:20px; border-radius:0 12px 12px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <span style="color:#e09fff; font-weight:900; letter-spacing:1px; text-transform:uppercase; font-size:0.9em;">Rebirth System</span>
+            <label style="font-size:0.9em; display:flex; gap:8px; align-items:center; cursor:pointer; font-weight:600;">
+                <input type="checkbox" id="party-mm-reborn" style="width:16px;height:16px;"> Ascended
+            </label>
+        </div>
+        <select id="party-mm-medallion" style="width:100%; border-color:rgba(176,38,255,0.3)!important; color:#f0d4ff!important; background:rgba(0,0,0,0.4)!important;"></select>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; margin-bottom:16px;">
+        <button id="party-mm-add-skill" style="display:none; background:rgba(255,255,255,0.1)!important; border-color:rgba(255,255,255,0.2)!important;">+ New Skill</button>
+    </div>
+
+    <div class="skills-list" style="display:flex; flex-direction:column; gap:12px;"></div>
+    
+    <div class="skills-save-container" style="display:none; margin-top:24px;">
+        <button id="party-mm-save" style="width:100%; padding:14px; background:rgba(203,163,92,0.15)!important; border:1px solid rgba(203,163,92,0.3)!important; color:var(--accent-gold)!important; font-size:1.1em; letter-spacing:1px;">Save Skills</button>
+    </div>
+</template>
+
+<template id="uie-party-modal-skill-view-row">
+    <div class="party-skill" style="background:var(--bg-panel); border-radius:12px; border:1px solid rgba(255,255,255,0.05); cursor:pointer; overflow:hidden; transition:all 0.2s;">
+        <div style="display:flex; align-items:center; gap:12px; padding:12px 16px; background:rgba(0,0,0,0.2); border-bottom:1px solid rgba(255,255,255,0.02);">
+            <div class="skill-src" style="font-size:0.7em; font-weight:900; padding:4px 8px; border-radius:6px; background:rgba(255,255,255,0.05);">PTY</div>
+            <div class="skill-name" style="font-weight:900; color:var(--text-main); font-size:1.05em; flex:1;"></div>
+        </div>
+        <div class="skill-desc" style="padding:16px; font-size:0.9em; color:var(--text-muted); line-height:1.6;"></div>
+    </div>
+</template>
+
+<template id="uie-party-modal-skill-edit-row">
+    <div style="background:rgba(0,0,0,0.2); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; gap:12px;">
+            <input class="skill-name-in" type="text" placeholder="Skill Name" style="flex:1; font-weight:800;">
+            <select class="skill-type-in" style="width:100px; font-weight:600;">
+                <option value="active">Active</option>
+                <option value="passive">Passive</option>
+            </select>
+            <button class="party-mm-skill-del" style="width:42px; background:rgba(255,51,102,0.1)!important; border:1px solid rgba(255,51,102,0.2)!important; color:var(--danger)!important; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>
+        </div>
+        <textarea class="skill-desc-in" placeholder="Description..." style="width:100%; height:80px; resize:vertical; line-height:1.5;"></textarea>
+    </div>
+</template>

@@ -1,0 +1,314 @@
+<div id="uie-stats-window" class="uie-window uie-rpg-theme" style="display:none; padding:0; background:#1a1a1d; border:2px solid #cba35c; box-shadow:0 0 20px rgba(0,0,0,0.8); border-radius:12px; overflow:hidden; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <style>
+        .uie-rpg-theme ::-webkit-scrollbar { width: 6px; }
+        .uie-rpg-theme ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        .uie-rpg-theme ::-webkit-scrollbar-thumb { background: #cba35c; border-radius: 3px; }
+
+        /* CRITICAL: Force header to be at top, horizontal, normal size */
+        #uie-stats-window {
+            flex-direction: column !important;
+            top: 15vh;
+            left: 15vw;
+            transform: none;
+            width: min(500px, 80vw);
+            height: auto;
+            max-height: 90vh;
+            position: fixed;
+            overflow: auto !important;
+        }
+
+        /* Full menu on desktop, normal size on mobile */
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-stats-window {
+                top: 6vh;
+                left: 4vw;
+                width: 91vw;
+                max-width: 91vw;
+                height: 87vh;
+                max-height: 87vh;
+            }
+
+            .uie-rpg-content,
+            #uie-stats-window > .uie-rpg-content {
+                overflow-y: auto !important;
+                height: calc(100% - 50px) !important;
+            }
+        }
+
+        .uie-rpg-header,
+        #uie-stats-window .uie-rpg-header,
+        #uie-stats-window > .uie-rpg-header {
+            background: linear-gradient(to bottom, #2c2c2c, #1a1a1d) !important;
+            padding: 10px 15px !important;
+            border-bottom: 2px solid #cba35c !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            position: relative !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            flex-direction: row !important;
+            flex-shrink: 0 !important;
+            flex-grow: 0 !important;
+            order: 1 !important;
+            margin: 0 !important;
+            writing-mode: horizontal-tb !important;
+            text-orientation: mixed !important;
+            transform: none !important;
+            rotate: 0deg !important;
+            cursor: move !important;
+            pointer-events: auto !important;
+        }
+
+        .uie-rpg-header button,
+        .uie-rpg-header .uie-rpg-close {
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            position: relative !important;
+            z-index: 10 !important;
+        }
+
+        .uie-rpg-title,
+        #uie-stats-window .uie-rpg-title,
+        #uie-stats-window .uie-rpg-header .uie-rpg-title {
+            font-size: 1em !important;
+            font-weight: 700 !important;
+            color: #f1c40f !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5) !important;
+            writing-mode: horizontal-tb !important;
+            text-orientation: mixed !important;
+            transform: none !important;
+            rotate: 0deg !important;
+            position: static !important;
+            display: flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            gap: 10px !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: normal !important;
+        }
+        .uie-rpg-close {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: color 0.2s;
+        }
+        .uie-rpg-close:hover { color: #fff; }
+
+        .uie-rpg-content,
+        #uie-stats-window > .uie-rpg-content {
+            padding: 15px !important;
+            overflow-y: visible !important;
+            height: auto !important;
+            background-image: url("https://files.catbox.moe/k6bhpb.jpg") !important; /* Subtle texture */
+            background-blend-mode: overlay !important;
+            background-color: rgba(20,20,25,0.95) !important;
+            order: 2 !important;
+            flex: 1 !important;
+            width: 100% !important;
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+        }
+
+        .uie-char-header {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .uie-portrait-frame {
+            width: 50px;
+            height: 50px;
+            border: 2px solid #cba35c;
+            border-radius: 50%; /* RPG Style often circle or ornate box */
+            box-shadow: 0 0 8px rgba(203, 163, 92, 0.3);
+            overflow: hidden;
+            background: #000;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .uie-portrait-frame img {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+        .uie-char-info {
+            text-align: center;
+        }
+        .uie-char-info h2 {
+            margin: 0 0 4px 0;
+            font-size: 1.1em;
+            color: #fff;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+            font-family: 'Times New Roman', serif;
+        }
+        .uie-char-class {
+            color: #cba35c;
+            font-style: italic;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        .uie-char-points {
+            font-size: 0.85em;
+            color: #2ecc71;
+            background: rgba(46, 204, 113, 0.1);
+            padding: 2px 8px;
+            border-radius: 10px;
+            display: inline-block;
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .uie-section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0 10px 0;
+            color: #ccc;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 5px;
+        }
+        .uie-section-header i { color: #cba35c; }
+
+        /* Hex Grid for stats? Or just nice cards */
+        #uie-stats-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .uie-stat-card {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(203, 163, 92, 0.3);
+            border-radius: 6px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s;
+        }
+        .uie-stat-card:hover {
+            background: rgba(203, 163, 92, 0.1);
+            border-color: rgba(203, 163, 92, 0.6);
+        }
+        .uie-stat-label {
+            font-weight: bold;
+            color: #aaa;
+            font-size: 0.85em;
+        }
+        .uie-stat-val {
+            font-family: monospace;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .uie-stat-up-btn {
+            background: rgba(46, 204, 113, 0.2);
+            border: 1px solid #2ecc71;
+            color: #2ecc71;
+            border-radius: 4px;
+            width: 20px;
+            height: 20px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        .uie-stat-up-btn:hover {
+            background: #2ecc71;
+            color: #000;
+        }
+
+        .uie-bar-container {
+            margin-bottom: 12px;
+        }
+        .uie-bar-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8em;
+            color: #ddd;
+            margin-bottom: 4px;
+        }
+        .uie-bar-track {
+            height: 12px;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        .uie-bar-fill {
+            height: 100%;
+            transition: width 0.5s ease-out;
+            position: relative;
+        }
+        .uie-bar-fill::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.2), transparent);
+        }
+        .uie-bar-hp { background: #e74c3c; box-shadow: 0 0 10px rgba(231, 76, 60, 0.5); }
+        .uie-bar-mp { background: #3498db; box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
+        .uie-bar-ap { background: #f1c40f; box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
+        .uie-bar-xp { background: #9b59b6; box-shadow: 0 0 10px rgba(155, 89, 182, 0.5); }
+
+    </style>
+
+    <div class="uie-rpg-header" style="position:relative !important; top:0 !important; left:0 !important; width:100% !important; height:auto !important; flex-direction:row !important; display:flex !important; align-items:center !important; justify-content:space-between !important; writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important;">
+        <div class="uie-rpg-title" style="writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important; display:flex !important; flex-direction:row !important; align-items:center !important;"><i class="fa-solid fa-chart-bar"></i> Character Stats</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <button class="uie-rpg-close" onclick="UIE_openGuide('guide-stats')" title="Help / Guide"><i class="fa-solid fa-circle-question" style="color:#cba35c;"></i></button>
+            <button class="uie-rpg-close" id="uie-stats-edit-toggle" title="Edit Stats"><i class="fa-solid fa-pencil"></i></button>
+            <button class="uie-rpg-close" id="uie-stats-close-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+
+    <div class="uie-rpg-content">
+        <!-- Character Header -->
+        <div class="uie-char-header">
+            <div class="uie-portrait-frame">
+                <img id="uie-stats-portrait" src="" style="display:none;">
+                <div id="uie-stats-portrait-fallback" style="width:100%; height:100%; display:grid; place-items:center; background:#111;">
+                    <i class="fa-solid fa-user-secret" style="font-size:24px; color:#555;"></i>
+                </div>
+            </div>
+            <div class="uie-char-info">
+                <h2 id="uie-stats-name">Unknown</h2>
+                <div id="uie-stats-class" style="font-size:0.85em; color:#cba35c; margin-bottom:6px;">Adventurer</div>
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; flex-wrap:wrap;">
+                    <div id="uie-stats-points"></div>
+                    <button id="uie-stats-reset-btn" style="padding:3px 6px; border-radius:4px; background:rgba(255,50,50,0.2); color:#ff5555; border:1px solid rgba(255,50,50,0.4); cursor:pointer; font-size:9px; display:none;">Reset</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Vitals -->
+        <div class="uie-section-header"><i class="fa-solid fa-heart-pulse"></i> Vitals</div>
+        <div id="uie-stats-vitals">
+            <!-- Rendered via JS -->
+        </div>
+
+        <!-- Attributes -->
+        <div class="uie-section-header"><i class="fa-solid fa-dna"></i> Attributes</div>
+        <div id="uie-stats-list">
+            <!-- Rendered via JS -->
+        </div>
+    </div>
+</div>

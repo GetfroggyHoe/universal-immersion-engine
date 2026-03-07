@@ -1,0 +1,74 @@
+<style>
+    .uie-craft-wrapper {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 15px;
+        padding: 15px;
+        height: 100%;
+        width: 100%;
+        box-sizing: border-box;
+        overflow: auto;
+        min-height: 0;
+    }
+    .uie-craft-card {
+        position: relative;
+        border-radius: 15px;
+        overflow: hidden;
+        cursor: pointer;
+        border: 1px solid rgba(225,193,122,0.22);
+        transition: transform 0.2s;
+        background-size: cover;
+        background-position: center;
+        box-shadow: 0 18px 40px rgba(0,0,0,0.55);
+        min-height: 120px;
+    }
+    .uie-craft-card::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        background: linear-gradient(180deg, rgba(0,0,0,0.10), rgba(0,0,0,0.72));
+        pointer-events:none;
+    }
+    .uie-craft-card:hover { transform: translateY(-2px); border-color: rgba(225,193,122,0.55); }
+    .uie-craft-label {
+        position: absolute; bottom: 0; left: 0; width: 100%;
+        padding: 10px 12px; background: rgba(0,0,0,0.55);
+        color: #cba35c; text-align: left; font-weight: 900;
+        font-family: serif; letter-spacing: 1px;
+        display:flex;
+        align-items:center;
+        gap:10px;
+    }
+    .uie-craft-label .sub{ display:block; font-size:12px; font-weight:800; opacity:0.82; letter-spacing:0.2px; color:rgba(255,255,255,0.82); margin-top:2px; }
+    .uie-craft-label .title{ display:block; }
+    .uie-craft-ico{ width:38px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); display:grid; place-items:center; color:#f1c40f; flex:0 0 auto; }
+    @media (max-width: 700px){
+        .uie-craft-wrapper{ grid-template-columns: 1fr; grid-template-rows: auto; }
+        .uie-craft-card{ min-height: 96px; }
+        .uie-craft-label{ padding: 10px; }
+    }
+</style>
+<div id="uie-craft-home" class="uie-craft-wrapper" style="position:relative;">
+    <i class="fa-solid fa-circle-info" onclick="uie.phone.openBooksGuide('guide-inventory')" style="position:absolute; top:10px; right:10px; z-index:10; color:rgba(255,255,255,0.65); cursor:pointer; font-size:1.2em;" title="Inventory Manual"></i>
+    <div class="uie-craft-card uie-craft-btn" data-target="forge">
+        <div class="uie-craft-label"><div class="uie-craft-ico"><i class="fa-solid fa-hammer"></i></div><div><span class="title">FORGE</span><span class="sub">Craft weapons & armor</span></div></div>
+    </div>
+    <div class="uie-craft-card uie-craft-btn" data-target="alchemy">
+        <div class="uie-craft-label"><div class="uie-craft-ico"><i class="fa-solid fa-flask"></i></div><div><span class="title">ALCHEMY</span><span class="sub">Brew consumables</span></div></div>
+    </div>
+    <div class="uie-craft-card uie-craft-btn" data-target="cook">
+        <div class="uie-craft-label"><div class="uie-craft-ico"><i class="fa-solid fa-utensils"></i></div><div><span class="title">KITCHEN</span><span class="sub">Cook meals & buffs</span></div></div>
+    </div>
+    <div class="uie-craft-card uie-craft-btn" data-target="enchant">
+        <div class="uie-craft-label"><div class="uie-craft-ico"><i class="fa-solid fa-wand-magic-sparkles"></i></div><div><span class="title">ARCANE</span><span class="sub">Enchant equipment</span></div></div>
+    </div>
+</div>
+<div id="uie-create-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; z-index:2147483647; background:rgba(0,0,0,0.85); isolation:isolate; transform:none; pointer-events:auto; flex-direction:column;">
+    <div style="height:52px; flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.65);">
+        <button id="uie-create-overlay-exit" style="height:34px; padding:0 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Exit</button>
+        <div id="uie-create-overlay-title" style="font-weight:900; color:#f1c40f; letter-spacing:0.8px;">CREATE</div>
+    </div>
+    <div id="uie-create-overlay-body" style="flex:1 1 auto; min-height:0; overflow:hidden; position:relative;"></div>
+</div>
+<div id="uie-feature-container" style="display:none; height:100%; width:100%;"></div>

@@ -1,0 +1,101 @@
+<div id="uie-alchemy-root" style="height:100%; width:100%; position:relative;">
+  <style>
+    #uie-alchemy-root { color:#fff; font-family: serif; }
+    #uie-alchemy-bg { position:absolute; inset:0; background-image:url('https://user.uploads.dev/file/5e5869e1c3204fce430fecc1f24ea9b5.png'); background-size:cover; background-position:center; }
+    #uie-alchemy-glass { position:absolute; inset:0; background:rgba(0,0,0,0.62); backdrop-filter: blur(4px); }
+    #uie-alchemy-ui { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; }
+    #uie-alchemy-top { display:flex; gap:10px; align-items:center; padding:12px; border-bottom:1px solid rgba(255,255,255,0.12); }
+    #uie-alchemy-title { font-weight:900; letter-spacing:1px; color:#cba35c; }
+    .uie-alchemy-btn { height:36px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; }
+    .uie-alchemy-btn.primary { border:none; background:#2ecc71; color:#000; }
+    .uie-alchemy-btn.danger { border:1px solid rgba(243,139,168,0.35); color:#f38ba8; }
+    #uie-alchemy-grid { flex:1; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; padding:12px; overflow:hidden; }
+    .uie-alchemy-pane { border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); overflow:hidden; display:flex; flex-direction:column; }
+    .uie-alchemy-pane .head { padding:10px 12px; font-weight:900; border-bottom:1px solid rgba(255,255,255,0.10); color:#89b4fa; display:flex; gap:10px; align-items:center; }
+    .uie-alchemy-pane .body { padding:12px; overflow:auto; }
+    .uie-alchemy-search { height:38px; width:100%; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px; outline:none; }
+    .uie-alchemy-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .uie-alchemy-row { display:flex; gap:10px; align-items:center; padding:10px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.04); cursor:pointer; }
+    .uie-alchemy-row.active { border-color:rgba(46,204,113,0.45); box-shadow: 0 0 18px rgba(46,204,113,0.16); }
+    .uie-alchemy-row .icon { width:40px; height:40px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); display:grid; place-items:center; overflow:hidden; flex:0 0 auto; }
+    .uie-alchemy-row .icon img { width:100%; height:100%; object-fit:cover; }
+    .uie-alchemy-row .mid { flex:1; min-width:0; }
+    .uie-alchemy-row .name { font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .uie-alchemy-row .sub { opacity:0.75; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .uie-alchemy-pill { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); font-weight:900; font-size:12px; }
+    .uie-alchemy-field label { display:block; font-size:12px; opacity:0.75; font-weight:900; margin-bottom:6px; }
+    .uie-alchemy-field input, .uie-alchemy-field textarea {
+      width:100%; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:10px 12px; outline:none;
+    }
+    .uie-alchemy-field textarea { min-height:110px; resize:vertical; }
+    #uie-alchemy-log { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:1.45; white-space:pre-wrap; color:rgba(255,255,255,0.82); }
+    @media (max-width: 700px) { #uie-alchemy-grid { grid-template-columns: 1fr; overflow:auto; } .uie-alchemy-pane { min-height: 260px; } #uie-alchemy-bg{ background-image:url('https://user.uploads.dev/file/0a6390fea9e585a9f0f8ce4801711ced.png'); } }
+  </style>
+  <div id="uie-alchemy-bg"></div>
+  <div id="uie-alchemy-glass"></div>
+  <div id="uie-alchemy-ui">
+    <div id="uie-alchemy-top">
+      <button class="uie-alchemy-btn" data-action="back-create">Back</button>
+      <div id="uie-alchemy-title">ALCHEMY</div>
+      <div style="margin-left:auto; display:flex; gap:10px;">
+        <button class="uie-alchemy-btn" onclick="uie.phone.openBooksGuide('guide-inventory')" style="border:none; background:transparent; color:#cba35c;" title="Inventory Manual"><i class="fa-solid fa-circle-info"></i></button>
+        <button class="uie-alchemy-btn danger" id="uie-alchemy-reset">Reset</button>
+        <button class="uie-alchemy-btn primary" id="uie-alchemy-brew">Brew</button>
+      </div>
+    </div>
+    <div id="uie-alchemy-grid">
+      <div class="uie-alchemy-pane">
+        <div class="head">Reagents <span style="margin-left:auto; opacity:0.7; font-size:12px;">Alchemy</span></div>
+        <div class="body">
+          <input id="uie-alchemy-search" class="uie-alchemy-search" placeholder="Search reagents...">
+          <div id="uie-alchemy-reagents" class="uie-alchemy-list"></div>
+        </div>
+      </div>
+      <div class="uie-alchemy-pane">
+        <div class="head">Mixture</div>
+        <div class="body" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="uie-alchemy-field">
+            <label>Potion Name</label>
+            <input id="uie-alchemy-out-name" placeholder="e.g. Minor Healing Draught">
+          </div>
+          <div class="uie-alchemy-field">
+            <label>Use Hint</label>
+            <input id="uie-alchemy-use-hint" placeholder="e.g. Restores a small amount of HP">
+          </div>
+          <div class="uie-alchemy-field">
+            <label>Status Effects (comma)</label>
+            <input id="uie-alchemy-out-fx" placeholder="HP +10, Well Fed (10m)">
+          </div>
+          <div class="uie-alchemy-field">
+            <label>Description</label>
+            <textarea id="uie-alchemy-out-desc" placeholder="Reference description..."></textarea>
+          </div>
+          <div class="uie-alchemy-field">
+            <label>Selected Reagents</label>
+            <div id="uie-alchemy-selected" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="uie-alchemy-pane">
+        <div class="head">Log</div>
+        <div class="body">
+          <div id="uie-alchemy-log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<template id="uie-alchemy-row-template">
+    <div class="uie-alchemy-row">
+        <div class="icon"></div>
+        <div class="mid">
+            <div class="name"></div>
+            <div class="sub"></div>
+        </div>
+        <div class="uie-alchemy-pill">Pick</div>
+    </div>
+</template>
+<template id="uie-alchemy-pill-template">
+    <span class="uie-alchemy-pill"></span>
+</template>
+

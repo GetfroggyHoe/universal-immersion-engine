@@ -1,0 +1,25 @@
+/* Visual Feedback (Game Feel) */
+
+/* Move Transitions */
+.re-moving-forward {
+    transition: transform 0.5s ease-in, opacity 0.5s ease-in;
+    transform: scale(1.5);
+    opacity: 0;
+}
+
+.re-moving-backward {
+    transition: transform 0.5s ease-in, opacity 0.5s ease-in;
+    transform: scale(0.5);
+    opacity: 0;
+}
+
+/* Scavenge Sparkle Animation */
+@keyframes pulse-gold {
+    0% { transform: scale(0.8); opacity: 0.6; box-shadow: 0 0 5px #ffd700; }
+    50% { transform: scale(1.2); opacity: 1; box-shadow: 0 0 15px #ffd700; }
+    100% { transform: scale(0.8); opacity: 0.6; box-shadow: 0 0 5px #ffd700; }
+}
+
+.div-sparkle {
+    animation: pulse-gold 1.5s infinite;
+}

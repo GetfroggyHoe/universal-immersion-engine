@@ -1,0 +1,605 @@
+<style>
+  /* ====== Items: Immersive Grid ====== */
+  #uie-items-root{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding:12px;
+  }
+
+  .uie-items-toolbar{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+
+  .uie-chip-select{
+    flex:0 0 auto;
+    min-width:92px;
+    max-width:140px;
+    padding:10px 12px;
+    border-radius:6px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.08);
+    color:rgba(255,255,255,.88);
+    outline:none;
+  }
+
+  .uie-search{
+    flex:1 1 auto;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 8px;
+    border-radius:10px;
+    background:rgba(0,0,0,.22);
+    border:1px solid rgba(225,193,122,0.18);
+  }
+  .uie-search input{
+    width:100%;
+    background:transparent;
+    border:none;
+    outline:none;
+    color:rgba(255,255,255,.9);
+    font-size:13px;
+  }
+
+  .uie-items-actions{
+    display:flex;
+    gap:10px;
+  }
+
+  .uie-btn{
+    padding:10px 14px;
+    border-radius:6px;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.10);
+    color:rgba(255,255,255,.9);
+    font-weight:700;
+  }
+  .uie-btn:active{ transform: translateY(1px); }
+
+  /* ===== grid ===== */
+  #uie-items-grid{
+    flex:1 1 auto;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+    padding-bottom:24px;
+  }
+
+  .uie-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap:0;
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(0,0,0,.18);
+  }
+
+  @media (min-width: 700px){
+    .uie-grid{ grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); }
+  }
+
+  .uie-item{
+    position:relative;
+    border-radius:0;
+    overflow:hidden;
+    background: rgba(0,0,0,.10);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow: none;
+    aspect-ratio: 1 / 1;
+    display:flex;
+    flex-direction:column;
+    margin:-1px 0 0 -1px;
+  }
+
+  .uie-item::before{
+    display:none;
+  }
+
+  .uie-thumb{
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: rgba(0,0,0,.18);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 0;
+  }
+  .uie-thumb img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    filter: none;
+  }
+
+  .uie-item-iconbadge{
+    position:absolute;
+    top:6px;
+    left:6px;
+    width:26px;
+    height:26px;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background: rgba(0,0,0,.55);
+    border:1px solid rgba(255,255,255,.16);
+    color: rgba(241,196,15,0.95);
+    font-size: 14px;
+    z-index:2;
+    pointer-events:none;
+  }
+
+  .uie-item-qty{
+    position:absolute;
+    right:6px;
+    bottom:6px;
+    padding:2px 6px;
+    border-radius:8px;
+    background: rgba(0,0,0,.60);
+    border:1px solid rgba(255,255,255,.14);
+    color: rgba(255,255,255,.92);
+    font-weight:900;
+    font-size: 11px;
+    z-index:2;
+    pointer-events:none;
+  }
+
+  .uie-item-body{
+    padding:6px 8px 8px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.00) 0%, rgba(0,0,0,0.55) 100%);
+  }
+
+  .uie-item-name{
+    font-weight:900;
+    letter-spacing:.2px;
+    color:rgba(255,255,255,.92);
+    font-size:12px;
+    line-height:1.1;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+
+  .uie-item-sub{
+    display:none;
+  }
+
+  .uie-pill{
+    padding:4px 8px;
+    border-radius:8px;
+    background:rgba(0,0,0,.22);
+    border:1px solid rgba(255,255,255,.10);
+    color:rgba(255,255,255,.75);
+    font-size:11px;
+    font-weight:800;
+  }
+
+  #uie-items-cat-chips{ display:none !important; }
+
+  /* rarity glow (subtle, not brown) */
+  .rarity-common{ box-shadow: 0 16px 30px rgba(0,0,0,.35); }
+  .rarity-uncommon{ box-shadow: 0 0 0 1px rgba(120,255,170,.18), 0 16px 30px rgba(0,0,0,.35); }
+  .rarity-rare{ box-shadow: 0 0 0 1px rgba(140,190,255,.18), 0 16px 30px rgba(0,0,0,.35); }
+  .rarity-epic{ box-shadow: 0 0 0 1px rgba(190,140,255,.22), 0 16px 30px rgba(0,0,0,.35); }
+  .rarity-legendary{ box-shadow: 0 0 0 1px rgba(255,190,120,.20), 0 16px 30px rgba(0,0,0,.35); }
+
+  .uie-empty{
+    padding:18px;
+    color:rgba(255,255,255,.65);
+  }
+
+
+/* === UIE ITEMS GRID START === */
+/* Items: grid + modern dark glass */
+#uie-view-items {
+  padding: 12px !important;
+}
+
+#uie-view-items input[type="text"],
+#uie-view-items input[type="search"] {
+  width:100% !important;
+  background: rgba(0,0,0,0.22) !important;
+  border: 1px solid rgba(225,193,122,0.18) !important;
+  color: rgba(255,255,255,.92) !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+  outline:none !important;
+}
+
+#uie-view-items select {
+  background: rgba(255,255,255,.05) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  color: rgba(255,255,255,.92) !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+  outline:none !important;
+}
+
+#uie-view-items .items-grid,
+#uie-view-items .uie-items-grid,
+#uie-view-items .item-grid {
+  display:grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)) !important;
+  gap: 8px !important;
+  margin-top: 12px !important;
+}
+
+#uie-view-items .item-card,
+#uie-view-items .uie-item,
+#uie-view-items .item {
+  aspect-ratio: 1 / 1 !important;
+  display:flex !important;
+  flex-direction:column !important;
+  gap: 0 !important;
+  padding: 0 !important;
+}
+
+#uie-view-items .item-card:hover,
+#uie-view-items .uie-item:hover,
+#uie-view-items .item:hover {
+  background: rgba(255,255,255,.06) !important;
+  border-color: rgba(255,255,255,.16) !important;
+}
+
+#uie-view-items .item-icon,
+#uie-view-items .uie-item-icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 14px !important;
+  background: rgba(0,0,0,.20) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  flex: 0 0 52px !important;
+  overflow:hidden !important;
+}
+
+#uie-view-items .item-icon img,
+#uie-view-items .uie-item-icon img {
+  width:100% !important;
+  height:100% !important;
+  object-fit:cover !important;
+  display:block !important;
+}
+
+#uie-view-items .item-name,
+#uie-view-items .uie-item-name {
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  line-height: 1.1 !important;
+  color: rgba(255,255,255,.95) !important;
+}
+
+#uie-view-items .item-meta,
+#uie-view-items .uie-item-meta {
+  font-size: 12px !important;
+  opacity: .75 !important;
+  margin-top: 4px !important;
+}
+
+/* kill any blue selection backgrounds inside items area */
+#uie-view-items .active,
+#uie-view-items .selected {
+  background: rgba(255,255,255,.06) !important;
+}
+/* === UIE ITEMS GRID END === */
+
+</style>
+
+<style>
+#uie-inventory-window #uie-view-items #uie-items-root {
+  padding: 10px !important;
+  gap: 12px !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-items-toolbar {
+  background: rgba(0,0,0,0.20) !important;
+  border: 1px solid rgba(225,193,122,0.18) !important;
+  border-radius: 12px !important;
+  padding: 8px !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-chip-select,
+#uie-inventory-window #uie-view-items .uie-search {
+  background: rgba(0,0,0,0.25) !important;
+  border: 1px solid rgba(225,193,122,0.18) !important;
+  color: rgba(255,255,255,0.90) !important;
+  border-radius: 10px !important;
+  padding: 6px 8px !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-search input {
+  color: rgba(255,255,255,0.92) !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-btn {
+  background: rgba(0,0,0,0.22) !important;
+  border: 1px solid rgba(225,193,122,0.18) !important;
+  color: rgba(241,196,15,0.95) !important;
+  font-family: serif !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-item {
+  background: rgba(0,0,0,0.20) !important;
+  border: 1px solid rgba(225,193,122,0.22) !important;
+  box-shadow: 0 16px 30px rgba(0,0,0,.45) !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-thumb {
+  background-image: url("https://files.catbox.moe/k6bhpb.jpg") !important;
+  background-size: 420px 420px !important;
+  background-repeat: repeat !important;
+  border-bottom: 1px solid rgba(225,193,122,0.18) !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-item-name {
+  color: rgba(241,196,15,0.95) !important;
+  font-family: serif !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-pill {
+  border: 1px solid rgba(225,193,122,0.18) !important;
+  background: rgba(0,0,0,0.22) !important;
+  color: rgba(255,255,255,0.75) !important;
+}
+
+#uie-inventory-window #uie-view-items .uie-cat-chip{
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(225,193,122,0.18);
+  background: rgba(0,0,0,0.22);
+  color: rgba(241,196,15,0.95);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+#uie-inventory-window #uie-view-items .uie-cat-chip.active{
+  box-shadow: 0 0 14px rgba(241,196,15,0.25);
+  border-color: rgba(241,196,15,0.45);
+}
+
+@media (max-width: 600px) {
+  #uie-items-cat-chips { display: none !important; }
+  #uie-items-category{
+    flex: 0 0 42px;
+    width: 42px;
+    min-width: 42px;
+    max-width: 42px;
+    padding: 0;
+    border-radius: 999px;
+    text-indent: -9999px;
+    color: transparent;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 18px 18px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  #uie-items-category{
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23f1c40f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E");
+  }
+  .uie-search{
+    flex: 0 0 52%;
+    width: 52%;
+    max-width: 52%;
+  }
+}
+</style>
+
+<div id="uie-items-root">
+  <div class="uie-items-toolbar">
+    <select id="uie-items-category" class="uie-chip-select" title="Category">
+      <option value="all">All</option>
+    </select>
+
+    <div class="uie-search">
+      <input id="uie-items-search" type="text" placeholder="Search items…" autocomplete="off" />
+    </div>
+
+    <div class="uie-items-actions">
+      <button id="uie-items-select" class="uie-btn">Select</button>
+      <button class="uie-btn" onclick="uie.phone.openBooksGuide('guide-inventory')" title="Inventory Manual"><i class="fa-solid fa-circle-info"></i></button>
+    </div>
+  </div>
+  <div id="uie-items-cat-chips" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
+
+  <div id="uie-items-grid">
+    <div id="uie-items-grid-inner" class="uie-grid"></div>
+    <div id="uie-items-empty" class="uie-empty" style="display:none;">No items found.</div>
+  </div>
+</div>
+
+<div id="uie-item-modal" style="display:none; position:fixed; inset:0; z-index:2147483647; background:rgba(0,0,0,0.65); align-items:center; justify-content:center;">
+  <div style="width:min(380px, 92vw); max-height:66vh; overflow:auto; border-radius:8px; border:1px solid rgba(225,193,122,0.35); background:rgba(15,10,8,0.92); padding:12px;">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+      <div style="font-weight:900; letter-spacing:0.6px; color:#f1c40f;" id="uie-item-modal-title">Item</div>
+      <div style="margin-left:auto; cursor:pointer; padding:6px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25);" id="uie-item-modal-close">Close</div>
+    </div>
+    <div style="display:flex; gap:12px; align-items:center;">
+      <div id="uie-item-modal-icon" style="width:52px;height:52px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(0,0,0,0.25);display:grid;place-items:center;flex:0 0 auto;"></div>
+      <div style="flex:1; min-width:0;">
+        <div style="font-weight:900; color:rgba(255,255,255,0.9);" id="uie-item-modal-sub">—</div>
+        <div style="opacity:0.75; font-weight:800; font-size:12px;" id="uie-item-modal-tags">—</div>
+      </div>
+    </div>
+    <div style="margin-top:10px; padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:rgba(255,255,255,0.85); line-height:1.5;" id="uie-item-modal-desc"></div>
+    <div style="margin-top:10px; padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:rgba(255,255,255,0.82); font-size:12px; line-height:1.45;" id="uie-item-modal-meta"></div>
+    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
+      <button id="uie-item-use" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(46,204,113,0.35); background:rgba(46,204,113,0.18); color:#2ecc71; font-weight:900; cursor:pointer;">Use</button>
+      <button id="uie-item-open" style="display:none; flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(76,201,240,0.35); background:rgba(76,201,240,0.15); color:#8bdff5; font-weight:900; cursor:pointer;">Open</button>
+      <button id="uie-item-custom-use" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(241,196,15,0.35); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Custom Use</button>
+      <button id="uie-item-use-chat" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(52,152,219,0.35); background:rgba(52,152,219,0.18); color:#3498db; font-weight:900; cursor:pointer;">Use (Chat)</button>
+      <button id="uie-item-send-party" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(225,193,122,0.35); background:rgba(0,0,0,0.18); color:#f6e7c8; font-weight:900; cursor:pointer;">Send to Party</button>
+      <button id="uie-item-equip" style="display:none; flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(77,126,168,0.45); background:rgba(77,126,168,0.16); color:#6a98b8; font-weight:900; cursor:pointer;">Equip</button>
+      <button id="uie-item-custom-equip" style="display:none; flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(186,187,241,0.35); background:rgba(186,187,241,0.14); color:#babbf1; font-weight:900; cursor:pointer;">Custom Equip</button>
+      <button id="uie-item-discard" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(243,139,168,0.35); background:rgba(243,139,168,0.14); color:#f38ba8; font-weight:900; cursor:pointer;">Discard</button>
+    </div>
+  </div>
+</div>
+
+<div id="uie-item-reader-modal" style="display:none; position:fixed; inset:0; z-index:2147483647; background:rgba(0,0,0,0.72); align-items:center; justify-content:center; padding:14px;">
+  <div style="width:min(760px, 96vw); max-height:min(88vh, 920px); border-radius:10px; border:1px solid rgba(225,193,122,0.32); background:rgba(14,10,8,0.96); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; align-items:center; gap:10px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.12);">
+      <div id="uie-item-reader-title" style="font-weight:900; letter-spacing:0.5px; color:#f1c40f; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Book</div>
+      <button id="uie-item-reader-close" style="height:34px; border-radius:6px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.32); color:#fff; font-weight:800; padding:0 12px; cursor:pointer;">Close</button>
+    </div>
+    <div id="uie-item-reader-body" style="padding:14px; overflow:auto; white-space:pre-wrap; color:rgba(255,255,255,0.9); font-size:14px; line-height:1.55; font-family:Georgia, 'Times New Roman', serif;"></div>
+  </div>
+</div>
+
+<template id="uie-cat-chip-template">
+    <button class="uie-cat-chip">
+        <i class="fa-solid"></i>
+    </button>
+</template>
+
+<template id="uie-item-card-template">
+    <div class="uie-item">
+        <div class="uie-item-iconbadge"><i class="fa-solid"></i></div>
+        <div class="uie-item-qty"></div>
+        <div class="uie-thumb"></div>
+        <div class="uie-item-body">
+          <div class="uie-item-name"></div>
+          <div class="uie-item-sub"></div>
+          <div class="uie-item-notes"></div>
+        </div>
+    </div>
+</template>
+
+<style>
+@media (max-width: 700px), (pointer: coarse) {
+  #uie-item-modal{
+    align-items:flex-end !important;
+    justify-content:center !important;
+    padding: 10px 10px 0 10px !important;
+  }
+  #uie-item-modal > div{
+    width: min(520px, 100%) !important;
+    max-height: 72vh !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 12px !important;
+  }
+  #uie-item-modal button{
+    min-width: 120px !important;
+    height: 38px !important;
+  }
+}
+/* === UIE ITEMS GRID START === */
+/* Hard overrides that do not require changing the HTML structure */
+
+/* Make the items view look modern + remove boring blue */
+#uie-view-items{
+  padding: 12px !important;
+}
+
+/* Search + dropdown: remove ugly white line */
+#uie-view-items input[type="text"],
+#uie-view-items input[type="search"],
+#uie-view-items input:not([type]){
+  width:100% !important;
+  background: rgba(0,0,0,0.22) !important;
+  border: 1px solid rgba(225,193,122,0.18) !important;
+  color: rgba(255,255,255,.92) !important;
+  border-radius: 10px !important;
+  padding: 8px 10px !important;
+  outline:none !important;
+}
+
+#uie-view-items select{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  color: rgba(255,255,255,.92) !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+  outline:none !important;
+}
+
+/* If your items module uses any of these containers, we force them into a grid */
+#uie-view-items .items-grid,
+#uie-view-items .uie-items-grid,
+#uie-view-items .item-grid,
+#uie-view-items .grid,
+#uie-view-items .list{
+  display:grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin-top: 12px !important;
+}
+
+/* If it renders “cards”, “items”, or “rows” - make them look like real grid tiles */
+#uie-view-items .item-card,
+#uie-view-items .uie-item,
+#uie-view-items .item,
+#uie-view-items .row{
+  background: rgba(255,255,255,.045) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 18px !important;
+  padding: 12px !important;
+  min-height: 82px !important;
+  display:flex !important;
+  align-items:center !important;
+  gap: 10px !important;
+}
+
+/* Hover (desktop) */
+#uie-view-items .item-card:hover,
+#uie-view-items .uie-item:hover,
+#uie-view-items .item:hover,
+#uie-view-items .row:hover{
+  background: rgba(255,255,255,.07) !important;
+  border-color: rgba(255,255,255,.18) !important;
+}
+
+/* Icon box support */
+#uie-view-items .item-icon,
+#uie-view-items .uie-item-icon,
+#uie-view-items .icon{
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 16px !important;
+  background: rgba(0,0,0,.22) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  flex: 0 0 56px !important;
+  overflow:hidden !important;
+}
+
+/* Image inside icon */
+#uie-view-items .item-icon img,
+#uie-view-items .uie-item-icon img,
+#uie-view-items .icon img{
+  width:100% !important;
+  height:100% !important;
+  object-fit:cover !important;
+  display:block !important;
+}
+
+/* Title/meta support */
+#uie-view-items .item-name,
+#uie-view-items .uie-item-name,
+#uie-view-items .name{
+  font-weight: 850 !important;
+  font-size: 15px !important;
+  line-height: 1.15 !important;
+  color: rgba(255,255,255,.95) !important;
+}
+
+#uie-view-items .item-meta,
+#uie-view-items .uie-item-meta,
+#uie-view-items .meta{
+  font-size: 12px !important;
+  opacity: .78 !important;
+  margin-top: 4px !important;
+}
+
+/* Kill “blue selection” and any bright active state inside Items */
+#uie-view-items .active,
+#uie-view-items .selected,
+#uie-view-items .highlight{
+  background: rgba(255,255,255,.06) !important;
+}
+/* === UIE ITEMS GRID END === */
+</style>

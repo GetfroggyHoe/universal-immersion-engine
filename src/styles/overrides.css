@@ -1,0 +1,141 @@
+/* REality Engine v4.1 - Tool & Menu Repair */
+/* Force SillyTavern native popups to the very top */
+
+#wand_popup,
+#slash_popup,
+.slash-menu,
+.toast-notification,
+#toast-container,
+#tokenizer_info {
+    z-index: 2147483647 !important; /* Max Int */
+}
+
+/* Ensure autocomplete and other floating menus are visible */
+.autocomplete {
+    z-index: 2147483647 !important;
+}
+
+/* Fix for any potential "black screen" overlays */
+#re-bg {
+    z-index: 0;
+}
+
+#re-overlay {
+    z-index: 10;
+    pointer-events: none; /* Let clicks pass through empty areas */
+}
+
+#re-overlay > * {
+    pointer-events: auto; /* Re-enable clicks for child elements */
+}
+
+/* Fix for Stats and Activities window headers - ensure they're at top with normal size */
+/* CRITICAL FIX: Override any conflicting styles that put headers on the side */
+#uie-stats-window,
+#uie-activities-window {
+    /* display: flex !important; */
+    flex-direction: column !important;
+}
+
+#uie-stats-window .uie-rpg-header,
+#uie-activities-window .uie-sim-header,
+#uie-stats-window > .uie-rpg-header,
+#uie-activities-window > .uie-sim-header {
+    position: relative !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    flex-direction: row !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    order: 1 !important;
+    flex-shrink: 0 !important;
+    flex-grow: 0 !important;
+    margin: 0 !important;
+    padding: 10px 15px !important;
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    transform: none !important;
+    rotate: 0deg !important;
+}
+
+#uie-stats-window .uie-rpg-title,
+#uie-activities-window .uie-sim-title,
+#uie-stats-window .uie-rpg-header .uie-rpg-title,
+#uie-activities-window .uie-sim-header .uie-sim-title {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    transform: none !important;
+    rotate: 0deg !important;
+    position: static !important;
+    font-size: 1em !important;
+    font-weight: 700 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 10px !important;
+    width: auto !important;
+    height: auto !important;
+    min-width: auto !important;
+    min-height: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: normal !important;
+    letter-spacing: 1px !important;
+    text-transform: uppercase !important;
+}
+
+#uie-stats-window > .uie-rpg-content,
+#uie-activities-window > .uie-sim-content {
+    order: 2 !important;
+    flex: 1 !important;
+    overflow-y: visible !important;
+    width: 100% !important;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+    #uie-stats-window > .uie-rpg-content,
+    #uie-activities-window > .uie-sim-content {
+        overflow-y: auto !important;
+    }
+}
+
+/* Override any side panel styles */
+#uie-stats-window .uie-rpg-header *,
+#uie-activities-window .uie-sim-header * {
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+    transform: none !important;
+    rotate: 0deg !important;
+}
+
+/* CRITICAL: Prevent any grid or side-by-side layouts */
+#uie-stats-window,
+#uie-activities-window {
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+    grid-auto-flow: row !important;
+}
+
+/* Ensure no child elements create side panels */
+#uie-stats-window > *,
+#uie-activities-window > * {
+    grid-column: auto !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+/* Force header to be first child at top */
+#uie-stats-window > .uie-rpg-header:first-child,
+#uie-activities-window > .uie-sim-header:first-child {
+    order: -1 !important;
+}

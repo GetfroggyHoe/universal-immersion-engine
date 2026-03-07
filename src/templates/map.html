@@ -1,0 +1,61 @@
+<style>
+    #uie-map-root { transform-origin: 0 0; }
+    #uie-map-window{ top: 80px; left: 80px; transform: none; }
+    @media (max-width: 700px), (pointer: coarse) {
+        #uie-map-window {
+            position: fixed !important;
+            inset: auto !important;
+            top: 12vh !important;
+            left: 3vw !important;
+            transform: none !important;
+            width: 94vw !important;
+            height: 80vh !important;
+            max-width: 94vw !important;
+            max-height: 80vh !important;
+        }
+    }
+</style>
+<div id="uie-map-window" class="uie-window" style="display:none; width: 520px; height: 720px; background: #0b0f15; flex-direction:column; z-index:10010;">
+    <div class="uie-header" style="border-bottom: 1px solid #cba35c; padding: 10px; background: linear-gradient(90deg, #1b202b, #0e121a);">
+        <div class="uie-info">
+            <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px;">MAP</h2>
+            <div style="font-size:0.75em; color:#aaa;">Location: <span id="uie-map-location">Unknown</span></div>
+        </div>
+        <div class="uie-controls">
+            <i class="fa-solid fa-wand-magic-sparkles" id="uie-map-sparkle" title="Map Actions" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <div class="uie-dropdown" id="uie-map-menu" style="position:absolute; top:44px; right:44px; background:#111; border:1px solid rgba(203,163,92,0.5); border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px;">
+                <div class="uie-dd-item" onclick="UIE_openGuide('guide-map')" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#cba35c; background:rgba(255,255,255,0.06); font-weight:900;"><i class="fa-solid fa-circle-question" style="width:18px;"></i> Help / Guide</div>
+                <div class="uie-dd-item" id="uie-map-act-generate" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-wand-magic-sparkles" style="width:18px; color:#cba35c;"></i> Generate</div>
+                <div class="uie-dd-item" id="uie-map-act-generate-canvas" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-bolt" style="width:18px; color:#cba35c;"></i> Generate (Instant)</div>
+                <div class="uie-dd-item" id="uie-map-act-grid" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-border-all" style="width:18px; color:#cba35c;"></i> Toggle Grid</div>
+                <div class="uie-dd-item" id="uie-map-act-location" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-location-dot" style="width:18px; color:#cba35c;"></i> Set Location Label</div>
+                <div class="uie-dd-item" id="uie-map-act-refresh" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-rotate" style="width:18px; color:#cba35c;"></i> Refresh</div>
+            </div>
+            <i class="fa-solid fa-image" id="uie-map-bg-pick" title="Map Background" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <i class="fa-solid fa-rotate" id="uie-map-refresh" title="Refresh (manual)" style="cursor:pointer; color:#cba35c; margin-right:10px;"></i>
+            <i class="fa-solid fa-xmark uie-close-btn" id="uie-map-close"></i>
+        </div>
+    </div>
+
+    <div style="padding:10px; border-bottom:1px solid #333; display:flex; gap:8px; align-items:center;">
+        <select id="uie-map-scope" style="width:120px; background:#000; border:1px solid #333; color:#cba35c; padding:8px; border-radius:10px;">
+            <option value="local">Local</option>
+            <option value="world">World</option>
+        </select>
+        <input type="text" id="uie-map-prompt" placeholder="Describe the map you want..." style="flex:1; min-width:0; background:#000; border:1px solid #333; color:#cba35c; padding:10px; border-radius:10px;">
+        <button id="uie-map-generate" style="background:#cba35c; color:#000; font-weight:900; border:none; padding:0 12px; height:40px; border-radius:10px; cursor:pointer;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+    </div>
+
+    <div style="padding:10px; border-bottom:1px solid #222; display:flex; gap:8px; align-items:center;">
+        <input type="text" id="uie-map-location-input" placeholder="Set your current location label..." style="flex:1; min-width:0; background:#000; border:1px solid #333; color:#cba35c; padding:10px; border-radius:10px;">
+        <button id="uie-map-set-location" style="background:rgba(255,255,255,0.08); color:#fff; font-weight:900; border:1px solid #444; padding:0 12px; height:40px; border-radius:10px; cursor:pointer;">Set</button>
+    </div>
+
+    <div id="uie-map-canvas" style="flex:1; position:relative; overflow:hidden; background:#000; touch-action:none;">
+        <div id="uie-map-render" style="position:absolute; inset:0; overflow:hidden;"></div>
+        <div id="uie-map-marker" style="position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); pointer-events:none; z-index:10;">
+            <i class="fa-solid fa-location-dot" style="font-size:26px; color:#f1c40f; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.8));"></i>
+        </div>
+    </div>
+</div>
+<input type="file" id="uie-map-bg-file" accept="image/*" style="display:none;">

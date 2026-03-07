@@ -1,0 +1,22 @@
+<style>
+  #uie-library-window{ top: 80px; left: 80px; transform:none; }
+  @media (max-width: 700px), (pointer: coarse) {
+    #uie-library-window {
+      width: 94vw;
+      max-height: 80vh;
+    }
+  }
+</style>
+<div id="uie-library-window" class="uie-window" style="display:none; width:800px; height:600px; background:#fdf6e3; color:#000;">
+    <div class="uie-header" style="background:#5d4037; color:#fdf6e3;"><h2>Archive</h2><i class="fa-solid fa-pen-nib" id="uie-lib-gen-btn" style="cursor:pointer; margin-left:auto;"></i><i class="fa-solid fa-circle-question" onclick="uie.phone.openBooksGuide('guide-phone')" style="margin-left:10px; cursor:pointer;" title="Help"></i><i class="fa-solid fa-xmark uie-close-btn" style="margin-left:10px; cursor:pointer;"></i></div>
+    <div style="display:flex; height:100%;">
+        <div id="uie-lib-shelf" style="width:200px; background:#eefece; padding:10px;"></div>
+        <div id="uie-lib-reader" style="flex:1; padding:40px; overflow-y:auto;"></div>
+    </div>
+</div>
+<template id="uie-template-lib-book">
+    <div class="lib-book-item" style="padding:10px; cursor:pointer; border-bottom:1px solid #d7ccc8; display:flex; align-items:center; gap:10px;">
+        <i class="fa-solid" style="color:#5d4037;"></i>
+        <div class="lib-book-title" style="font-weight:bold; font-size:0.9em; color:#3e2723;"></div>
+    </div>
+</template>

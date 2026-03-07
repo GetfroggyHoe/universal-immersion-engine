@@ -1,0 +1,392 @@
+<div id="uie-activities-window" class="uie-window uie-sim-theme" style="display:none; padding:0; background:#050505; border:2px solid #a2d2ff; border-radius:16px; box-shadow:0 0 25px rgba(0,0,0,0.9); overflow:hidden; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <style>
+        .uie-sim-theme ::-webkit-scrollbar { width: 6px; }
+        .uie-sim-theme ::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .uie-sim-theme ::-webkit-scrollbar-thumb { background: #a2d2ff; border-radius: 3px; }
+
+        /* CRITICAL: Force header to be at top, horizontal, normal size */
+        #uie-activities-window {
+            flex-direction: column !important;
+            top: 15vh;
+            left: 15vw;
+            transform: none;
+            width: min(500px, 80vw);
+            height: auto;
+            max-height: 90vh;
+            position: fixed;
+            overflow: auto !important;
+        }
+
+        /* Full menu on desktop, normal size on mobile */
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-activities-window {
+                top: 6vh;
+                left: 4vw;
+                width: 91vw;
+                max-width: 91vw;
+                height: 87vh;
+                max-height: 87vh;
+            }
+
+            .uie-sim-content,
+            #uie-activities-window > .uie-sim-content {
+                overflow-y: auto !important;
+                height: calc(100% - 50px) !important;
+            }
+        }
+
+        .uie-sim-header,
+        #uie-activities-window .uie-sim-header,
+        #uie-activities-window > .uie-sim-header {
+            background: linear-gradient(135deg, #a2d2ff 0%, #bde0fe 100%) !important;
+            padding: 10px 15px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            color: #1e1e24 !important;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
+            position: relative !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: auto !important;
+            bottom: auto !important;
+            width: 100% !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            flex-direction: row !important;
+            flex-shrink: 0 !important;
+            flex-grow: 0 !important;
+            order: 1 !important;
+            margin: 0 !important;
+            z-index: 2 !important;
+            writing-mode: horizontal-tb !important;
+            text-orientation: mixed !important;
+            transform: none !important;
+            rotate: 0deg !important;
+            cursor: move !important;
+            pointer-events: auto !important;
+        }
+
+        .uie-sim-header button,
+        .uie-sim-header .uie-sim-close {
+            cursor: pointer !important;
+            pointer-events: auto !important;
+            position: relative !important;
+            z-index: 10 !important;
+        }
+
+        .uie-sim-title,
+        #uie-activities-window .uie-sim-title,
+        #uie-activities-window .uie-sim-header .uie-sim-title {
+            font-size: 1em !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
+            writing-mode: horizontal-tb !important;
+            text-orientation: mixed !important;
+            transform: none !important;
+            rotate: 0deg !important;
+            position: static !important;
+            width: auto !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            line-height: normal !important;
+        }
+        .uie-sim-close {
+            background: rgba(255,255,255,0.3);
+            border: none;
+            color: #1e1e24;
+            width: 32px; height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: grid; place-items: center;
+        }
+        .uie-sim-close:hover { background: #fff; transform: scale(1.1); }
+
+        .uie-sim-content,
+        #uie-activities-window > .uie-sim-content {
+            padding: 15px !important;
+            height: auto !important;
+            overflow-y: visible !important;
+            background: #1e1e24 !important;
+            /* Optional bg pattern */
+            background-image: radial-gradient(#2a2a35 1px, transparent 1px) !important;
+            background-size: 20px 20px !important;
+            order: 2 !important;
+            flex: 1 !important;
+            width: 100% !important;
+            position: relative !important;
+            top: auto !important;
+            left: auto !important;
+        }
+
+        /* Current Activity Banner */
+        .uie-sim-status {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(162, 210, 255, 0.3);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 25px;
+            position: relative;
+            overflow: hidden;
+        }
+        .uie-sim-status h3 {
+            margin: 0 0 10px 0;
+            font-size: 0.9em;
+            color: #a2d2ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.8;
+        }
+        .uie-sim-current-val {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+        .uie-sim-progress-track {
+            height: 8px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .uie-sim-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #a2d2ff, #ffafcc);
+            transition: width 0.3s linear;
+        }
+
+        .uie-sim-list-title {
+            font-size: 1.1em;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .uie-sim-list-title::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        /* Activity Card */
+        #uie-activities-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .uie-sim-card {
+            background: rgba(30, 30, 36, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .uie-sim-card:hover {
+            background: rgba(162, 210, 255, 0.1);
+            border-color: #a2d2ff;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .uie-sim-card.active {
+            border-color: #ffafcc;
+            background: rgba(255, 175, 204, 0.1);
+        }
+        .uie-sim-card.active::before {
+            content: "";
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: #ffafcc;
+        }
+
+        .uie-sim-icon {
+            width: 50px; height: 50px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #3a3a45, #2a2a30);
+            display: grid; place-items: center;
+            font-size: 1.5em;
+            color: #fff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .uie-sim-info {
+            flex: 1;
+        }
+        .uie-sim-name {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+        .uie-sim-meta {
+            font-size: 0.85em;
+            color: #bbb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .uie-sim-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .uie-sim-meta i { color: #a2d2ff; }
+
+        .uie-sim-rewards {
+            margin-top: 4px;
+            font-size: 0.8em;
+            color: #ffafcc;
+            font-weight: 600;
+        }
+
+        .uie-sim-action {
+            opacity: 0;
+            transform: translateX(10px);
+            transition: all 0.2s;
+        }
+        .uie-sim-card:hover .uie-sim-action {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        /* Create New */
+        .uie-sim-create-wrap {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px dashed rgba(255,255,255,0.1);
+        }
+        .uie-sim-input-group {
+            display: flex;
+            gap: 10px;
+        }
+        .uie-sim-input {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            color: #fff;
+        }
+        .uie-sim-input:focus { outline:none; border-color: #a2d2ff; }
+        .uie-sim-btn {
+            background: #a2d2ff;
+            color: #1e1e24;
+            border: none;
+            padding: 0 20px;
+            border-radius: 8px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .uie-sim-btn:active { transform: scale(0.95); }
+
+    </style>
+
+    <div class="uie-sim-header" style="position:relative !important; top:0 !important; left:0 !important; width:100% !important; height:auto !important; flex-direction:row !important; display:flex !important; align-items:center !important; justify-content:space-between !important; writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important;">
+        <div class="uie-sim-title" style="writing-mode:horizontal-tb !important; transform:none !important; font-size:1em !important; display:flex !important; flex-direction:row !important; align-items:center !important;"><i class="fa-solid fa-calendar-check"></i> Daily Schedule</div>
+        <div style="display:flex; gap:8px;">
+            <button class="uie-sim-sparkle" onclick="uie.phone.openBooksGuide('guide-activities')" title="Help / Guide"><i class="fa-solid fa-circle-question" style="color:#1e1e24;"></i></button>
+            <button class="uie-sim-sparkle" id="uie-activity-sparkle" title="New Activity"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+            <div class="uie-dropdown" id="uie-activity-menu" style="position:absolute; top:44px; right:44px; background:#111; border:1px solid rgba(162,210,255,0.55); border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px;">
+                <div class="uie-dd-item" id="uie-activity-act-add" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-plus" style="width:18px; color:#a2d2ff;"></i> Add Routine</div>
+                <div class="uie-dd-item" id="uie-activity-act-station" style="padding:10px 12px; border-radius:8px; cursor:pointer; color:#fff; background:rgba(255,255,255,0.06);"><i class="fa-solid fa-wand-magic-sparkles" style="width:18px; color:#a2d2ff;"></i> Open Create Station</div>
+            </div>
+            <button class="uie-sim-close" id="uie-activities-close-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+    </div>
+
+    <div class="uie-sim-content">
+        <!-- Status Banner -->
+        <div class="uie-sim-status">
+            <h3><i class="fa-solid fa-clock"></i> Current Task</h3>
+            <div id="uie-activity-current-display" class="uie-sim-current-val">Free Time</div>
+            <div class="uie-sim-progress-track">
+                <div id="uie-activity-progress" class="uie-sim-progress-fill" style="width:0%;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:0.8em; color:#ccc;">
+                <span id="uie-activity-timer">--:--</span>
+                <span id="uie-activity-stop" style="cursor:pointer; color:#ff6b6b; font-weight:bold; display:none;">CANCEL</span>
+            </div>
+        </div>
+
+        <div id="uie-activity-tabs" style="display:flex; gap:8px; margin:12px 0;">
+            <button id="uie-activity-tab-user" style="flex:1; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(162,210,255,0.18); color:#a2d2ff; font-weight:900; cursor:pointer;">You</button>
+            <button id="uie-activity-tab-party" style="flex:1; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer;">Party</button>
+        </div>
+
+        <div id="uie-activity-pane-user">
+
+        <div class="uie-sim-list-title">Select Activity</div>
+        <div id="uie-activities-list">
+            <!-- Rendered via JS -->
+        </div>
+
+        <template id="uie-activity-card-template">
+            <div class="uie-sim-card">
+                <div class="uie-sim-icon"></div>
+                <div class="uie-sim-info">
+                    <div class="uie-sim-name"></div>
+                    <div class="uie-sim-meta">
+                        <span><i class="fa-regular fa-clock"></i> <span class="duration-text"></span></span>
+                    </div>
+                    <div class="uie-sim-rewards"></div>
+                </div>
+                <div class="uie-sim-action">
+                   <i class="fa-solid fa-chevron-right" style="color:#a2d2ff; font-size:1.2em;"></i>
+                </div>
+                <div class="uie-sim-del" style="margin-left:8px; color:#ff5555; cursor:pointer; display:none;" title="Delete Activity"><i class="fa-solid fa-trash"></i></div>
+            </div>
+        </template>
+
+        <template id="uie-template-activity-stat">
+            <span class="uie-stat-item"><span class="uie-stat-label" style="color:#a2d2ff;"></span> <span class="uie-stat-val"></span></span>
+        </template>
+
+        <template id="uie-template-activity-active-label">
+            <span style="color:#ffafcc; font-weight:900; font-size:0.8em;">ACTIVE</span>
+        </template>
+
+        <div class="uie-sim-create-wrap">
+            <div style="font-size:0.9em; color:#888; margin-bottom:10px;">Define New Routine</div>
+            <div class="uie-sim-input-group">
+                <input type="text" id="uie-activity-new-name" placeholder="E.g. Piano Practice" class="uie-sim-input" />
+                <button id="uie-activity-create" class="uie-sim-btn">ADD</button>
+            </div>
+        </div>
+
+        </div>
+
+        <div id="uie-activity-pane-party" style="display:none;">
+            <div class="uie-sim-list-title">Upgrade Party Member</div>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+                <div>
+                    <div style="font-size:0.75em; color:#888; margin-bottom:6px;">Member</div>
+                    <select id="uie-activity-party-member" style="width:100%; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;"></select>
+                </div>
+                <div>
+                    <div style="font-size:0.75em; color:#888; margin-bottom:6px;">Activity</div>
+                    <select id="uie-activity-party-activity" style="width:100%; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;"></select>
+                </div>
+                <div id="uie-activity-party-preview" style="padding:12px; border-radius:12px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:#ccc; font-size:0.9em; line-height:1.4;">
+                    Select a member and activity.
+                </div>
+                <button id="uie-activity-party-apply" class="uie-sim-btn" style="height:44px;">APPLY TO PARTY MEMBER</button>
+            </div>
+        </div>
+    </div>
+</div>

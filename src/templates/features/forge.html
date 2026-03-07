@@ -1,0 +1,132 @@
+<div id="uie-forge-root" style="height:100%; width:100%; position:relative;">
+  <style>
+    #uie-forge-root { color:#fff; font-family: serif; }
+    #uie-forge-bg { position:absolute; inset:0; background-size:cover; background-position:center; }
+    #uie-forge-glass { position:absolute; inset:0; background:rgba(0,0,0,0.60); backdrop-filter: blur(4px); }
+    #uie-forge-ui { position:relative; z-index:1; height:100%; display:flex; flex-direction:column; }
+    #uie-forge-top { display:flex; gap:10px; align-items:center; padding:12px; border-bottom:1px solid rgba(255,255,255,0.12); }
+    #uie-forge-title { font-weight:900; letter-spacing:1px; color:#f1c40f; }
+    .uie-forge-btn { height:36px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; }
+    .uie-forge-btn.primary { border:none; background:#cba35c; color:#000; }
+    .uie-forge-btn.danger { border:1px solid rgba(243,139,168,0.35); color:#f38ba8; }
+    #uie-forge-grid { flex:1; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; padding:12px; overflow:hidden; }
+    .uie-forge-pane { border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); overflow:hidden; display:flex; flex-direction:column; }
+    .uie-forge-pane .head { padding:10px 12px; font-weight:900; border-bottom:1px solid rgba(255,255,255,0.10); color:#cba35c; display:flex; gap:10px; align-items:center; }
+    .uie-forge-pane .body { padding:12px; overflow:auto; }
+    .uie-forge-search { height:38px; width:100%; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px; outline:none; }
+    .uie-forge-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    .uie-forge-row { display:flex; gap:10px; align-items:center; padding:10px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.04); cursor:pointer; }
+    .uie-forge-row.active { border-color:rgba(241,196,15,0.45); box-shadow: 0 0 18px rgba(241,196,15,0.18); }
+    .uie-forge-row .icon { width:40px; height:40px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); display:grid; place-items:center; overflow:hidden; flex:0 0 auto; }
+    .uie-forge-row .icon img { width:100%; height:100%; object-fit:cover; }
+    .uie-forge-row .mid { flex:1; min-width:0; }
+    .uie-forge-row .name { font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .uie-forge-row .sub { opacity:0.75; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .uie-forge-pill { display:inline-flex; align-items:center; gap:6px; height:28px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); font-weight:900; font-size:12px; }
+    .uie-forge-form { display:flex; flex-direction:column; gap:10px; }
+    .uie-forge-field label { display:block; font-size:12px; opacity:0.75; font-weight:900; margin-bottom:6px; }
+    .uie-forge-field input, .uie-forge-field select, .uie-forge-field textarea {
+      width:100%; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:10px 12px; outline:none;
+    }
+    .uie-forge-field textarea { min-height:90px; resize:vertical; }
+    #uie-forge-log { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:1.45; white-space:pre-wrap; color:rgba(255,255,255,0.82); }
+    @media (max-width: 700px) { #uie-forge-grid { grid-template-columns: 1fr; overflow:auto; } .uie-forge-pane { min-height: 260px; } }
+  </style>
+  <div id="uie-forge-bg"></div>
+  <div id="uie-forge-glass"></div>
+  <div id="uie-forge-ui">
+    <div id="uie-forge-top">
+      <button class="uie-forge-btn" data-action="back-create">Back</button>
+      <div id="uie-forge-title">FORGE</div>
+      <div style="margin-left:auto; display:flex; gap:10px;">
+        <button class="uie-forge-btn" onclick="uie.phone.openBooksGuide('guide-inventory')" style="border:none; background:transparent; color:#cba35c;" title="Inventory Manual"><i class="fa-solid fa-circle-info"></i></button>
+        <button class="uie-forge-btn danger" id="uie-forge-reset">Reset</button>
+        <button class="uie-forge-btn primary" id="uie-forge-craft">Forge</button>
+      </div>
+    </div>
+    <div id="uie-forge-grid">
+      <div class="uie-forge-pane">
+        <div class="head">Materials <span style="margin-left:auto; opacity:0.7; font-size:12px;">Crafting</span></div>
+        <div class="body">
+          <input id="uie-forge-search" class="uie-forge-search" placeholder="Search materials...">
+          <div id="uie-forge-materials" class="uie-forge-list"></div>
+        </div>
+      </div>
+      <div class="uie-forge-pane">
+        <div class="head">Blueprint</div>
+        <div class="body">
+          <div class="uie-forge-form">
+            <div class="uie-forge-field">
+              <label>Output Name</label>
+              <input id="uie-forge-out-name" placeholder="e.g. Iron Longsword">
+            </div>
+            <div class="uie-forge-field">
+              <label>Slot</label>
+              <select id="uie-forge-out-slot">
+                <option value="main">main</option>
+                <option value="off">off</option>
+                <option value="head">head</option>
+                <option value="chest">chest</option>
+                <option value="legs">legs</option>
+                <option value="feet">feet</option>
+                <option value="hands">hands</option>
+                <option value="neck">neck</option>
+                <option value="cloak">cloak</option>
+                <option value="belt">belt</option>
+                <option value="r1">r1</option>
+                <option value="r2">r2</option>
+                <option value="focus">focus</option>
+              </select>
+            </div>
+            <div class="uie-forge-field">
+              <label>Rarity</label>
+              <select id="uie-forge-out-rarity">
+                <option value="common">common</option>
+                <option value="uncommon">uncommon</option>
+                <option value="rare">rare</option>
+                <option value="epic">epic</option>
+                <option value="legendary">legendary</option>
+              </select>
+            </div>
+            <div class="uie-forge-field">
+              <label>Mods (comma: str:1, dex:0 ...)</label>
+              <input id="uie-forge-out-mods" placeholder="str:1, dex:0, int:0, vit:0, luk:0, cha:0">
+            </div>
+            <div class="uie-forge-field">
+              <label>Status Effects (comma)</label>
+              <input id="uie-forge-out-fx" placeholder="Bleed (2 turns), Burning (1 turn)">
+            </div>
+            <div class="uie-forge-field">
+              <label>Description</label>
+              <textarea id="uie-forge-out-desc" placeholder="Reference description..."></textarea>
+            </div>
+            <div class="uie-forge-field">
+              <label>Selected Materials</label>
+              <div id="uie-forge-selected" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="uie-forge-pane">
+        <div class="head">Log</div>
+        <div class="body">
+          <div id="uie-forge-log"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<template id="uie-forge-row-template">
+    <div class="uie-forge-row">
+        <div class="icon"></div>
+        <div class="mid">
+            <div class="name"></div>
+            <div class="sub"></div>
+        </div>
+        <div class="uie-forge-pill"></div>
+    </div>
+</template>
+<template id="uie-forge-pill-template">
+    <span class="uie-forge-pill"></span>
+</template>
+

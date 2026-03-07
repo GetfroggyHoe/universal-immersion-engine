@@ -1,0 +1,243 @@
+<style>
+  #uie-view-equip{
+    height:100%;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    padding:12px;
+    box-sizing:border-box;
+    overflow:auto !important;
+    color:#f6e7c8;
+    font-family: serif;
+  }
+  @media (max-width: 700px), (pointer: coarse) {
+    #equip-status-wrap{ display:none !important; }
+    .equip-grid{ grid-template-columns: 1fr; }
+    .equip-doll{ display:none; }
+    .equip-mid .slot-name{ display:block; font-size:12px; }
+    .equip-mid .item-name{ font-size:13px; }
+    .equip-slot{ min-height: 64px; }
+  }
+
+  .equip-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(225,193,122,0.18);
+    background: rgba(0,0,0,0.25);
+  }
+
+  .equip-layer{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .equip-layer .nav{
+    width:38px;height:38px;border-radius:12px;
+    display:grid;place-items:center;
+    border:1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    color:#f1c40f;
+    cursor:pointer;
+    user-select:none;
+  }
+  .equip-layer .name{
+    font-weight:900;
+    letter-spacing:0.6px;
+    color:#f1c40f;
+  }
+
+  .equip-summary{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  }
+
+  .equip-fx-icon{
+    width:28px;height:28px;border-radius:10px;
+    display:grid;place-items:center;
+    border:1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    color:rgba(255,255,255,0.90);
+    font-weight:900;
+    cursor:pointer;
+    user-select:none;
+  }
+  .equip-fx-icon:hover{ filter:brightness(1.08); }
+  .equip-chip{
+    padding:6px 10px;
+    border-radius:14px;
+    border:1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    font-weight:900;
+    font-size:12px;
+    color:rgba(255,255,255,0.85);
+    white-space:nowrap;
+  }
+
+  .equip-body{
+    flex:1;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .equip-grid{
+    flex:1;
+    min-height:0;
+    display:grid;
+    grid-template-columns: 1fr 260px 1fr;
+    gap:12px;
+  }
+
+  .equip-side{
+    min-height:0;
+    overflow:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding-right:2px;
+  }
+
+  .equip-doll{
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+
+  .equip-doll-frame{
+    flex:1;
+    min-height:0;
+    border-radius:6px;
+    border:1px solid rgba(225,193,122,0.18);
+    background: rgba(0,0,0,0.22);
+    overflow:hidden;
+    display:grid;
+    place-items:center;
+  }
+  .equip-doll-frame img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+    object-position:center;
+  }
+
+  .equip-page{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    justify-content:center;
+    padding:10px 12px;
+    border-radius:14px;
+    border:1px solid rgba(225,193,122,0.18);
+    background: rgba(0,0,0,0.22);
+  }
+  .equip-page .nav{
+    width:40px;height:36px;border-radius:12px;
+    display:grid;place-items:center;
+    border:1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    color:#f1c40f;
+    cursor:pointer;
+    user-select:none;
+  }
+  .equip-page .ind{
+    font-weight:900;
+    color:rgba(255,255,255,0.85);
+    letter-spacing:0.5px;
+  }
+
+  .equip-slot{
+    flex: 1; /* Fill available vertical space */
+    min-height: 80px; /* Ensure a decent minimum size */
+    border-radius:8px;
+    border:1px solid rgba(225,193,122,0.18);
+    background: rgba(0,0,0,0.22);
+    padding:10px;
+    display:flex;
+    flex-direction:row;
+    gap:12px;
+    align-items:center;
+    text-align:left;
+    transition: all 0.2s;
+  }
+  .equip-slot:hover{
+    background: rgba(225,193,122,0.08);
+    border-color: rgba(225,193,122,0.4);
+  }
+
+  .equip-icon{
+    width:48px;height:48px;border-radius:10px;
+    display:grid;place-items:center;
+    border:1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    flex:0 0 auto;
+    color:rgba(255,255,255,0.85);
+  }
+  .equip-icon img{width:100%;height:100%;object-fit:contain;border-radius:10px;}
+
+  .equip-mid{flex:1; min-width:0; width:100%; display:flex; flex-direction:column; align-items:flex-start;}
+  .equip-mid .slot-name{font-weight:900; font-size:11px; letter-spacing:0.5px; color:#f1c40f; text-transform:uppercase; opacity:0.9;}
+  .equip-mid .item-name{margin-top:2px; font-size:13px; font-weight:900; color:rgba(255,255,255,0.95); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%;}
+  .equip-mid .meta{margin-top:4px; display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-start;}
+  .equip-badge{padding:2px 8px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); font-size:10px; font-weight:900; color:rgba(255,255,255,0.75);}
+
+  .equip-actions{display:flex; gap:6px; flex:0 0 auto; margin-left:auto;}
+  .equip-btn{
+    height:24px;
+    padding:0 8px;
+    border-radius:8px;
+    border:1px solid rgba(255,255,255,0.12);
+    background: rgba(0,0,0,0.25);
+    color:#fff;
+    font-size:10px;
+    font-weight:900;
+    cursor:pointer;
+    user-select:none;
+    display:grid;
+    place-items:center;
+  }
+  .equip-btn.danger{border-color:rgba(243,139,168,0.35); color:#f38ba8;}
+
+  @media (max-width: 700px){
+    #uie-view-equip{ padding:10px; }
+    .equip-grid{ grid-template-columns: 1fr 190px 1fr; gap:10px; }
+    .equip-slot{ padding:10px; }
+    .equip-icon{ width:42px; height:42px; }
+  }
+</style>
+
+<div class="equip-top">
+  <div class="equip-layer">
+    <div class="nav" id="equip-layer-prev" title="Previous Layer"><i class="fa-solid fa-chevron-left"></i></div>
+    <div class="name" id="equip-layer-name">ARMOR</div>
+    <div class="nav" id="equip-layer-next" title="Next Layer"><i class="fa-solid fa-chevron-right"></i></div>
+  </div>
+  <div class="equip-summary">
+    <div class="equip-fx-icon" onclick="uie.phone.openBooksGuide('guide-inventory')" title="Inventory Manual"><i class="fa-solid fa-circle-info"></i></div>
+    <div id="equip-status-wrap" style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; max-width:260px;"></div>
+    <div class="equip-chip" id="equip-edit-chip" style="display:none;">EDIT</div>
+  </div>
+</div>
+
+<div class="equip-body">
+  <div class="equip-grid">
+    <div class="equip-side" id="equip-slot-left"></div>
+    <div class="equip-doll">
+      <div class="equip-doll-frame" id="equip-doll-frame" title="Paper Doll">
+        <img id="equip-doll-img" alt="" style="display:none;">
+        <div id="equip-doll-empty" style="opacity:0.8; font-weight:900; color:rgba(255,255,255,0.75);">PAPER DOLL</div>
+      </div>
+      <!-- Removed Page Controls -->
+    </div>
+    <div class="equip-side" id="equip-slot-right"></div>
+  </div>
+</div>

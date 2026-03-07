@@ -1,0 +1,707 @@
+﻿<div id="uie-social-window" class="uie-window" style="display:none; width:min(760px, 92vw); height:min(760px, 92vh); backdrop-filter: blur(8px);">
+    <style>
+        /* HARVEST/STARDEW THEME */
+        #uie-social-window {
+            background-image: none;
+            background-color: #fdf3e0; /* Cream/Parchment */
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2147483655 !important;
+            display: flex;
+            flex-direction: column;
+
+            border: 3px solid #8d6e63; /* Medium Wood */
+            box-shadow:
+                0 0 0 2px #5d4037, /* Dark Wood Outer */
+                0 0 0 4px #3e2723, /* Darker Wood Outer */
+                0 10px 25px rgba(0,0,0,0.5);
+            border-radius: 12px;
+            font-family: 'Lato', sans-serif;
+            color: #4a2e16; /* Dark Brown Text */
+        }
+
+        #uie-social-window .uie-header {
+            background: #d7ccc8; /* Light Wood */
+            border-bottom: 2px solid #8d6e63;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-shrink: 0;
+            border-radius: 8px 8px 0 0;
+        }
+
+        #uie-social-window .uie-header h2 {
+            margin: 0;
+            padding: 0;
+            font-family: 'Cinzel', serif;
+            font-size: 1.3em;
+            color: #5d4037; /* Dark Wood */
+            flex: 1;
+            text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+        }
+
+        #uie-social-sparkle {
+            color: #8d6e63;
+            font-size: 1.4em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+        }
+        #uie-social-sparkle:hover {
+            color: #d84315; /* Burnt Orange */
+            text-shadow: 0 0 5px rgba(216, 67, 21, 0.4);
+        }
+
+        #uie-social-close {
+            color: #8d6e63;
+            font-size: 1.4em;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: grid;
+            place-items: center;
+            width: 30px;
+            height: 30px;
+        }
+        #uie-social-close:hover { color: #c62828; }
+
+        #uie-social-window .uie-dropdown {
+            z-index: 2147483660;
+            position: absolute;
+            top: 44px;
+            right: 44px;
+            background: #fff8e1; /* Paper */
+            border: 2px solid #8d6e63;
+            border-radius: 10px;
+            padding: 6px;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 200px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        @media (max-width: 768px), (pointer: coarse) {
+            #uie-social-window {
+                top: 6vh;
+                left: 4vw;
+                transform: none;
+                width: 92vw;
+                max-width: 92vw;
+                height: 86vh;
+                max-height: 86vh;
+            }
+        }
+        #uie-social-window .uie-dd-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #5d4037;
+            transition: all 0.2s;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        #uie-social-window .uie-dd-item:hover {
+            color: #d84315;
+            background: rgba(141, 110, 99, 0.1);
+        }
+        #uie-social-menu { z-index: 2147483660; }
+
+        #uie-social-window .uie-inv-tabs {
+            border-top: 2px solid #3e2723;
+            display: flex;
+            background: #2d1b15; /* Dark Wood / Night Sky */
+            flex-shrink: 0;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        #uie-social-window .uie-tab {
+            cursor:pointer;
+            flex: 1;
+            text-align: center;
+            padding: 12px 0;
+            font-size: 0.9em;
+            font-weight: 700;
+            color: #a1887f; /* Muted Wood Text */
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            font-family: 'Cinzel', serif;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+        #uie-social-window .uie-tab:hover {
+            color: #fff;
+            background: rgba(255,255,255,0.05);
+            text-shadow: 0 0 5px rgba(255,204,128,0.5);
+        }
+        #uie-social-window .uie-tab.active {
+            color: #ffcc80; /* Light Orange/Gold */
+            border-bottom: 3px solid #fb8c00;
+            background: rgba(255, 171, 64, 0.1);
+            text-shadow: 0 0 5px rgba(255,171,64,0.6);
+        }
+
+        #uie-social-window #uie-social-content { min-height: 0; overflow: auto; background: rgba(0,0,0,0.02); padding: 15px; }
+
+        #uie-social-window .uie-social-grid{
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+            gap: 15px;
+        }
+        #uie-social-window .uie-social-card{
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 0;
+            padding: 0;
+            border-radius: 8px;
+            border: 2px solid #d7ccc8; /* Light border */
+            background: #fff;
+            color: #4a2e16;
+            cursor: pointer;
+            user-select: none;
+            overflow: hidden;
+            aspect-ratio: 1 / 1;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            transition: transform 0.1s, border-color 0.2s;
+        }
+        #uie-social-window .uie-social-card:hover{
+            border-color: #d84315;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        #uie-social-window .uie-social-card.delete-selected{
+            border-color: #c62828;
+            box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.4);
+        }
+        #uie-social-window .uie-s-avatar{
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: #efebe9;
+            z-index: 0;
+        }
+        #uie-social-window .uie-s-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+        #uie-social-window .uie-s-name{
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 6px 4px;
+            font-weight: 700;
+            font-size: 12px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            z-index: 2;
+            color: #3e2723;
+            border-top: 1px solid rgba(0,0,0,0.1);
+        }
+
+        #uie-social-window #uie-delete-controls{
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            z-index: 2147483660;
+            display: none;
+            gap: 10px;
+            pointer-events: auto;
+        }
+        #uie-social-window #uie-delete-controls .uie-del-confirm,
+        #uie-social-window #uie-delete-controls .uie-del-cancel{
+            flex: 1;
+            height: 42px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            font-weight: 900;
+            cursor: pointer;
+            border: 2px solid rgba(0,0,0,0.1);
+            background: #fff;
+            color: #555;
+            user-select: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        #uie-social-window #uie-delete-controls .uie-del-confirm{
+            border-color: #ef9a9a;
+            background: #ffebee;
+            color: #c62828;
+        }
+        #uie-social-window #uie-delete-controls .uie-del-cancel{
+            border-color: #ffe082;
+            background: #fff8e1;
+            color: #f57f17;
+        }
+        #uie-social-overlay {
+            position: absolute !important;
+            inset: 0 !important;
+            display: none !important;
+            background: transparent !important;
+            pointer-events: none !important;
+            z-index: 2147483660 !important;
+        }
+        #uie-social-overlay[data-open="1"]{ display:block !important; pointer-events:none !important; }
+        #uie-social-overlay .uie-paper-box{
+            position: absolute !important;
+            pointer-events: auto !important;
+            width: min(560px, 96vw);
+            max-height: calc(100% - 28px);
+            overflow: visible;
+            top: 14px;
+            left: 14px;
+            transform: none;
+            background: #fff8e1; /* Paper */
+            border: 2px solid #8d6e63;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            color: #4a2e16;
+        }
+        #uie-social-overlay .uie-p-portrait{
+            width: 150px;
+            height: 150px;
+            background: rgba(0,0,0,0.05);
+            border: 1px solid rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        #uie-social-overlay .uie-p-header{ cursor: move; touch-action: none; user-select: none; }
+        #uie-social-overlay .uie-p-close{ z-index: 3; color: #8d6e63; }
+        #uie-social-overlay .uie-p-top-actions{ position:absolute; top:10px; right:46px; display:flex; gap:8px; z-index:3; }
+        #uie-social-overlay .uie-p-icon-btn{
+            width:30px; height:30px; border-radius:10px;
+            border:1px solid #d7ccc8;
+            background: #fff;
+            display:grid; place-items:center; cursor:pointer; color: #5d4037;
+        }
+        #uie-social-overlay .uie-p-icon-btn:hover { background: #efebe9; color: #3e2723; }
+        #uie-social-overlay .uie-p-icon-btn.danger{ border-color: #ef9a9a; color:#c62828; background:#ffebee; }
+
+        #uie-social-overlay a { color:#d84315; text-decoration: underline; font-weight:900; cursor:pointer; }
+        #uie-social-overlay a:hover { filter: brightness(1.1); }
+        #uie-social-overlay .uie-p-actions { display:flex; gap:10px; margin-top:12px; }
+
+        #uie-social-overlay .uie-p-btn {
+            flex:1; height:38px; border-radius:12px;
+            border:1px solid #d7ccc8;
+            background: #fff;
+            color: #5d4037;
+            font-weight:900; cursor:pointer;
+        }
+        #uie-social-overlay .uie-p-btn:hover { background: #efebe9; }
+        #uie-social-overlay .uie-p-btn.danger {
+            border-color: #ef9a9a;
+            color:#c62828;
+            background:#ffebee;
+        }
+
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-social-window {
+                width: 96vw;
+                max-height: 80vh;
+            }
+            #uie-social-window .uie-social-grid { grid-template-columns: repeat(2, 1fr) !important; }
+        }
+
+        @media (max-width: 700px), (pointer: coarse) {
+            #uie-social-window .uie-inv-tabs {
+                justify-content: flex-start !important;
+                overflow-x: auto !important;
+                gap: 8px !important;
+                padding: 8px 10px !important;
+                scrollbar-width: none;
+            }
+            #uie-social-window .uie-inv-tabs::-webkit-scrollbar { display: none; }
+            #uie-social-window .uie-inv-tabs .uie-tab {
+                flex: 0 0 auto !important;
+                white-space: nowrap !important;
+                padding: 8px 12px !important;
+            }
+        }
+
+        /* --- ADD MODAL STYLES (Modern Light) --- */
+        #uie-add-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(500px, 90%);
+            background: #fff8e1; /* Paper */
+            border: 3px solid #8d6e63;
+            box-shadow: 0 0 0 2px #5d4037, 0 10px 30px rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 24px;
+            z-index: 20;
+            display: none;
+            flex-direction: column;
+            gap: 16px;
+            max-height: 90vh;
+            overflow-y: auto;
+            font-family: 'Lato', sans-serif;
+            color: #4a2e16;
+        }
+
+        .uie-input-group {
+            position: relative;
+            margin-bottom: 4px;
+        }
+
+        .uie-input-group input,
+        .uie-input-group select,
+        .uie-input-group textarea {
+            width: 100%;
+            padding: 12px 12px 12px 12px;
+            background: #fff;
+            border: 2px solid #d7ccc8;
+            border-radius: 6px;
+            color: #3e2723; /* Dark text */
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+            appearance: none;
+        }
+
+        .uie-input-group input:focus,
+        .uie-input-group select:focus {
+            border-color: #d84315; /* Focus Orange */
+            background: #fff;
+        }
+
+        .uie-input-group label {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            padding: 0 4px;
+            color: #8d6e63;
+            font-size: 14px;
+            pointer-events: none;
+            transition: all 0.2s ease-out;
+            border-radius: 4px;
+        }
+
+        .uie-input-group input:focus ~ label,
+        .uie-input-group input:not(:placeholder-shown) ~ label,
+        .uie-input-group select:focus ~ label,
+        .uie-input-group select:valid ~ label {
+            top: 0;
+            transform: translateY(-50%) scale(0.85);
+            left: 8px;
+            background: #fff8e1; /* Match modal bg */
+            color: #d84315;
+            font-weight: bold;
+        }
+
+        /* Select fix */
+        .uie-input-group select { padding-top: 12px; }
+
+        .uie-add-btn {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #8d6e63;
+            background: #d7ccc8;
+            color: #3e2723;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            font-family: 'Cinzel', serif;
+            letter-spacing: 1px;
+        }
+        .uie-add-btn:hover {
+            background: #d84315;
+            color: #fff;
+            border-color: #bf360c;
+            box-shadow: 0 2px 8px rgba(216, 67, 21, 0.3);
+        }
+
+        .uie-img-preview {
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            border: 2px dashed #8d6e63;
+            margin: 0 auto 10px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            overflow: hidden;
+            background: #efebe9;
+            transition: border-color 0.2s;
+            position: relative;
+        }
+        .uie-img-preview:hover { border-color: #d84315; }
+
+        .uie-add-checkbox-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 4px;
+        }
+        .uie-add-checkbox-label {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            font-size: 13px;
+            color: #5d4037;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .uie-add-checkbox-label input {
+            accent-color: #d84315;
+            width: 16px; height: 16px;
+        }
+
+        #uie-add-img-file {
+            position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 5;
+        }
+    </style>
+    <div class="uie-header">
+        <h2 data-i18n="social.title">SOCIAL MENU</h2>
+        <div id="uie-social-sparkle" title="Manage Contacts" data-i18n-title="social.manage_contacts"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+        <div id="uie-social-close"><i class="fa-solid fa-xmark"></i></div>
+
+        <div class="uie-dropdown" id="uie-social-menu" style="position:absolute; top:44px; right:44px; background:#fff8e1; border:2px solid #8d6e63; border-radius:10px; padding:6px; display:none; flex-direction:column; gap:6px; z-index:20010; min-width:200px; box-shadow:0 5px 15px rgba(0,0,0,0.2);">
+            <div class="uie-dd-item" onclick="UIE_openGuide('guide-social')"><i class="fa-solid fa-circle-question" style="color:#d84315;"></i> <span data-i18n="social.menu.help_guide">Help / Guide</span></div>
+            <div class="uie-dd-item" id="uie-act-scan"><i class="fa-solid fa-users-viewfinder"></i> <span data-i18n="social.menu.scan_chat">Scan Chat Log</span></div>
+            <div class="uie-dd-item" id="uie-act-toggle-auto"><i class="fa-solid fa-robot"></i> <span data-i18n="social.menu.auto_scan">Auto Scan:</span> <span id="uie-auto-scan-state">OFF</span></div>
+            <div class="uie-dd-item" id="uie-act-add"><i class="fa-solid fa-plus"></i> <span data-i18n="social.menu.manual_add">Manual Add</span></div>
+            <div class="uie-dd-item" id="uie-act-delete"><i class="fa-solid fa-trash"></i> <span data-i18n="social.menu.mass_delete">Mass Delete</span></div>
+            <div class="uie-dd-item" id="uie-act-bg"><i class="fa-solid fa-image"></i> <span data-i18n="social.menu.change_bg">Change Background</span></div>
+            <div class="uie-dd-item" id="uie-act-heart"><i class="fa-solid fa-heart"></i> <span data-i18n="social.menu.change_heart">Change Heart Icon</span></div>
+        </div>
+    </div>
+
+    <div class="uie-inv-tabs">
+        <div class="uie-tab active" data-tab="friends" data-i18n="social.tab.friends">FRIENDS</div>
+        <div class="uie-tab" data-tab="associates" data-i18n="social.tab.associates">ASSOCIATES</div>
+        <div class="uie-tab" data-tab="romance" data-i18n="social.tab.relationships">RELATIONSHIPS</div>
+        <div class="uie-tab" data-tab="family" data-i18n="social.tab.family">FAMILY</div>
+        <div class="uie-tab" data-tab="rivals" data-i18n="social.tab.rivals">RIVALS</div>
+    </div>
+
+    <div class="uie-content custom-scroll" id="uie-social-content" style="padding:12px; position:relative;">
+        </div>
+
+    <div id="uie-delete-controls">
+        <div class="uie-del-confirm" data-i18n="social.delete.confirm">CONFIRM DELETE</div>
+        <div class="uie-del-cancel" data-i18n="social.delete.cancel">CANCEL</div>
+    </div>
+
+    <div id="uie-add-modal">
+        <div style="text-align:center; font-weight:bold; color:#d84315; margin-bottom:20px; font-size:1.4em; font-family:'Cinzel',serif; letter-spacing:1px; border-bottom:2px solid #8d6e63; padding-bottom:10px;" data-i18n="social.add.title">CONTACT DETAILS</div>
+
+        <label class="uie-img-preview" title="Click to upload image" data-i18n-title="social.add.upload_image">
+            <img id="uie-add-preview" src="" style="width:100%; height:100%; display:none; object-fit:cover;">
+            <i class="fa-solid fa-camera" id="uie-add-icon" style="font-size:2em; color:#8d6e63;"></i>
+            <input type="file" id="uie-add-img-file" accept="image/*">
+        </label>
+
+        <!-- URL Input (Hidden inside preview logic usually, but here distinct) -->
+        <div class="uie-input-group">
+            <input type="text" id="uie-add-url" placeholder=" ">
+            <label data-i18n="social.add.image_url">Image URL (Optional)</label>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div class="uie-input-group">
+                <input type="text" id="uie-add-name" placeholder=" ">
+                <label data-i18n="social.add.name">Name</label>
+            </div>
+            <div class="uie-input-group">
+                <input type="text" id="uie-add-age" placeholder=" ">
+                <label data-i18n="social.add.age">Age</label>
+            </div>
+        </div>
+
+        <div class="uie-input-group">
+            <input type="text" id="uie-add-family" placeholder=" ">
+            <label data-i18n="social.add.known_family">Known Family</label>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div class="uie-input-group">
+                <select id="uie-add-tab" required>
+                    <option value="" disabled selected></option>
+                    <option value="friends" data-i18n="social.add.category.friend">Friend</option>
+                    <option value="associates" data-i18n="social.add.category.associate">Associate</option>
+                    <option value="romance" data-i18n="social.add.category.relationship">Relationship</option>
+                    <option value="family" data-i18n="social.add.category.family">Family</option>
+                    <option value="rivals" data-i18n="social.add.category.rival">Rival</option>
+                </select>
+                <label data-i18n="social.add.category">Category</label>
+            </div>
+            <div class="uie-input-group">
+                <input type="number" id="uie-add-affinity" value="50" min="0" max="100" placeholder=" ">
+                <label data-i18n="social.add.affinity">Affinity (0-100)</label>
+            </div>
+        </div>
+
+        <div class="uie-add-checkbox-row">
+            <label class="uie-add-checkbox-label">
+                <input type="checkbox" id="uie-add-known-past">
+                <span data-i18n="social.add.known_past">Known from Past</span>
+            </label>
+            <label class="uie-add-checkbox-label">
+                <input type="checkbox" id="uie-add-met-phys">
+                <span data-i18n="social.add.met_phys">Met Physically</span>
+            </label>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+            <div class="uie-input-group">
+                <input type="text" id="uie-add-family-role" placeholder=" ">
+                <label data-i18n="social.add.family_role">Family Role</label>
+            </div>
+            <div class="uie-input-group">
+                <input type="text" id="uie-add-rel-status" placeholder=" ">
+                <label data-i18n="social.add.status">Status</label>
+            </div>
+        </div>
+
+        <details style="margin-top:10px; border:1px solid #d7ccc8; border-radius:6px; background:#efebe9; padding:12px;">
+            <summary style="cursor:pointer; font-weight:bold; color:#8d6e63; font-size:0.9em;" data-i18n="social.add.more_details">More Details</summary>
+
+            <div class="uie-input-group" style="margin-top:15px;">
+                <input type="text" id="uie-add-thoughts" placeholder=" ">
+                <label data-i18n="social.add.background_notes">Background / Notes</label>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px;">
+                <div class="uie-input-group">
+                    <input type="text" id="uie-add-bday" placeholder=" ">
+                    <label data-i18n="social.add.birthday">Birthday</label>
+                </div>
+                <div class="uie-input-group">
+                    <input type="text" id="uie-add-loc" placeholder=" ">
+                    <label data-i18n="social.add.location">Location</label>
+                </div>
+            </div>
+
+            <div class="uie-input-group">
+                <input type="text" id="uie-add-likes" placeholder=" ">
+                <label data-i18n="social.add.likes">Likes (comma sep)</label>
+            </div>
+            <div class="uie-input-group">
+                <input type="text" id="uie-add-dislikes" placeholder=" ">
+                <label data-i18n="social.add.dislikes">Dislikes (comma sep)</label>
+            </div>
+        </details>
+
+        <div style="display:flex; gap:12px; margin-top:10px;">
+            <button class="uie-add-btn" id="uie-submit-add" style="flex:2;" data-i18n="social.add.save_contact">Save Contact</button>
+            <button class="uie-add-btn" id="uie-cancel-add" style="flex:1; background:transparent; border-color:#8d6e63; color:#5d4037;" data-i18n="social.common.cancel">Cancel</button>
+        </div>
+    </div>
+
+    <div id="uie-social-overlay" style="display:none;">
+        <div class="uie-paper-box">
+            <div class="uie-p-close">X</div>
+            <div class="uie-p-top-actions">
+                <div class="uie-p-icon-btn" id="uie-social-message" title="Message" data-i18n-title="social.profile.message"><i class="fa-solid fa-comment"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-memories" title="Memories" data-i18n-title="social.profile.memories"><i class="fa-solid fa-brain"></i></div>
+                <div class="uie-p-icon-btn" id="uie-social-edit" title="Edit" data-i18n-title="social.common.edit"><i class="fa-solid fa-pencil"></i></div>
+                <div class="uie-p-icon-btn danger" id="uie-social-del-one" title="Delete" data-i18n-title="social.common.delete"><i class="fa-solid fa-trash"></i></div>
+            </div>
+            <div class="uie-paper-inner">
+                <div class="uie-p-header">
+                    <div class="uie-p-portrait"><img id="p-img-disp" style="width:100%; height:100%; border-radius:4px; display:none;"></div>
+                    <div class="uie-p-info">
+                        <div class="uie-p-name-lg">NAME</div>
+                        <div class="uie-p-hearts-lg">â¤â¤â¤â¤â¤</div>
+                    </div>
+                </div>
+
+                <div class="uie-p-status-line" id="p-val-status">"No thoughts currently..."</div>
+
+                <div class="uie-p-grid">
+                    <div class="uie-p-row"><strong data-i18n="social.field.birthday">Birthday:</strong> <span id="p-val-bday">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.location">Location:</strong> <span id="p-val-loc">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.age">Age:</strong> <span id="p-val-age">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.known_family">Known Family:</strong> <span id="p-val-family">???</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.family_role">Family Role:</strong> <span id="p-val-family-role">â€”</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.status">Status:</strong> <span id="p-val-rel-status">â€”</span></div>
+                    <div class="uie-p-row"><strong data-i18n="social.field.presence">Presence:</strong> <span id="p-val-presence">â€”</span></div>
+                </div>
+
+                <div class="uie-p-lists-container">
+                    <div class="uie-p-list-col list-likes">
+                        <div class="uie-p-list-header" data-i18n="social.field.likes">Likes</div>
+                        <div class="uie-p-list-content" id="p-val-likes">-</div>
+                    </div>
+                    <div class="uie-p-list-col list-dislikes">
+                        <div class="uie-p-list-header" data-i18n="social.field.dislikes">Dislikes</div>
+                        <div class="uie-p-list-content" id="p-val-dislikes">-</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="uie-social-mem-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10070;">
+        <div class="uie-paper-box" style="max-width:700px; width:92vw;">
+            <div class="uie-p-close" id="uie-social-mem-close">X</div>
+            <div class="uie-paper-inner">
+                <div style="font-weight:900; font-size:20px; color:#4a2e16; font-family:serif;" data-i18n="social.memories.title">Memories</div>
+                <div id="uie-social-mem-sub" style="margin-top:4px; font-size:12px; opacity:0.75; color:#4a2e16;"></div>
+
+                <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                    <button class="uie-p-btn" id="uie-social-mem-scan" style="flex:0 0 auto;" data-i18n="social.memories.scan">Scan From Chat</button>
+                    <button class="uie-p-btn" id="uie-social-mem-add" style="flex:0 0 auto;" data-i18n="social.common.add">Add</button>
+                    <button class="uie-p-btn" id="uie-social-mem-inject" style="flex:0 0 auto;" data-i18n="social.memories.inject">Inject to Chat</button>
+                    <button class="uie-p-btn" id="uie-social-mem-clear" style="flex:0 0 auto; background:rgba(141, 110, 99, 0.15); color:#4a2e16; border:2px solid rgba(74,46,22,0.35);" data-i18n="social.common.clear">Clear</button>
+                </div>
+
+                <div id="uie-social-mem-list" style="margin-top:12px; display:flex; flex-direction:column; gap:10px;"></div>
+                <div id="uie-social-mem-empty" style="margin-top:12px; display:none; text-align:center; color:#4a2e16; opacity:0.7; font-family:serif;" data-i18n="social.memories.empty">â€” No memories saved â€”</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<template id="uie-social-card-template">
+    <div class="uie-social-card">
+        <div class="uie-s-avatar"></div>
+        <div class="uie-s-name"></div>
+        <div class="uie-s-tag-container" style="position:absolute; top:4px; right:4px; display:flex; flex-direction:column; gap:2px;"></div>
+    </div>
+</template>
+
+<template id="uie-social-empty-msg">
+    <div class="no-data-msg" style="text-align:center; margin-top:50px; color:#4a2e16; font-family:serif; font-size:1.2em;" data-i18n="social.empty">- Empty Page -</div>
+</template>
+
+<template id="uie-social-memory-row">
+    <div style="border:1px solid rgba(0,0,0,0.12); border-radius:12px; background:rgba(255,255,255,0.55); padding:10px; color:#4a2e16;">
+        <div style="display:flex; gap:10px; align-items:flex-start;">
+            <div style="flex:1; min-width:0;">
+                <div class="mem-text" style="font-weight:900; font-family:serif; line-height:1.35;"></div>
+                <div class="mem-impact" style="margin-top:6px; font-size:12px; opacity:0.85;"></div>
+                <div class="mem-tags" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;"></div>
+            </div>
+            <div class="uie-p-icon-btn uie-social-mem-edit" title="Edit" data-i18n-title="social.common.edit" style="width:34px; height:34px;"><i class="fa-solid fa-pen-to-square"></i></div>
+            <div class="uie-p-icon-btn danger uie-social-mem-del" title="Delete" data-i18n-title="social.common.delete" style="width:34px; height:34px;"><i class="fa-solid fa-trash"></i></div>
+        </div>
+    </div>
+</template>
+

@@ -1,0 +1,177 @@
+<div id="uie-kitchen-overlay" style="display:none;">
+  <style>
+    #uie-kitchen-overlay{
+      position: fixed;
+      inset: 0;
+      z-index: 2147483647;
+      isolation: isolate;
+      --uie-kitchen-bg-modern: url("https://user.uploads.dev/file/4b56f0173d6b404e05bcdf1518d377be.jpg");
+      --uie-kitchen-bg-medieval: url("https://user.uploads.dev/file/6995d56b2ee966ceff929f0199c82be7.jpg");
+      background-color: #000;
+      background-image: var(--uie-kitchen-bg-modern);
+      background-size: cover;
+      background-position: center;
+      overflow: hidden;
+      color: #fff;
+      font-family: serif;
+    }
+    #uie-kitchen-overlay[data-style="medieval"]{ background-image: var(--uie-kitchen-bg-medieval); }
+    #uie-kitchen-overlay *{ box-sizing:border-box; }
+    #uie-kitchen-glass{ position:absolute; inset:0; background:rgba(0,0,0,0.62); backdrop-filter: blur(4px); }
+    #uie-kitchen-ui{ position:relative; z-index:1; height:100%; display:flex; flex-direction:column; }
+    #uie-kitchen-top{ display:flex; gap:10px; align-items:center; padding:12px; border-bottom:1px solid rgba(255,255,255,0.12); }
+    #uie-kitchen-title{ font-weight:900; letter-spacing:1px; color:#cba35c; }
+    .uie-kbtn{ height:36px; padding:0 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(0,0,0,0.25); color:#fff; font-weight:900; cursor:pointer; }
+    .uie-kbtn.primary{ border:none; background:#2ecc71; color:#000; }
+    .uie-kbtn.danger{ border:1px solid rgba(243,139,168,0.35); color:#f38ba8; }
+    #uie-kitchen-grid{ flex:1; display:grid; grid-template-columns: 1.05fr 1.2fr 0.95fr; gap:12px; padding:12px; overflow:hidden; }
+    .uie-kpane{ border-radius:16px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.22); overflow:hidden; display:flex; flex-direction:column; min-height:0; }
+    .uie-kpane .head{ padding:10px 12px; font-weight:900; border-bottom:1px solid rgba(255,255,255,0.10); color:#cba35c; display:flex; gap:10px; align-items:center; }
+    .uie-kpane .body{ padding:12px; overflow:auto; }
+    .uie-kfield label{ display:block; font-size:12px; opacity:0.75; font-weight:900; margin-bottom:6px; }
+    .uie-kfield input, .uie-kfield select, .uie-kfield textarea{
+      width:100%; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:10px 12px; outline:none;
+    }
+    .uie-kbadge{ height:28px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); font-weight:900; font-size:12px; display:inline-flex; align-items:center; }
+    #uie-kprogress{ height:14px; border-radius:999px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.06); overflow:hidden; }
+    #uie-kprogress > div{ height:100%; width:0%; background:linear-gradient(90deg,#2ecc71,#f1c40f,#e74c3c); }
+    #uie-klog{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:1.45; white-space:pre-wrap; color:rgba(255,255,255,0.82); }
+    .uie-klist{ display:flex; flex-direction:column; gap:8px; }
+    .uie-krow{ padding:10px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.04); cursor:pointer; }
+    .uie-krow.active{ border-color:rgba(241,196,15,0.45); box-shadow:0 0 18px rgba(241,196,15,0.16); }
+    .uie-kpill{ height:28px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); font-weight:900; font-size:12px; display:inline-flex; align-items:center; gap:6px; }
+    #uie-kitchen-picker{ position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.75); z-index:2147483647; }
+    #uie-kitchen-picker .sheet{ width:min(680px, 94vw); max-height:86vh; overflow:auto; border-radius:18px; border:1px solid rgba(255,255,255,0.14); background:rgba(18,16,12,0.96); padding:12px; }
+    #uie-kitchen-picker .sheet .top{ display:flex; gap:10px; align-items:center; }
+    #uie-kitchen-picker .sheet .grid{ display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+    #uie-kitchen-picker .pick-row{ display:flex; gap:10px; align-items:center; padding:10px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.04); cursor:pointer; }
+    #uie-kitchen-picker .pick-row .icon{ width:40px; height:40px; border-radius:14px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.25); display:grid; place-items:center; overflow:hidden; }
+    #uie-kitchen-picker .pick-row .icon img{ width:100%; height:100%; object-fit:cover; }
+    #uie-kitchen-picker .pick-row .mid{ flex:1; min-width:0; }
+    #uie-kitchen-picker .pick-row .name{ font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #uie-kitchen-picker .pick-row .sub{ opacity:0.75; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    @media (max-width: 980px){ #uie-kitchen-grid{ grid-template-columns:1fr; overflow:auto; } .uie-kpane{ min-height: 260px; } }
+  </style>
+  <div id="uie-kitchen-glass"></div>
+  <div id="uie-kitchen-ui">
+    <div id="uie-kitchen-top">
+      <button class="uie-kbtn" id="uie-kitchen-exit">Back</button>
+      <div id="uie-kitchen-title">KITCHEN</div>
+      <div style="margin-left:auto; display:flex; gap:10px;">
+        <button class="uie-kbtn" onclick="uie.phone.openBooksGuide('guide-inventory')" title="Inventory Manual"><i class="fa-solid fa-circle-info"></i></button>
+        <button class="uie-kbtn" id="uie-kitchen-style">Style</button>
+        <button class="uie-kbtn danger" id="uie-kitchen-reset">Reset</button>
+      </div>
+    </div>
+    <div id="uie-kitchen-grid">
+      <div class="uie-kpane">
+        <div class="head">Selection</div>
+        <div class="body">
+          <div class="uie-kfield">
+            <label>Station</label>
+            <select id="uie-k-station">
+              <option value="stove">stove</option>
+              <option value="oven">oven</option>
+              <option value="campfire">campfire</option>
+            </select>
+          </div>
+          <div class="uie-kfield" style="margin-top:10px;">
+            <label>Recipe Search</label>
+            <input id="uie-k-recipe-search" placeholder="Search recipes...">
+          </div>
+          <div id="uie-k-recipes" class="uie-klist" style="margin-top:10px;"></div>
+          <div style="margin-top:12px; font-weight:900; opacity:0.85;">Ingredient Slots</div>
+          <div id="uie-k-slots" style="display:flex; flex-direction:column; gap:8px; margin-top:10px;"></div>
+        </div>
+      </div>
+      <div class="uie-kpane">
+        <div class="head">Cook Session <span id="uie-k-state" class="uie-kbadge" style="margin-left:auto;">IDLE</span></div>
+        <div class="body">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <div style="font-weight:900;" id="uie-k-active-recipe">No recipe selected</div>
+            <div style="margin-left:auto; opacity:0.8; font-weight:900;" id="uie-k-remaining">—</div>
+          </div>
+          <div style="margin-top:10px;">
+            <div id="uie-kprogress"><div></div></div>
+            <div style="margin-top:8px; opacity:0.85; font-weight:900;" id="uie-k-percent">0%</div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+            <div class="uie-kfield">
+              <label>Heat</label>
+              <select id="uie-k-heat">
+                <option value="low">low</option>
+                <option value="med" selected>med</option>
+                <option value="high">high</option>
+              </select>
+            </div>
+            <div class="uie-kfield">
+              <label>Burn Window</label>
+              <div id="uie-k-burn" class="uie-kbadge">—</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+            <button class="uie-kbtn primary" id="uie-k-start">Start</button>
+            <button class="uie-kbtn" id="uie-k-pause">Pause</button>
+            <button class="uie-kbtn" id="uie-k-resume">Resume</button>
+            <button class="uie-kbtn" id="uie-k-stir">Stir</button>
+            <button class="uie-kbtn danger" id="uie-k-cancel">Cancel/Dump</button>
+            <button class="uie-kbtn primary" id="uie-k-serve">Serve</button>
+          </div>
+          <div style="margin-top:14px; opacity:0.85; font-weight:900;" id="uie-k-warning"></div>
+        </div>
+      </div>
+      <div class="uie-kpane">
+        <div class="head">Results</div>
+        <div class="body">
+          <div style="display:flex; gap:10px; align-items:center;">
+            <div class="uie-kbadge" id="uie-k-quality">quality: —</div>
+            <div class="uie-kbadge" id="uie-k-mistakes">mistakes: 0</div>
+          </div>
+          <div style="margin-top:10px; opacity:0.85; line-height:1.5;" id="uie-k-outcome">—</div>
+          <div style="margin-top:12px; font-weight:900; opacity:0.85;">Log</div>
+          <div id="uie-klog" style="margin-top:10px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="uie-kitchen-picker">
+    <div class="sheet">
+      <div class="top">
+        <div style="font-weight:900; color:#cba35c;" id="uie-k-pick-title">Pick Ingredient</div>
+        <button class="uie-kbtn danger" id="uie-k-pick-close" style="margin-left:auto;">×</button>
+      </div>
+      <input id="uie-k-pick-search" placeholder="Search..." style="margin-top:10px; height:38px; width:100%; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.25); color:#fff; padding:0 12px; outline:none;">
+      <div id="uie-k-pick-list" class="grid"></div>
+    </div>
+  </div>
+</div>
+<template id="uie-k-recipe-template">
+    <div class="uie-krow">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="name" style="font-weight:900; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        <div class="uie-kpill status"></div>
+      </div>
+      <div class="meta" style="margin-top:6px; opacity:0.75; font-size:12px; font-weight:800;"></div>
+    </div>
+</template>
+
+<template id="uie-k-slot-template">
+    <div class="uie-krow">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="name" style="font-weight:900;"></div>
+        <div style="margin-left:auto;" class="uie-kpill tag"></div>
+      </div>
+      <div class="meta" style="margin-top:6px; opacity:0.75; font-size:12px; font-weight:800;"></div>
+    </div>
+</template>
+
+<template id="uie-k-pick-template">
+    <div class="pick-row">
+        <div class="icon"></div>
+        <div class="mid">
+          <div class="name"></div>
+          <div class="sub"></div>
+        </div>
+        <div class="uie-kpill">Pick</div>
+    </div>
+</template>
