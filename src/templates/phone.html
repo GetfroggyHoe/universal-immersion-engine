@@ -607,25 +607,57 @@
                 </div>
 
                 <div id="guide-inventory" class="books-card" style="margin-bottom:15px;">
-                    <h3 style="color:#3498db; margin-top:0;">Inventory & Equipment</h3>
-                    <p>The Inventory is your central hub for managing items, stats, and character progression.</p>
-                    <h4 style="color:#fff; margin:10px 0 5px;">Managing Items</h4>
+                    <h3 style="color:#3498db; margin-top:0;">Inventory Modules</h3>
+                    <p>Inventory is split into focused tabs. Use the Inventory/module Info button to jump directly to this guide.</p>
                     <ul style="padding-left:20px; margin:5px 0 10px;">
-                        <li><strong>Viewing:</strong> Use the tabs (Items, Skills, Assets, Equip) to filter your inventory.</li>
-                        <li><strong>Equipping:</strong> Click an item and select "Equip" to wear it. It must match a valid slot (e.g., Head, Body).</li>
-                        <li><strong>Using:</strong> Consumables like potions or food can be "Used" to restore health or apply buffs.</li>
+                        <li><strong>Info Button (ⓘ / ?):</strong> Opens this Inventory guide section from the current module.</li>
+                        <li><strong>Edit Mode (Pencil):</strong> Enables direct editing flows for inventory-linked data.</li>
+                        <li><strong>Creation Station (Sparkle):</strong> Opens crafting/creation tools and chat-assisted generation.</li>
                     </ul>
-                    <h4 style="color:#fff; margin:10px 0 5px;">Character Stats</h4>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Items Tab</h4>
                     <ul style="padding-left:20px; margin:5px 0 10px;">
-                        <li><strong>Vitals:</strong> Track HP (Health), MP (Mana), AP (Action Points), and XP (Experience).</li>
-                        <li><strong>Attributes:</strong> STR (Strength), DEX (Dexterity), INT (Intelligence), VIT (Vitality), LUK (Luck), CHA (Charisma).</li>
-                        <li><strong>Editing:</strong> Click the Pencil icon to manually edit your Name, Class, Level, or Stats.</li>
+                        <li><strong>Search & Filter:</strong> Find items quickly by name and category chips/dropdown.</li>
+                        <li><strong>Select Mode:</strong> Toggle selection workflows for focused inventory management.</li>
+                        <li><strong>Item Actions:</strong> Open an item to <em>Use</em>, <em>Open/Read</em>, <em>Custom Use</em>, <em>Use (Chat)</em>, <em>Send to Party</em>, <em>Equip</em>, or <em>Discard</em>.</li>
+                        <li><strong>Smart Content:</strong> Openable containers unpack seeded loot and readable books open in a reader modal.</li>
                     </ul>
-                    <h4 style="color:#fff; margin:10px 0 5px;">Creation Station</h4>
-                    <p>Click the Sparkle icon to open the Creation Station. Here you can:</p>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Skills Tab</h4>
                     <ul style="padding-left:20px; margin:5px 0 10px;">
-                        <li><strong>Fabricate:</strong> Create custom items, skills, or assets from scratch.</li>
-                        <li><strong>Scan Loot:</strong> Automatically detect items mentioned in the recent chat history and add them to your inventory.</li>
+                        <li><strong>Class Context:</strong> Displays current class and level for quick progression checks.</li>
+                        <li><strong>Skill Cards:</strong> Shows skill names, type tags, and descriptions.</li>
+                        <li><strong>Cleanup:</strong> Remove outdated or incorrect skills directly from the list.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Assets Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Asset Tracking:</strong> Keeps long-term assets like property, vehicles, or businesses.</li>
+                        <li><strong>Ownership Context:</strong> Displays category/owned state and optional visual/description details.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Equipment Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Layer Navigation:</strong> Switch between INNER / CLOTH / ARMOR / GEAR slot groups.</li>
+                        <li><strong>Paper Doll View:</strong> Central preview pane for current visual loadout.</li>
+                        <li><strong>Slot Actions:</strong> Equip into slot-compatible positions and unequip back into inventory.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Life Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Custom Trackers:</strong> Create/edit trackers like Hunger, Corruption, Reputation, etc.</li>
+                        <li><strong>Quick Adjust:</strong> Use +/- controls for immediate value updates during play.</li>
+                        <li><strong>Delete Mode:</strong> Bulk-select and remove trackers safely.</li>
+                        <li><strong>AI Template:</strong> Configure the life-tracking instruction template used for updates.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Create Tab (Creation Station)</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Fabricate:</strong> Create custom items, containers, skills, assets, or classes from scratch.</li>
+                        <li><strong>Container Builder:</strong> Select <em>Container</em>, then choose <strong>Bag</strong>, <strong>Chest</strong>, or <strong>Container</strong>.</li>
+                        <li><strong>Describe Contents:</strong> Use description text to seed openable contents (e.g., <code>lockpick set, 2 healing potions, old map</code>).</li>
+                        <li><strong>Crafting Modules:</strong> Launch Forge, Alchemy, Enchant, and Kitchen overlays from one hub.</li>
+                        <li><strong>Scan Tools:</strong> Pull loot from chat and trigger quick War Room scan/open flows when needed.</li>
                     </ul>
                 </div>
 
@@ -659,12 +691,42 @@
 
                 <div id="guide-party" class="books-card" style="margin-bottom:15px;">
                     <h3 style="color:#2ecc71; margin-top:0;">Party System</h3>
-                    <p>Manage your companions and followers.</p>
+                    <p>Manage companions, lane formation, tactics, and shared resources from one command panel.</p>
                     <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Recruiting:</strong> You can register NPCs as party members. This allows you to view their stats and inventory.</li>
-                        <li><strong>Roles:</strong> Assign roles (e.g., Healer, Tank, Scout) to party members. This may provide passive bonuses in combat.</li>
-                        <li><strong>Group Chat:</strong> Party members are automatically included in group chats when relevant.</li>
-                        <li><strong>Status:</strong> Monitor the health and mana of your entire team from the Party window.</li>
+                        <li><strong>Info Button (ⓘ):</strong> Opens this Party guide from the Party header.</li>
+                        <li><strong>Header Tools:</strong> Change Party background, Export Party data, and Import Party data.</li>
+                        <li><strong>Party Metadata:</strong> Set party name and leader identity from the top bar.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Roster Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Add/Import:</strong> Add a member manually, import User profile, or import current character context.</li>
+                        <li><strong>Roster Actions:</strong> Set leader, toggle active status, edit member, or remove member.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Member Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Member Sheet:</strong> View/edit vitals, attributes, status effects, biography, and custom CSS notes.</li>
+                        <li><strong>Member Trackers:</strong> Add and manage per-member life trackers with +/- and edit controls.</li>
+                        <li><strong>Member Modal:</strong> Deep-edit sheet/equipment/skills in fullscreen modal tabs.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Tactics Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Global Strategy:</strong> Set party preset, Conserve Mana, and Protect Leader behaviors.</li>
+                        <li><strong>Per-Member AI:</strong> Configure each member preset, focus target, protect target, and mana saver flags.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Formation Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Lane Assignment:</strong> Place members into front/mid/back lanes.</li>
+                        <li><strong>Role & Order:</strong> Set lane role, move members up/down, and remove from lanes.</li>
+                    </ul>
+
+                    <h4 style="color:#fff; margin:10px 0 5px;">Inventory Tab</h4>
+                    <ul style="padding-left:20px; margin:5px 0 10px;">
+                        <li><strong>Shared Stash:</strong> Manage party-level item storage separate from solo inventory.</li>
+                        <li><strong>Quick Management:</strong> Add item entries and remove outdated ones from the shared list.</li>
                     </ul>
                 </div>
 
@@ -712,12 +774,19 @@
 
                 <div id="guide-warroom" class="books-card" style="margin-bottom:15px;">
                     <h3 style="color:#c0392b; margin-top:0;">War Room (Combat)</h3>
-                    <p>Engage in tactical turn-based battles.</p>
+                    <p>Track combat state, party formation, and tactical status from one panel.</p>
                     <ul style="padding-left:20px; margin:10px 0;">
-                        <li><strong>Initiative:</strong> Combat order is determined by Speed/Dexterity.</li>
-                        <li><strong>Actions:</strong> Choose to Attack, Defend, use a Skill, or use an Item.</li>
-                        <li><strong>The Grid:</strong> (If enabled) Combat takes place on a tactical grid where positioning matters.</li>
-                        <li><strong>Victory/Defeat:</strong> Winning grants XP and Loot. Defeat may result in capture or loss of resources depending on settings.</li>
+                        <li><strong>Info Button (ⓘ):</strong> Opens this War Room guide directly from the War Room header.</li>
+                        <li><strong>Scan:</strong> Parses recent chat and updates battle status, enemies, turn order, and log entries.</li>
+                        <li><strong>Auto Scan:</strong> Continuously refreshes battle data from incoming chat while enabled.</li>
+                        <li><strong>Dice Roll:</strong> Roll expressions like <code>d20</code> or <code>2d6+1</code>. Results are added to the battle log.</li>
+                        <li><strong>Dice Influence:</strong> Toggle whether dice outcomes are injected into RP/system context.</li>
+                        <li><strong>Enemy Panel:</strong> Shows tracked enemies, boss markers, HP bars, and status effects.</li>
+                        <li><strong>Turn Order:</strong> Displays current initiative order (or fallback order when partial data is available).</li>
+                        <li><strong>Party Formation:</strong> Shows front/mid/back lanes and reserve members.</li>
+                        <li><strong>Party Status:</strong> Displays HP/MP/AP/XP meters, class/role, lane, and key status effects per member.</li>
+                        <li><strong>Tactical Advice:</strong> Generates quick recommendations based on party health, lane coverage, and enemy pressure.</li>
+                        <li><strong>Battle Log:</strong> Keeps a running combat timeline and dice/event notes for quick review.</li>
                     </ul>
                 </div>
 

@@ -7,6 +7,7 @@ import { injectRpEvent } from "./features/rp_log.js";
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 import { safeJsonParseObject } from "./jsonUtil.js";
 import { addDatabankEntryWithDedupe } from "./databankModel.js";
+import { addInventoryItemWithStack, createOpenableContainerItem, isContainerItem, normalizeInventoryStacksInPlace } from "./inventoryItems.js";
 
 function defaultEventTypes() {
     return {
@@ -1101,7 +1102,17 @@ export async function scanEverything(opts = {}) {
             const curItem = s.inventory.items.find(it => String(it?.type || "").toLowerCase() === "currency" && String(it?.symbol || "") === sym);
             if (curItem) curItem.qty = s.currency;
             else if (currencyGain) { // Auto-create if gained
-                 s.inventory.items.push({ kind: "item", name: `${sym} Currency`, type: "currency", symbol: sym, description: `Currency item for ${sym}.`, rarity: "common", qty: s.currency, mods: {}, statusEffects: [] });
+                 addInventoryItemWithStack(s.inventory.items, {
+                    kind: "item",
+                    name: `${sym} Currency`,
+                    type: "currency",
+                    symbol: sym,
+                    description: `Currency item for ${sym}.`,
+                    rarity: "common",
+                    qty: s.currency,
+                    mods: {},
+                    statusEffects: []
+                 }, { source: "scan_currency" });
             }
             commitStateUpdate({ save: true, layout: false, emit: true });
         }
@@ -1146,6 +1157,7 @@ Current Party Formation: ${JSON.stringify((() => { try { ensureParty(s); return 
 
 Task: Return a SINGLE JSON object with these keys:
 1. "world": Update location, threat, status, time, weather.
+1.5. "character": (optional) { "name":"", "className":"", "level":1 } for explicit user identity/progression updates.
 2. "inventory": Lists of "added" (items found/acquired/created) and "removed" (items lost/used/given). Ignore currency.
 3. "stats": Integer deltas for "hp" and "mp" (e.g. -10, +5).
 4. "skills": (optional) { "add":[{"name":"","desc":"","type":"active|passive","mods":{},"active":{},"passive":{},"evidence":""}] } for NEW skills learned/purchased/acquired by the user.
@@ -1182,7 +1194,7 @@ Task: Return a SINGLE JSON object with these keys:
 
 Rules:
 - STRICT EVIDENCE MODE: add to inventory/skills/assets ONLY when chat explicitly states user ownership or acquisition. Never infer.
-- "inventory.added": [{ "name": "Item Name", "type": "item|weapon|armor", "qty": 1, "desc": "Description", "evidence":"short quote/paraphrase from chat proving acquisition" }]
+- "inventory.added": [{ "name": "Item Name", "type": "item|weapon|armor|book|container|bag|chest|crate", "qty": 1, "desc": "Description", "evidence":"short quote/paraphrase from chat proving acquisition" }]
 - "removed": ["Item Name"]
 - "equipped": Only if explicitly stated (e.g. "User equips the sword"). Slot examples: "head","chest","main","off".
 - "skills.add": Only add if it is NEW (not in Existing Skills), has explicit acquisition evidence, and include "evidence".
@@ -1211,10 +1223,15 @@ ${chatSnippet}
 
     try {
         const data = safeJsonParseObject(res);
-        if (!data) return { ok: false, error: "invalid_json" };
+        if (!data) {
+            if (force) {
+                try { notify("warning", "Scan response was not valid JSON. Try again.", "Scan", "scanBlocked"); } catch (_) {}
+            }
+            return { ok: false, error: "invalid_json" };
+        }
         if (scanScope && scanScope !== "all") {
             const keepByScope = {
-                inventory: new Set(["inventory", "stats", "skills", "assets", "equipped", "life", "statusEffects"]),
+                inventory: new Set(["character", "inventory", "stats", "skills", "assets", "equipped", "life", "statusEffects"]),
                 social: new Set(["social"]),
                 battle: new Set(["battle"]),
                 party: new Set(["party"]),
@@ -1238,6 +1255,35 @@ ${chatSnippet}
             needsSave = true;
         }
 
+        // 1.5 Character (name/class/level)
+        if (data.character && typeof data.character === "object") {
+            if (!s.character || typeof s.character !== "object") s.character = {};
+            let touchedCharacter = false;
+
+            const nextName = String(data.character?.name || "").trim().slice(0, 60);
+            if (nextName && nextName !== String(s.character?.name || "").trim()) {
+                s.character.name = nextName;
+                touchedCharacter = true;
+            }
+
+            const nextClass = String(data.character?.className || data.character?.class || "").trim().slice(0, 60);
+            if (nextClass && nextClass !== String(s.character?.className || "").trim()) {
+                s.character.className = nextClass;
+                touchedCharacter = true;
+            }
+
+            const levelRaw = Number(data.character?.level);
+            if (Number.isFinite(levelRaw) && levelRaw > 0) {
+                const nextLevel = Math.max(1, Math.floor(levelRaw));
+                if (nextLevel !== Number(s.character?.level || 1)) {
+                    s.character.level = nextLevel;
+                    touchedCharacter = true;
+                }
+            }
+
+            if (touchedCharacter) needsSave = true;
+        }
+
         const sourceTag = force ? "scan" : "scan_all";
         const nowTs = Date.now();
 
@@ -1248,31 +1294,50 @@ ${chatSnippet}
                     if (!it || !it.name) return;
                     const evidence = String(it?.evidence || it?.desc || "").trim();
                     if (!hasExplicitOwnershipEvidence(evidence)) return;
-                    const itemKey = normKey(it.name);
-                    if (!itemKey) return;
-                    const exist = s.inventory.items.find(x => normKey(x?.name) === itemKey);
-                    if (exist) {
-                        exist.qty = (exist.qty || 1) + (it.qty || 1);
-                        exist._meta = {
-                            ...(exist._meta && typeof exist._meta === "object" ? exist._meta : {}),
-                            source: sourceTag,
-                            updatedAt: nowTs,
-                            evidence: evidence.slice(0, 240)
-                        };
-                        notify("info", `Added ${it.qty || 1}x ${it.name}`, "Inventory", "loot");
-                    } else {
-                        s.inventory.items.push({
-                            kind: "item",
-                            name: it.name,
-                            type: it.type || "item",
-                            description: it.desc || "Found item.",
-                            qty: it.qty || 1,
-                            rarity: "common",
-                            mods: {},
-                            statusEffects: [],
-                            _meta: { source: sourceTag, createdAt: nowTs, updatedAt: nowTs, evidence: evidence.slice(0, 240) }
-                        });
-                        notify("success", `Found ${it.name}`, "Inventory", "loot");
+                    const qty = Math.max(1, Math.round(Number(it?.qty || 1)));
+                    const baseItem = {
+                        kind: "item",
+                        name: String(it?.name || "").trim().slice(0, 120),
+                        type: String(it?.type || "item").trim().slice(0, 80),
+                        description: String(it?.desc || "Found item.").trim().slice(0, 1200),
+                        qty,
+                        rarity: "common",
+                        mods: {},
+                        statusEffects: [],
+                        _meta: { source: sourceTag, createdAt: nowTs, updatedAt: nowTs, evidence: evidence.slice(0, 240) }
+                    };
+
+                    const isContainerLoot = isContainerItem(baseItem);
+                    const payload = isContainerLoot
+                        ? (() => {
+                            const box = createOpenableContainerItem({
+                                chatHint: `${chatSnippet}\n${evidence}`,
+                                containerName: baseItem.name,
+                                containerType: baseItem.type,
+                                description: baseItem.description,
+                                rarity: baseItem.rarity,
+                                source: sourceTag,
+                                now: nowTs,
+                            });
+                            box.qty = qty;
+                            box._meta = {
+                                ...(box._meta && typeof box._meta === "object" ? box._meta : {}),
+                                source: sourceTag,
+                                createdAt: Number(box?._meta?.createdAt || nowTs) || nowTs,
+                                updatedAt: nowTs,
+                                evidence: evidence.slice(0, 240),
+                            };
+                            return box;
+                        })()
+                        : baseItem;
+
+                    const out = addInventoryItemWithStack(s.inventory.items, payload, {
+                        source: sourceTag,
+                        chatHint: `${chatSnippet}\n${evidence}`,
+                    });
+                    if (Number(out?.addedQty || 0) > 0 || Number(out?.stackedQty || 0) > 0) {
+                        if (isContainerLoot) notify("success", `Found ${payload?.name || it?.name}`, "Inventory", "loot");
+                        else notify("info", `Added ${qty}x ${baseItem.name}`, "Inventory", "loot");
                     }
                     needsSave = true;
                 });
@@ -1931,7 +1996,7 @@ ${chatSnippet}
                     if (existingIdx !== -1) {
                          const old = s.inventory.equipped[existingIdx];
                          delete old.slotId;
-                         s.inventory.items.push(old);
+                         addInventoryItemWithStack(s.inventory.items, old, { source: "unequip_swap" });
                          s.inventory.equipped.splice(existingIdx, 1);
                     }
 
@@ -1958,13 +2023,18 @@ ${chatSnippet}
                         const item = s.inventory.equipped[eIdx];
                         delete item.slotId;
                         s.inventory.equipped.splice(eIdx, 1);
-                        s.inventory.items.push(item);
+                        addInventoryItemWithStack(s.inventory.items, item, { source: "unequip" });
                         notify("info", `Unequipped ${item.name}`, "Equipment", "armor");
                         needsSave = true;
                     }
                 }
             }
         }
+
+        try {
+            const stackChanged = normalizeInventoryStacksInPlace(s.inventory.items, { source: sourceTag, chatHint: chatSnippet });
+            if (stackChanged) needsSave = true;
+        } catch (_) {}
 
         const afterCounts = {
             items: Array.isArray(s?.inventory?.items) ? s.inventory.items.length : 0,
@@ -2038,6 +2108,9 @@ ${chatSnippet}
 
     } catch (e) {
         console.warn("UIE Unified Scan Parse Error:", e);
+        if (force) {
+            try { notify("error", `Scan parse error: ${String(e?.message || e || "unknown")}`.slice(0, 220), "Scan", "scanBlocked"); } catch (_) {}
+        }
         return { ok: false, error: String(e?.message || e || "Scan parse error") };
     }
     } finally {

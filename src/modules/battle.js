@@ -5,6 +5,7 @@ import { injectRpEvent } from "./features/rp_log.js";
 import { SCAN_TEMPLATES } from "./scanTemplates.js";
 import { getChatTranscriptText, getRecentChatSnippet } from "./chatLog.js";
 import { safeJsonParseObject } from "./jsonUtil.js";
+import { addInventoryItemWithStack, createOpenableContainerItem, normalizeInventoryItem, summarizeItemsForLog } from "./inventoryItems.js";
 
 let bound = false;
 let observer = null;
@@ -64,13 +65,23 @@ async function maybePostBattleRewards(chat) {
   const prompt = `
 Return ONLY JSON:
 {
+  "container": {
+    "name":"",
+    "type":"",
+    "description":"",
+    "rarity":"common|uncommon|rare|epic|legendary",
+    "contents":[{"name":"","type":"","description":"","rarity":"common|uncommon|rare|epic|legendary","qty":1}]
+  },
   "items":[{"name":"","type":"","description":"","rarity":"common|uncommon|rare|epic|legendary","qty":1}],
   "currency":0,
   "xp":0
 }
 Rules:
 - Reward should match the battle and outcomes in the chat.
-- 0-3 items max.
+- Prefer one context-appropriate reward container (bag/crate/chest/case) with 1-6 contents.
+- In zombie/post-apocalypse settings, prefer supply crates, duffel bags, and locker caches.
+- Do NOT use fantasy treasure chests in modern/zombie settings unless CHAT explicitly mentions chest/treasure.
+- If container is omitted, provide loose "items" as fallback.
 - currency and xp are integers >= 0.
 CHAT:
 ${String(chat || "").slice(0, 4200)}
@@ -81,31 +92,68 @@ ${String(chat || "").slice(0, 4200)}
   if (!obj) return;
   if (!obj || typeof obj !== "object") return;
 
-  const items = Array.isArray(obj.items) ? obj.items : [];
+  const containerObj = (obj.container && typeof obj.container === "object") ? obj.container : null;
+  const containerContents = Array.isArray(containerObj?.contents) ? containerObj.contents : [];
+  const looseItems = Array.isArray(obj.items) ? obj.items : [];
   const curDelta = Math.max(0, Math.round(Number(obj.currency || 0)));
   const xpDelta = Math.max(0, Math.round(Number(obj.xp || 0)));
 
-  let addedItems = 0;
-  for (const it of items.slice(0, 3)) {
-    const name = String(it?.name || "").trim().slice(0, 80);
-    if (!name) continue;
-    s.inventory.items.push({
+  const rewardEntriesRaw = (containerContents.length ? containerContents : looseItems).slice(0, 6);
+  const rewardEntries = rewardEntriesRaw
+    .map((it) => normalizeInventoryItem({
       kind: "item",
-      name,
-      type: String(it?.type || "Item").trim().slice(0, 40),
-      description: String(it?.description || it?.desc || "").trim().slice(0, 700),
+      name: String(it?.name || "").trim().slice(0, 80),
+      type: String(it?.type || "Item").trim().slice(0, 50),
+      description: String(it?.description || it?.desc || "").trim().slice(0, 900),
       rarity: String(it?.rarity || "common").trim().toLowerCase(),
-      qty: Math.max(1, Math.round(Number(it?.qty || 1)))
+      qty: Math.max(1, Math.round(Number(it?.qty || 1))),
+    }, {
+      source: "post_battle",
+      chatHint: String(chat || "").slice(0, 2400),
+    }))
+    .filter((x) => !!x && !!x.name);
+
+  let addedContainers = 0;
+  let addedItems = 0;
+  let lootSummary = "";
+  if (rewardEntries.length) {
+    const rewardContainer = createOpenableContainerItem({
+      chatHint: String(chat || "").slice(0, 2600),
+      containerName: String(containerObj?.name || "").trim().slice(0, 80),
+      containerType: String(containerObj?.type || "").trim().slice(0, 60),
+      description: String(containerObj?.description || "").trim().slice(0, 900),
+      rarity: String(containerObj?.rarity || "uncommon").trim().toLowerCase(),
+      contents: rewardEntries,
+      source: "post_battle",
     });
-    addedItems++;
+
+    const addOut = addInventoryItemWithStack(s.inventory.items, rewardContainer, {
+      source: "post_battle",
+      chatHint: String(chat || "").slice(0, 2600),
+    });
+    if (Number(addOut?.addedStacks || 0) > 0 || Number(addOut?.stackedQty || 0) > 0) {
+      addedContainers = 1;
+      addedItems = rewardEntries.length;
+      lootSummary = summarizeItemsForLog(rewardEntries, 5);
+    }
   }
 
   if (curDelta > 0) {
     s.currency = Math.max(0, Number(s.currency || 0) + curDelta);
     let curItem = s.inventory.items.find(it => String(it?.type || "").toLowerCase() === "currency" && String(it?.symbol || "") === sym);
     if (!curItem) {
-      curItem = { kind: "item", name: `${sym} Currency`, type: "currency", symbol: sym, description: `Currency item for ${sym}.`, rarity: "common", qty: Number(s.currency || 0), mods: {}, statusEffects: [] };
-      s.inventory.items.push(curItem);
+      addInventoryItemWithStack(s.inventory.items, {
+        kind: "item",
+        name: `${sym} Currency`,
+        type: "currency",
+        symbol: sym,
+        description: `Currency item for ${sym}.`,
+        rarity: "common",
+        qty: Number(s.currency || 0),
+        mods: {},
+        statusEffects: []
+      }, { source: "post_battle_currency" });
+      curItem = s.inventory.items.find(it => String(it?.type || "").toLowerCase() === "currency" && String(it?.symbol || "") === sym);
     } else {
       curItem.qty = Number(s.currency || 0);
     }
@@ -116,17 +164,20 @@ ${String(chat || "").slice(0, 4200)}
   $(document).trigger("uie:updateVitals");
   try { (await import("./features/items.js")).render?.(); } catch (_) {}
 
-  if (addedItems) notify("success", `${addedItems} item(s) recovered`, "Post-battle", "postBattle");
+  if (addedContainers) notify("success", "Recovered 1 reward container", "Post-battle", "postBattle");
+  if (addedItems) notify("success", `${addedItems} loot item(s) packed`, "Post-battle", "postBattle");
   if (curDelta) notify("success", `+ ${curDelta} ${sym}`, "Post-battle", "postBattle");
   if (xpDelta) notify("success", `+ ${xpDelta} XP`, "Post-battle", "postBattle");
-  if (!addedItems && !curDelta && !xpDelta) notify("info", "No rewards generated.", "Post-battle", "postBattle");
+  if (!addedContainers && !curDelta && !xpDelta) notify("info", "No rewards generated.", "Post-battle", "postBattle");
 
-  if (addedItems || curDelta || xpDelta) {
+  if (addedContainers || curDelta || xpDelta) {
       const parts = [];
-      if (addedItems) parts.push(`${addedItems} items`);
+      if (addedContainers) parts.push(`${addedContainers} container`);
+      if (addedItems) parts.push(`${addedItems} loot items`);
       if (curDelta) parts.push(`${curDelta} ${sym}`);
       if (xpDelta) parts.push(`${xpDelta} XP`);
-      try { injectRpEvent(`[System: Post-Battle Rewards: ${parts.join(", ")}.]`); } catch (_) {}
+      const extra = lootSummary ? ` Loot: ${lootSummary}.` : "";
+      try { injectRpEvent(`[System: Post-Battle Rewards: ${parts.join(", ")}.${extra}]`); } catch (_) {}
   }
 }
 

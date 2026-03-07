@@ -1,4 +1,4 @@
-﻿import { getSettings, saveSettings, ensureChatStateLoaded } from "./core.js";
+﻿import { getSettings, saveSettings, ensureChatStateLoaded, commitStateUpdate } from "./core.js";
 import { generateContent } from "./apiClient.js";
 import { getWorldState } from "./stateTracker.js";
 import { getContext } from "/scripts/extensions.js";
@@ -16,6 +16,58 @@ function esc(s) {
 
 function newId(prefix) {
     return `${String(prefix || "id")}_${Date.now().toString(16)}_${Math.floor(Math.random() * 1e9).toString(16)}`;
+}
+
+function normalizeMemoryTitle(rawTitle, rawSummary = "") {
+    const summary = String(rawSummary || "").trim();
+    let title = String(rawTitle || "")
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/[\[\]{}<>]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80);
+
+    const generic = new Set([
+        "memory",
+        "memories",
+        "entry",
+        "log",
+        "story",
+        "event",
+        "update",
+        "specific title",
+    ]);
+
+    const key = title.toLowerCase().replace(/\s+/g, " ").trim();
+    if (!title || title.length < 6 || generic.has(key)) {
+        const lead = summary
+            .replace(/[\r\n]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim()
+            .split(/[.!?]/)
+            .map((x) => String(x || "").trim())
+            .find(Boolean) || "";
+        title = lead.slice(0, 80);
+    }
+
+    if (!title) {
+        const d = new Date();
+        title = `Memory ${d.toLocaleDateString()}`;
+    }
+    return title;
+}
+
+function parseTagsInput(raw, fallback = []) {
+    const tags = String(raw || "")
+        .split(",")
+        .map((t) => String(t || "").trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 12);
+    if (tags.length) return tags;
+    const fb = Array.isArray(fallback)
+        ? fallback.map((t) => String(t || "").trim().toLowerCase()).filter(Boolean).slice(0, 12)
+        : [];
+    return fb.length ? fb : ["manual"];
 }
 
 function getChatSnippet(max) {
@@ -74,10 +126,12 @@ Input:
 ${rawLog.substring(0, 5000)}
 
 Instructions:
-1. Create a concise but descriptive title.
-2. Write a detailed summary (4-6 sentences) capturing key events, important decisions, new information about characters/locations, and any changes in relationships or quest status. Avoid vague phrasing. Be specific.
+1. Title must be specific and human-readable (4-10 words), format like: "Who/Where - What changed".
+2. Never use generic names like "Memory", "Entry", "Story Update", or "Event".
+3. Write a detailed summary (4-6 sentences) capturing key events, important decisions, new information about characters/locations, and any changes in relationships or quest status. Avoid vague phrasing. Be specific.
+4. Optional tags should be short lowercase keywords.
 
-Output JSON: { "title": "Specific Title", "summary": "Detailed summary..." }`;
+Output JSON: { "title": "Specific Title", "summary": "Detailed summary...", "tags": ["optional","tags"] }`;
 
     try {
         const res = await generateContent(prompt, "System Check");
@@ -88,8 +142,15 @@ Output JSON: { "title": "Specific Title", "summary": "Detailed summary..." }`;
         ensureDatabank(s);
         const beforeLen = Array.isArray(s.databank) ? s.databank.length : 0;
 
+        const summary = String(data.summary || data.content || "").trim().slice(0, 1200);
+        if (!summary) throw new Error("Missing summary");
+        const title = normalizeMemoryTitle(data.title, summary);
+        const tags = Array.isArray(data.tags)
+            ? data.tags.map((t) => String(t || "").trim().toLowerCase()).filter(Boolean).slice(0, 12)
+            : ["auto"];
+
         const addOpts = { now: Date.now(), makeId: () => newId("db") };
-        addDatabankEntryWithDedupe(s.databank, { title: data.title || "Memory", summary: data.summary || "" }, addOpts);
+        addDatabankEntryWithDedupe(s.databank, { title, summary, tags }, addOpts);
 
         const afterLen = Array.isArray(s.databank) ? s.databank.length : 0;
         const added = Math.max(0, afterLen - beforeLen);
@@ -137,12 +198,95 @@ let dbSocialActivePersonId = "";
 let dbRenderLimit = 60;
 let dbLastListSig = "";
 
+function refreshLinkedSocialState({ rerenderProfiles = false, rerenderModal = false } = {}) {
+    try {
+        commitStateUpdate({ save: true, layout: false, emit: true });
+    } catch (_) {
+        try { saveSettings(); } catch (_) {}
+    }
+    if (rerenderProfiles) {
+        try { renderSocialProfiles(); } catch (_) {}
+    }
+    if (rerenderModal) {
+        try { renderSocialMemoriesModal(); } catch (_) {}
+    }
+}
+
+function buildDatabankRenderSignature(entries, socialIndex) {
+    const list = Array.isArray(entries) ? entries : [];
+    const tailSig = list
+        .slice(-8)
+        .map((m) => {
+            const id = String(m?.id || "");
+            const title = String(m?.title || "").trim().slice(0, 48);
+            const body = String(m?.body || "").trim().slice(0, 96);
+            const date = String(m?.date || "").trim();
+            return `${id}|${title}|${body}|${date}`;
+        })
+        .join("~");
+    const socialSig = (Array.isArray(socialIndex?.list) ? socialIndex.list : [])
+        .slice(0, 220)
+        .map((p) => `${normalizeNameKey(p?.name || "")}:${String(p?.id || "")}`)
+        .join("|");
+    return `${list.length}|${dbRenderLimit}|${tailSig}|${socialSig}`;
+}
+
 function normalizeNameKey(name) {
     return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function escapeRegExp(str) {
     return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function lineMentionsName(line, name) {
+    const src = normalizeNameKey(line);
+    const key = normalizeNameKey(name);
+    if (!src || !key) return false;
+    const pattern = `\\b${escapeRegExp(key).replace(/\s+/g, "\\\\s+")}\\b`;
+    try {
+        return new RegExp(pattern, "i").test(src);
+    } catch (_) {
+        return src.includes(key);
+    }
+}
+
+function buildFocusedMemoryTranscript(transcript, personName, userName) {
+    const lines = String(transcript || "")
+        .split(/\r?\n/)
+        .map((l) => String(l || "").trim())
+        .filter(Boolean);
+    if (!lines.length) return "";
+
+    const keep = new Set();
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const speaker = String(line.split(":", 1)[0] || "").trim();
+        const mentionsTarget = lineMentionsName(line, personName);
+        const speakerIsTarget = lineMentionsName(speaker, personName);
+
+        if (mentionsTarget || speakerIsTarget) {
+            keep.add(i);
+            if (i > 0) keep.add(i - 1);
+            if (i + 1 < lines.length) keep.add(i + 1);
+        }
+    }
+
+    if (keep.size < 8 && userName) {
+        for (let i = 0; i < lines.length; i++) {
+            const speaker = String(lines[i].split(":", 1)[0] || "").trim();
+            if (lineMentionsName(speaker, userName)) keep.add(i);
+        }
+    }
+
+    const selected = (keep.size
+        ? Array.from(keep).sort((a, b) => a - b).map((i) => lines[i])
+        : lines.slice(-80)).slice(-140);
+    return selected.join("\n").slice(-14000);
+}
+
+function isMetaMemoryText(text) {
+    return /\b(character\s*card|lorebook|metadata|tool\s*card|system\s*prompt|author\s*note|ooc)\b/i.test(String(text || ""));
 }
 
 function getSocialNameIndex(s) {
@@ -193,6 +337,37 @@ export function initDatabank() {
         return;
     }
     render();
+
+    try { window.removeEventListener("uie:state_updated", window.__uieDatabankStateSync); } catch (_) {}
+    try {
+        window.__uieDatabankStateSync = () => {
+            try {
+                if (!$("#uie-databank-window").is(":visible")) return;
+                const activeTab = String($(".uie-db-tab.active").data("tab") || "memories");
+                if (activeTab === "social") {
+                    try { renderSocialProfiles(); } catch (_) {}
+                    if ($("#uie-db-social-mem-overlay").is(":visible")) {
+                        try { renderSocialMemoriesModal(); } catch (_) {}
+                    }
+                    return;
+                }
+                if (activeTab === "state") {
+                    try { renderState(); } catch (_) {}
+                    return;
+                }
+                dbLastListSig = "";
+                try { render(); } catch (_) {}
+            } catch (_) {}
+        };
+        window.addEventListener("uie:state_updated", window.__uieDatabankStateSync);
+    } catch (_) {}
+
+    $("body").off("click.uieDbHardClose pointerup.uieDbHardClose", "#uie-databank-close").on("click.uieDbHardClose pointerup.uieDbHardClose", "#uie-databank-close", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        try { $("#uie-db-social-mem-overlay").hide(); } catch (_) {}
+        try { $("#uie-databank-window").hide(); } catch (_) {}
+    });
 
     // Tab Switching
     doc.off("click", ".uie-db-tab").on("click", ".uie-db-tab", function() {
@@ -272,6 +447,39 @@ export function initDatabank() {
             btn.data("busy", "0");
         }
     });
+    doc.off("click", ".db-edit").on("click", ".db-edit", function() {
+        const id = String($(this).data("id") || "");
+        if (!id) return;
+        const s = getSettings();
+        ensureDatabank(s);
+        const idx = (s.databank || []).findIndex(m => String(m?.id || "") === id);
+        if (idx < 0) return;
+        const entry = s.databank[idx] || {};
+        const curTitle = String(entry?.title || entry?.key || "Entry").trim();
+        const curSummary = String(entry?.summary || entry?.content || entry?.entry || "").trim();
+        const nextTitleRaw = prompt("Edit memory title:", curTitle);
+        if (nextTitleRaw === null) return;
+        const nextSummaryRaw = prompt("Edit memory summary:", curSummary);
+        if (nextSummaryRaw === null) return;
+        const nextTagsRaw = prompt("Edit tags (comma-separated):", Array.isArray(entry?.tags) ? entry.tags.join(", ") : "");
+        if (nextTagsRaw === null) return;
+
+        const nextSummary = String(nextSummaryRaw || "").trim().slice(0, 1200);
+        if (!nextSummary) {
+            try { window.toastr?.info?.("Summary cannot be empty."); } catch (_) {}
+            return;
+        }
+
+        entry.title = normalizeMemoryTitle(nextTitleRaw, nextSummary);
+        entry.summary = nextSummary;
+        entry.content = nextSummary;
+        entry.tags = parseTagsInput(nextTagsRaw, entry?.tags);
+        entry.created = Number(entry?.created || Date.now()) || Date.now();
+        entry.date = entry?.date || new Date(Number(entry.created || Date.now())).toLocaleDateString();
+        saveSettings();
+        render();
+    });
+
     // Delete Memory
     doc.off("click", ".db-delete").on("click", ".db-delete", function() {
         if(confirm("Delete this memory?")) {
@@ -340,8 +548,7 @@ export function initDatabank() {
                 return;
             }
             person.memories.push({ id: newId("mem"), t: Date.now(), text: t.slice(0, 320), impact: String(impact || "").trim().slice(0, 240), tags: [] });
-            saveSettings();
-            renderSocialMemoriesModal();
+            refreshLinkedSocialState({ rerenderProfiles: true, rerenderModal: true });
             return;
         }
 
@@ -349,8 +556,7 @@ export function initDatabank() {
             const ok = confirm("Clear ALL memories for this character?");
             if (!ok) return;
             person.memories = [];
-            saveSettings();
-            renderSocialMemoriesModal();
+            refreshLinkedSocialState({ rerenderProfiles: true, rerenderModal: true });
             return;
         }
 
@@ -374,8 +580,38 @@ export function initDatabank() {
         const { person } = getSocialPersonById(dbSocialActivePersonId);
         if (!person || !mid) return;
         person.memories = (Array.isArray(person.memories) ? person.memories : []).filter(m => String(m?.id || "") !== mid);
-        saveSettings();
-        renderSocialMemoriesModal();
+        refreshLinkedSocialState({ rerenderProfiles: true, rerenderModal: true });
+    });
+
+    doc.off("click.uieDbSocialMemEdit").on("click.uieDbSocialMemEdit", ".uie-db-social-mem-edit", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const mid = String($(this).data("mid") || "");
+        const { person } = getSocialPersonById(dbSocialActivePersonId);
+        if (!person || !mid) return;
+        const mem = (Array.isArray(person.memories) ? person.memories : []).find((m) => String(m?.id || "") === mid);
+        if (!mem) return;
+
+        const nextTextRaw = prompt("Edit memory text:", String(mem?.text || ""));
+        if (nextTextRaw === null) return;
+        const nextImpactRaw = prompt("Edit impact (optional):", String(mem?.impact || ""));
+        if (nextImpactRaw === null) return;
+        const nextTagsRaw = prompt("Edit tags (comma-separated):", Array.isArray(mem?.tags) ? mem.tags.join(", ") : "");
+        if (nextTagsRaw === null) return;
+
+        let nextText = String(nextTextRaw || "").trim();
+        if (!nextText) return;
+        if (!lineMentionsName(nextText, person.name)) nextText = `${person.name}: ${nextText}`;
+        if (isTrivialMemory(nextText) || isMetaMemoryText(nextText)) {
+            try { window.toastr?.info?.("Keep only vital, in-world, character-specific memories."); } catch (_) {}
+            return;
+        }
+
+        mem.text = nextText.slice(0, 320);
+        mem.impact = String(nextImpactRaw || "").trim().slice(0, 240);
+        mem.tags = parseTagsInput(nextTagsRaw, mem?.tags).slice(0, 6);
+        mem.t = Date.now();
+        refreshLinkedSocialState({ rerenderProfiles: true, rerenderModal: true });
     });
 }
 
@@ -493,6 +729,7 @@ function renderSocialMemoriesModal() {
                 <div style="font-weight:900; color:#fff; font-size:13px; line-height:1.35;">${esc(text)}</div>
                 ${impact ? `<div style="margin-top:6px; font-size:12px; color:rgba(255,255,255,0.75);"><strong style="color:rgba(0,240,255,0.9);">Impact:</strong> ${esc(impact)}</div>` : ""}
                 ${tagHtml}
+                <i class="fa-solid fa-pen-to-square uie-db-social-mem-edit" data-mid="${esc(id)}" style="position:absolute; top:10px; right:32px; color:#7dd3ff; cursor:pointer; font-size:12px; opacity:0.9;"></i>
                 <i class="fa-solid fa-trash uie-db-social-mem-del" data-mid="${esc(id)}" style="position:absolute; top:10px; right:10px; color:#ff3b30; cursor:pointer; font-size:12px; opacity:0.85;"></i>
             </div>
         `);
@@ -522,23 +759,30 @@ async function scanMemoriesForPerson(person) {
                 out.push(`${nm}: ${tx}`);
             }
         } catch (_) {}
-        return out.join("\n").slice(-14000);
+        return out.join("\n").slice(-20000);
     })();
     if (!transcript) return;
+
+    const focused = buildFocusedMemoryTranscript(transcript, person.name, user);
+    const source = focused || transcript.slice(-14000);
 
     const prompt = `[UIE_LOCKED]
 You are extracting ONLY vital, relationship-relevant memories for the character "${person.name}" about interactions with "${user}".
 
+Target character: "${person.name}" (story character in this transcript, not card metadata)
+
 Input transcript (may include omniscient tool cards / metadata; ignore anything that is not an in-world event or a durable fact):
-${transcript}
+${source}
 
 Return ONLY valid JSON (no markdown, no extra keys):
 {"memories":[{"text":"...","impact":"...","tags":["..."]}]}
 
 Rules:
 - 3 to 8 memories max. If none, return {"memories":[]}.
+- Each memory must be about "${person.name}" directly (they act, speak, decide, reveal, promise, betray, help, harm, or are explicitly referenced).
+- Ignore character-card data, profile blurbs, lorebook snippets, system messages, OOC, or tool/meta output.
 - Each memory must be a durable fact that CHANGED something: trust, fear, loyalty, obligation, romance, rivalry, plans, secrets, injuries, promises, betrayals, gifts, major discoveries.
-- No trivial entries (no greetings, walking in, â€œthey talkedâ€, generic vibes).
+- No trivial entries (no greetings, walking in, "they talked", generic vibes).
 - Be specific and consequence-based. 1â€“2 sentences per memory.
 - Tags are short (e.g., "promise", "betrayal", "injury", "secret", "favor", "trauma", "trust").`;
 
@@ -551,19 +795,22 @@ Rules:
     const existing = new Set((person.memories || []).map(m => String(m?.text || "").toLowerCase().replace(/\s+/g, " ").trim()).filter(Boolean));
     let added = 0;
     for (const m of mems) {
-        const text = String(m?.text || "").trim();
+        let text = String(m?.text || "").trim();
         const impact = String(m?.impact || "").trim();
-        const tags = Array.isArray(m?.tags) ? m.tags.map(t => String(t || "").trim()).filter(Boolean).slice(0, 6) : [];
-        const key = text.toLowerCase().replace(/\s+/g, " ").trim();
+        const tags = Array.isArray(m?.tags)
+            ? m.tags.map(t => String(t || "").trim().toLowerCase()).filter(Boolean).slice(0, 6)
+            : [];
         if (!text) continue;
+        if (isMetaMemoryText(text)) continue;
+        if (!lineMentionsName(text, person.name)) text = `${person.name}: ${text}`;
+        const key = text.toLowerCase().replace(/\s+/g, " ").trim();
         if (isTrivialMemory(text)) continue;
         if (existing.has(key)) continue;
         person.memories.push({ id: newId("mem"), t: Date.now(), text: text.slice(0, 320), impact: impact.slice(0, 240), tags });
         existing.add(key);
         added++;
     }
-    saveSettings();
-    renderSocialMemoriesModal();
+    refreshLinkedSocialState({ rerenderProfiles: true, rerenderModal: true });
     try { window.toastr?.success?.(added ? `Added ${added} memory${added === 1 ? "" : "ies"}.` : "No new vital memories found."); } catch (_) {}
 }
 
@@ -579,8 +826,9 @@ function render() {
     }
     const t0 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
     const entries = toDatabankDisplayEntries(s.databank || []);
+    const socialIndex = getSocialNameIndex(s);
     const meta = $("#uie-db-meta");
-    const sig = `${entries.length}|${dbRenderLimit}|${entries[0]?.id || ""}`;
+    const sig = buildDatabankRenderSignature(entries, socialIndex);
     if (sig === dbLastListSig && list.children().length) {
         try {
             const t1 = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
@@ -601,7 +849,6 @@ function render() {
     }
 
     const shown = entries.slice(-1 * Math.max(1, Math.min(dbRenderLimit, entries.length))).reverse();
-    const socialIndex = getSocialNameIndex(s);
     const html = [];
     for (const m of shown) {
         const title = String(m?.title || "Entry").trim() || "Entry";
@@ -623,6 +870,7 @@ function render() {
                 </div>
                 <div style="font-size:12px; color:rgba(255,255,255,0.88); line-height:1.45; white-space:pre-wrap; word-break:break-word;">${esc(body || "(empty)")}</div>
                 ${mentionHtml}
+                <i class="fa-solid fa-pen-to-square db-edit" data-id="${esc(String(m.id || ""))}" style="position:absolute; bottom:10px; right:32px; color:#7dd3ff; cursor:pointer; font-size:12px; opacity:0.85;"></i>
                 <i class="fa-solid fa-trash db-delete" data-id="${esc(String(m.id || ""))}" style="position:absolute; bottom:10px; right:10px; color:#ff3b30; cursor:pointer; font-size:12px; opacity:0.7;"></i>
             </div>
         `);

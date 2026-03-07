@@ -5,6 +5,7 @@ import { notify } from "./notifications.js";
 import { injectRpEvent } from "./features/rp_log.js";
 import { getChatTranscriptText } from "./chatLog.js";
 import { safeJsonParseObject } from "./jsonUtil.js";
+import { SCAN_TEMPLATES } from "./scanTemplates.js";
 
 let currentTab = "friends";
 let deleteMode = false;
@@ -18,6 +19,9 @@ let socialLongPressFired = false;
 let autoScanTimer = null;
 let autoScanInFlight = false;
 let autoScanLastAt = 0;
+let autoScanLastSig = "";
+
+const SOCIAL_AUTO_SCAN_INTERVAL_MS = 12000;
 
 function esc(s) {
     return String(s ?? "")
@@ -96,7 +100,7 @@ function baseUrl() {
     return "/scripts/extensions/third-party/universal-immersion-engine/";
 }
 
-async function ensurePaperTemplate() {
+async function ensurePaperTemplate(name) {
     const nm = String(name || "").trim();
     if (!nm) return;
     try {
@@ -167,6 +171,10 @@ function findAvatarForNameFromChat(name) {
 
 function normalizeSocial(s) {
     if(!s.social) s.social = { friends: [], associates: [], romance: [], family: [], rivals: [] };
+    if (!s.socialMeta || typeof s.socialMeta !== "object") s.socialMeta = { autoScan: false, deletedNames: [] };
+    if (typeof s.socialMeta.autoScan !== "boolean") s.socialMeta.autoScan = false;
+    if (!Array.isArray(s.socialMeta.deletedNames)) s.socialMeta.deletedNames = [];
+    ["friends","associates","romance","family","rivals"].forEach(k => { if (!Array.isArray(s.social[k])) s.social[k] = []; });
     ["friends","associates","romance","family","rivals"].forEach(k => {
         (s.social[k] || []).forEach(p => {
             if (!p || typeof p !== "object") return;
@@ -311,6 +319,84 @@ function getChatMessageNodes(maxMessages) {
     }
 }
 
+function readSocialChatSignature() {
+    try {
+        const ctx = getContext ? getContext() : {};
+        const chatId = String(ctx?.chatId ?? "");
+        const w = typeof window !== "undefined" ? window : globalThis;
+        const arr = Array.isArray(w?.chat) ? w.chat : null;
+        if (arr && arr.length) {
+            const last = arr[arr.length - 1] || {};
+            const lastId = String(last?.mesId ?? last?.mesid ?? last?.id ?? arr.length);
+            const tail = String(last?.mes ?? last?.text ?? last?.message ?? "").trim().slice(-220);
+            return `${chatId}|${arr.length}|${lastId}|${tail}`;
+        }
+    } catch (_) {}
+
+    try {
+        const ctx = getContext ? getContext() : {};
+        const chatId = String(ctx?.chatId ?? "");
+        const nodes = document.querySelectorAll("#chat .mes");
+        if (!nodes || !nodes.length) return "";
+        const last = nodes[nodes.length - 1];
+        const lastId = String(last?.getAttribute?.("mesid") || last?.dataset?.mesId || nodes.length);
+        const tail = String(
+            last?.querySelector?.(".mes_text")?.textContent ||
+            last?.querySelector?.(".mes-text")?.textContent ||
+            last?.textContent ||
+            ""
+        ).trim().slice(-220);
+        return `${chatId}|${nodes.length}|${lastId}|${tail}`;
+    } catch (_) {
+        return "";
+    }
+}
+
+function stopSocialAutoScanLoop() {
+    if (!autoScanTimer) return;
+    try { clearInterval(autoScanTimer); } catch (_) {}
+    autoScanTimer = null;
+    autoScanLastSig = "";
+}
+
+async function runSocialAutoScanPass() {
+    try {
+        const s = getSettings();
+        normalizeSocial(s);
+        if (s?.socialMeta?.autoScan !== true) return;
+        if (autoScanInFlight) return;
+
+        const sig = readSocialChatSignature();
+        if (!sig || sig === autoScanLastSig) return;
+
+        await scanChatIntoSocial({ silent: true });
+        autoScanLastSig = sig;
+    } catch (_) {}
+}
+
+function syncSocialAutoScanLoop({ immediate = false } = {}) {
+    try {
+        const s = getSettings();
+        normalizeSocial(s);
+        const enabled = s?.socialMeta?.autoScan === true;
+
+        if (!enabled) {
+            stopSocialAutoScanLoop();
+            return;
+        }
+
+        if (!autoScanTimer) {
+            autoScanTimer = setInterval(() => {
+                void runSocialAutoScanPass();
+            }, SOCIAL_AUTO_SCAN_INTERVAL_MS);
+        }
+
+        if (immediate) {
+            void runSocialAutoScanPass();
+        }
+    } catch (_) {}
+}
+
 function getActivePerson() {
     const s = getSettings();
     normalizeSocial(s);
@@ -330,6 +416,73 @@ function isTrivialMemory(s) {
     return bad.test(t);
 }
 
+function parseTagsInput(raw, fallback = []) {
+    const tags = String(raw || "")
+        .split(",")
+        .map((t) => String(t || "").trim().toLowerCase())
+        .filter(Boolean)
+        .slice(0, 6);
+    if (tags.length) return tags;
+    const fb = Array.isArray(fallback)
+        ? fallback.map((t) => String(t || "").trim().toLowerCase()).filter(Boolean).slice(0, 6)
+        : [];
+    return fb;
+}
+
+function normalizeNameKey(name) {
+    return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function escapeRegExp(str) {
+    return String(str || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function lineMentionsName(line, name) {
+    const src = normalizeNameKey(line);
+    const key = normalizeNameKey(name);
+    if (!src || !key) return false;
+    const pattern = `\\b${escapeRegExp(key).replace(/\s+/g, "\\\\s+")}\\b`;
+    try {
+        return new RegExp(pattern, "i").test(src);
+    } catch (_) {
+        return src.includes(key);
+    }
+}
+
+function buildFocusedMemoryTranscript(transcript, personName, userName) {
+    const lines = String(transcript || "")
+        .split(/\r?\n/)
+        .map((l) => String(l || "").trim())
+        .filter(Boolean);
+    if (!lines.length) return "";
+    const keep = new Set();
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const speaker = String(line.split(":", 1)[0] || "").trim();
+        const mentionsTarget = lineMentionsName(line, personName);
+        const speakerIsTarget = lineMentionsName(speaker, personName);
+        if (mentionsTarget || speakerIsTarget) {
+            keep.add(i);
+            if (i > 0) keep.add(i - 1);
+            if (i + 1 < lines.length) keep.add(i + 1);
+        }
+    }
+    if (keep.size < 8 && userName) {
+        for (let i = 0; i < lines.length; i++) {
+            const speaker = String(lines[i].split(":", 1)[0] || "").trim();
+            if (lineMentionsName(speaker, userName)) keep.add(i);
+        }
+    }
+    const selected = (keep.size
+        ? Array.from(keep).sort((a, b) => a - b).map((i) => lines[i])
+        : lines.slice(-80)).slice(-140);
+    return selected.join("\n").slice(-14000);
+}
+
+function isMetaMemoryText(text) {
+    return /\b(character\s*card|lorebook|metadata|tool\s*card|system\s*prompt|author\s*note|ooc)\b/i.test(String(text || ""));
+}
+
 function buildMemoryBlock(person) {
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
@@ -345,7 +498,7 @@ function renderMemoryOverlay() {
     if (!person) return;
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
-    $("#uie-social-mem-sub").text(`${person.name} â†” ${user}`);
+    $("#uie-social-mem-sub").text(`${person.name} ↔ ${user}`);
 
     const list = Array.isArray(person.memories) ? person.memories.slice() : [];
     list.sort((a, b) => Number(b?.t || 0) - Number(a?.t || 0));
@@ -357,7 +510,8 @@ function renderMemoryOverlay() {
     }
     $("#uie-social-mem-empty").hide();
 
-    const rowTmpl = document.getElementById("uie-social-memory-row").content;
+    const rowTmpl = document.getElementById("uie-social-memory-row")?.content;
+    if (!rowTmpl) return;
 
     for (const mem of list) {
         const id = String(mem?.id || "");
@@ -366,7 +520,7 @@ function renderMemoryOverlay() {
         const tags = Array.isArray(mem?.tags) ? mem.tags.map(t => String(t || "").trim()).filter(Boolean).slice(0, 6) : [];
 
         const el = $(rowTmpl.cloneNode(true));
-        el.find(".mem-text").text(text || "â€”");
+        el.find(".mem-text").text(text || "-");
 
         if (impact) {
             el.find(".mem-impact").html(`<strong>Impact:</strong> ${esc(impact)}`);
@@ -383,6 +537,8 @@ function renderMemoryOverlay() {
             tagContainer.remove();
         }
 
+        const $edit = el.find(".uie-social-mem-edit");
+        if ($edit.length) $edit.attr("data-mid", id);
         el.find(".uie-social-mem-del").attr("data-mid", id);
         $list.append(el);
     }
@@ -394,145 +550,171 @@ async function scanMemoriesForActivePerson() {
     if (!person) return;
     const ctx = getContext ? getContext() : {};
     const user = String(ctx?.name1 || "User");
-    const transcript = await getChatTranscript(90);
+    const transcript = await getChatTranscript(120);
     if (!transcript) {
         try { window.toastr?.info?.("No chat transcript found."); } catch (_) {}
         return;
     }
 
+    const focused = buildFocusedMemoryTranscript(transcript, person.name, user);
+    const source = focused || transcript.slice(-14000);
     const prompt = `[UIE_LOCKED]
 You are extracting ONLY vital, relationship-relevant memories for the character "${person.name}" about interactions with "${user}".
 
+Target character: "${person.name}" (story character in this transcript, not card metadata)
+
 Input transcript (may include omniscient tool cards / metadata; ignore anything that is not an in-world event or a durable fact):
-${transcript}
+${source}
 
 Return ONLY valid JSON (no markdown, no extra keys):
 {"memories":[{"text":"...","impact":"...","tags":["..."]}]}
 
 Rules:
 - 3 to 8 memories max. If none, return {"memories":[]}.
+- Each memory must be about "${person.name}" directly (they act, speak, decide, reveal, promise, betray, help, harm, or are explicitly referenced).
+- Ignore character-card data, profile blurbs, lorebook snippets, system messages, OOC, or tool/meta output.
 - Each memory must be a durable fact that CHANGED something: trust, fear, loyalty, obligation, romance, rivalry, plans, secrets, injuries, promises, betrayals, gifts, major discoveries.
-- No trivial entries (no greetings, walking in, â€œthey talkedâ€, generic vibes).
-- Be specific and consequence-based. 1â€“2 sentences per memory.
+- No trivial entries (no greetings, walking in, "they talked", generic vibes).
+- Be specific and consequence-based. 1-2 sentences per memory.
 - Tags are short (e.g., "promise", "betrayal", "injury", "secret", "favor", "trauma", "trust").`;
 
     try { window.toastr?.info?.("Scanning memories..."); } catch (_) {}
     const res = await generateContent(prompt.slice(0, 16000), "System Check");
     if (!res) return;
-    const obj = safeJsonParseObject(res);
+    const obj = safeJsonParseObject(res) || {};
     const mems = Array.isArray(obj?.memories) ? obj.memories : [];
     const existing = new Set((person.memories || []).map(m => String(m?.text || "").toLowerCase().replace(/\s+/g, " ").trim()).filter(Boolean));
     let added = 0;
+
     for (const m of mems) {
-        const text = String(m?.text || "").trim();
+        let text = String(m?.text || "").trim();
         const impact = String(m?.impact || "").trim();
-        const tags = Array.isArray(m?.tags) ? m.tags.map(t => String(t || "").trim()).filter(Boolean).slice(0, 6) : [];
-        const key = text.toLowerCase().replace(/\s+/g, " ").trim();
+        const tags = Array.isArray(m?.tags)
+            ? m.tags.map(t => String(t || "").trim().toLowerCase()).filter(Boolean).slice(0, 6)
+            : [];
         if (!text) continue;
+        if (isMetaMemoryText(text)) continue;
+        if (!lineMentionsName(text, person.name)) text = `${person.name}: ${text}`;
+        const key = text.toLowerCase().replace(/\s+/g, " ").trim();
         if (isTrivialMemory(text)) continue;
         if (existing.has(key)) continue;
         person.memories.push({ id: newId("mem"), t: Date.now(), text: text.slice(0, 320), impact: impact.slice(0, 240), tags });
         existing.add(key);
         added++;
     }
+
     commitStateUpdate({ save: true, layout: false, emit: true });
     renderMemoryOverlay();
-    try { window.toastr?.success?.(added ? `Added ${added} memory${added === 1 ? "" : "ies"}.` : "No new vital memories found."); } catch (_) {}
+    try { window.toastr?.success?.(added ? `Added ${added} ${added === 1 ? "memory" : "memories"}.` : "No new vital memories found."); } catch (_) {}
 }
 
 export function renderSocial() {
-    if (!isInitialized) { initSocial(); isInitialized = true; }
+    if (!isInitialized) {
+        initSocial();
+        isInitialized = true;
+    }
 
     const s = getSettings();
     const changed = normalizeSocial(s);
     if (changed) commitStateUpdate({ save: true, layout: false, emit: true });
 
-    // Force apply background from settings to ensure it appears
     const bgUrl = s.ui?.backgrounds?.social;
     if (bgUrl) {
         $("#uie-social-window").css({
             backgroundImage: `url("${bgUrl}")`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            backgroundRepeat: "no-repeat"
+            backgroundRepeat: "no-repeat",
         });
     }
 
     const list = s.social[currentTab] || [];
     const container = $("#uie-social-content");
-
     container.find(".uie-social-grid, .no-data-msg").remove();
 
     if (list.length === 0) {
-        const emptyMsg = document.getElementById("uie-social-empty-msg").content.cloneNode(true);
-        container.prepend(emptyMsg);
+        const emptyTemplate = document.getElementById("uie-social-empty-msg")?.content;
+        if (emptyTemplate) container.prepend(emptyTemplate.cloneNode(true));
     } else {
-        const grid = $(`<div class="uie-social-grid"></div>`);
-        const cardTmpl = document.getElementById("uie-social-card-template").content;
+        const grid = $("<div class=\"uie-social-grid\"></div>");
+        const cardTemplate = document.getElementById("uie-social-card-template")?.content;
+        if (cardTemplate) {
+            let avatarChanged = false;
+            list.forEach((person, index) => {
+                const isSel = deleteMode && selectedForDelete.includes(index);
+                let avatar = String(person.avatar || "").trim();
 
-        let avatarChanged = false;
-        list.forEach((person, index) => {
-            const isSel = deleteMode && selectedForDelete.includes(index);
-            let avatar = String(person.avatar || "").trim();
-            try {
-                const m = avatar.match(/^<char(?::([^>]+))?>$/i);
-                if (m) {
-                    const want = String(m[1] || "").trim().toLowerCase();
-                    if (!want) avatar = resolveCurrentCharAvatarUrl();
-                    else {
-                        const s2 = getSettings();
-                        const pm = Array.isArray(s2?.party?.members) ? s2.party.members : [];
-                        const hit = pm.find(x => String(x?.identity?.name || "").trim().toLowerCase() === want);
-                        const p2 = String(hit?.images?.portrait || "").trim();
-                        avatar = p2 || resolveCurrentCharAvatarUrl();
+                try {
+                    const token = avatar.match(/^<char(?::([^>]+))?>$/i);
+                    if (token) {
+                        const want = String(token[1] || "").trim().toLowerCase();
+                        if (!want) {
+                            avatar = resolveCurrentCharAvatarUrl();
+                        } else {
+                            const s2 = getSettings();
+                            const members = Array.isArray(s2?.party?.members) ? s2.party.members : [];
+                            const hit = members.find(x => String(x?.identity?.name || "").trim().toLowerCase() === want);
+                            avatar = String(hit?.images?.portrait || "").trim() || resolveCurrentCharAvatarUrl();
+                        }
+                    }
+                } catch (_) {}
+
+                if (!avatar) {
+                    const fromChat = findAvatarForNameFromChat(person.name);
+                    if (fromChat) {
+                        avatar = fromChat;
+                    } else {
+                        try {
+                            const ctx = getContext?.();
+                            const name2 = String(ctx?.name2 || "").trim().toLowerCase();
+                            if (name2 && String(person.name || "").trim().toLowerCase() === name2) {
+                                avatar = resolveCurrentCharAvatarUrl();
+                            }
+                        } catch (_) {}
                     }
                 }
-            } catch (_) {}
-            if (!avatar) {
-                const fromChat = findAvatarForNameFromChat(person.name);
-                if (fromChat) avatar = fromChat;
-                else {
-                    try {
-                        const ctx = getContext?.();
-                        const name2 = String(ctx?.name2 || "").trim().toLowerCase();
-                        if (name2 && String(person.name || "").trim().toLowerCase() === name2) {
-                            avatar = resolveCurrentCharAvatarUrl();
-                        }
-                    } catch (_) {}
+
+                if (avatar && avatar !== person.avatar) {
+                    person.avatar = avatar;
+                    avatarChanged = true;
                 }
-            }
-            if (avatar && avatar !== person.avatar) {
-                person.avatar = avatar;
-                avatarChanged = true;
-            }
 
-            const el = $(cardTmpl.cloneNode(true));
-            const cardDiv = el.find(".uie-social-card");
-            cardDiv.attr("data-idx", index);
-            if (isSel) cardDiv.addClass("delete-selected");
+                const el = $(cardTemplate.cloneNode(true));
+                const cardDiv = el.find(".uie-social-card");
+                cardDiv.attr("data-idx", index);
+                if (isSel) cardDiv.addClass("delete-selected");
 
-            const avContainer = el.find(".uie-s-avatar");
-            if (avatar) {
-                avContainer.html(`<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`);
-            } else {
-                avContainer.html(`<i class="fa-solid fa-user"></i>`);
-            }
+                const avContainer = el.find(".uie-s-avatar");
+                if (avatar) {
+                    avContainer.html(`<img src="${esc(avatar)}" style="width:100%; height:100%; object-fit:cover;">`);
+                } else {
+                    avContainer.html('<i class="fa-solid fa-user"></i>');
+                }
 
-            el.find(".uie-s-name").text(person.name);
+                el.find(".uie-s-name").text(person.name);
 
-            const tag = (person?.met_physically === true) ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
-            if (tag) {
-                el.find(".uie-s-tag-container").html(`<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>`);
-            }
+                const tag = person?.met_physically === true ? "" : (person?.known_from_past === true ? "PAST" : "MENTION");
+                if (tag) {
+                    el.find(".uie-s-tag-container").html(`<div style="font-size:10px; opacity:0.75; border:1px solid rgba(255,255,255,0.18); padding:2px 8px; border-radius:999px;">${tag}</div>`);
+                }
 
-            grid.append(el);
-        });
-        if (avatarChanged) commitStateUpdate({ save: true, layout: false, emit: true });
+                grid.append(el);
+            });
+            if (avatarChanged) commitStateUpdate({ save: true, layout: false, emit: true });
+        }
+
         container.prepend(grid);
     }
 
-    if(deleteMode) $("#uie-delete-controls").css("display", "flex");
-    else $("#uie-delete-controls").hide();
+    if (deleteMode) {
+        $("#uie-delete-controls").css("display", "flex");
+    } else {
+        $("#uie-delete-controls").hide();
+    }
+}
+
+export function render() {
+    renderSocial();
 }
 
 function safeUrl(raw) {
@@ -542,63 +724,71 @@ function safeUrl(raw) {
     return u;
 }
 
-// ... (KEEPING YOUR OPENPROFILE LOGIC) ...
 function openProfile(index, anchorEl) {
     const s = getSettings();
     normalizeSocial(s);
     const person = s.social[currentTab][index];
-    if(!person) return;
+    if (!person) return;
+
     activeProfileIndex = index;
     if (!person.id) person.id = newId("person");
     if (!Array.isArray(person.memories)) person.memories = [];
     commitStateUpdate({ save: true, layout: false, emit: true });
 
     $(".uie-p-name-lg").text(person.name);
-    $("#p-val-status").text(`"${person.thoughts || '...'}"`);
+    $("#p-val-status").text(`"${person.thoughts || "..."}"`);
     $("#p-val-bday").text(person.birthday || "Unknown");
     $("#p-val-loc").text(person.location || "Unknown");
     $("#p-val-age").text(person.age || "Unknown");
     $("#p-val-family").text(person.knownFamily || "Unknown");
-    $("#p-val-family-role").text(person.familyRole || "â€”");
-    const affNum = Math.max(0, Math.min(100, Number(person.affinity ?? 50)));
-    const disp = (() => {
-        if (affNum <= 10) return "Hostile";
-        if (affNum <= 25) return "Wary";
-        if (affNum <= 45) return "Cold";
-        if (affNum <= 60) return "Neutral";
-        if (affNum <= 75) return "Warm";
-        if (affNum <= 90) return "Friendly";
+    $("#p-val-family-role").text(person.familyRole || "-");
+
+    const affinity = Math.max(0, Math.min(100, Number(person.affinity ?? 50)));
+    const affinityLabel = (() => {
+        if (affinity <= 10) return "Hostile";
+        if (affinity <= 25) return "Wary";
+        if (affinity <= 45) return "Cold";
+        if (affinity <= 60) return "Neutral";
+        if (affinity <= 75) return "Warm";
+        if (affinity <= 90) return "Friendly";
         return "Devoted";
     })();
-    $("#p-val-rel-status").text(`${person.relationshipStatus || "â€”"} (${disp}, ${affNum}/100)`);
+    $("#p-val-rel-status").text(`${person.relationshipStatus || "-"} (${affinityLabel}, ${affinity}/100)`);
+
     try {
-        const pres = person.met_physically === true ? "Present / met in scene" : (person.known_from_past === true ? "Known from the past (not present)" : "Mentioned only");
-        $("#p-val-presence").text(pres);
+        const presence = person.met_physically === true
+            ? "Present / met in scene"
+            : (person.known_from_past === true ? "Known from the past (not present)" : "Mentioned only");
+        $("#p-val-presence").text(presence);
     } catch (_) {}
+
     $("#p-val-likes").text(person.likes || "-");
     $("#p-val-dislikes").text(person.dislikes || "-");
 
-    const av = String(person.avatar || "").trim();
-    if(av) { $("#p-img-disp").attr("src", av).show(); $(".uie-p-portrait i").hide(); }
-    else { $("#p-img-disp").hide(); $(".uie-p-portrait i").show(); }
+    const avatar = String(person.avatar || "").trim();
+    if (avatar) {
+        $("#p-img-disp").attr("src", avatar).show();
+        $(".uie-p-portrait i").hide();
+    } else {
+        $("#p-img-disp").hide();
+        $(".uie-p-portrait i").show();
+    }
 
-    const aff = Number(person.affinity || 0);
-    const filledCount = Math.floor(aff / 20);
+    const filledCount = Math.floor(affinity / 20);
     const emptyCount = 5 - filledCount;
     const heartIcon = s.ui?.icons?.heart;
-
     if (heartIcon) {
         const filled = `<img src="${heartIcon}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle; margin-right:2px;">`.repeat(filledCount);
         const empty = `<img src="${heartIcon}" style="width:24px; height:24px; object-fit:contain; vertical-align:middle; margin-right:2px; opacity:0.25; filter:grayscale(1);">`.repeat(emptyCount);
         $(".uie-p-hearts-lg").html(filled + empty);
     } else {
-        const hearts = "â¤".repeat(filledCount) + "â™¡".repeat(emptyCount);
-        $(".uie-p-hearts-lg").text(hearts);
+        $(".uie-p-hearts-lg").text("❤".repeat(filledCount) + "♡".repeat(emptyCount));
     }
 
-    const $ov = $("#uie-social-overlay");
-    $ov.attr("data-open", "1").show();
-    const $paper = $ov.find(".uie-paper-box");
+    const $overlay = $("#uie-social-overlay");
+    $overlay.attr("data-open", "1").show();
+
+    const $paper = $overlay.find(".uie-paper-box");
     try {
         const w = Math.max(240, Number($paper.outerWidth?.() || 0) || 360);
         const h = Math.max(240, Number($paper.outerHeight?.() || 0) || 520);
@@ -613,37 +803,38 @@ function openProfile(index, anchorEl) {
 function readFileAsBase64(file) {
     return new Promise((resolve) => {
         if (!file) return resolve(null);
-        const r = new FileReader();
-        r.onload = (e) => resolve(String(e?.target?.result || ""));
-        r.onerror = () => resolve(null);
-        r.readAsDataURL(file);
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(String(e?.target?.result || ""));
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
     });
 }
 
 function openAddModal({ mode, index }) {
     const s = getSettings();
-    const p = (mode === "edit" && Number.isFinite(index)) ? (s.social[currentTab][index] || {}) : {};
+    const person = (mode === "edit" && Number.isFinite(index)) ? (s.social[currentTab][index] || {}) : {};
+
     editingIndex = (mode === "edit" && Number.isFinite(index)) ? index : null;
-    tempImgBase64 = p.avatar || null;
+    tempImgBase64 = person.avatar || null;
 
     $("#uie-add-modal > div:first").text(mode === "edit" ? "EDIT CONTACT" : "NEW CONTACT");
     $("#uie-submit-add").text(mode === "edit" ? "Save" : "Add to Book");
 
-    $("#uie-add-name").val(p.name || "");
-    $("#uie-add-age").val(p.age || "");
-    $("#uie-add-family").val(p.knownFamily || "");
-    $("#uie-add-family-role").val(p.familyRole || "");
-    $("#uie-add-rel-status").val(p.relationshipStatus || "");
-    $("#uie-add-tab").val(p.tab || currentTab);
-    $("#uie-add-affinity").val(Number.isFinite(Number(p?.affinity)) ? Number(p.affinity) : 50);
-    $("#uie-add-url").val(p.url || "");
-    $("#uie-add-bday").val(p.birthday || "");
-    $("#uie-add-loc").val(p.location || "");
-    $("#uie-add-thoughts").val(p.thoughts || "");
-    $("#uie-add-likes").val(p.likes || "");
-    $("#uie-add-dislikes").val(p.dislikes || "");
-    try { $("#uie-add-known-past").prop("checked", p.known_from_past === true); } catch (_) {}
-    try { $("#uie-add-met-phys").prop("checked", p.met_physically === true); } catch (_) {}
+    $("#uie-add-name").val(person.name || "");
+    $("#uie-add-age").val(person.age || "");
+    $("#uie-add-family").val(person.knownFamily || "");
+    $("#uie-add-family-role").val(person.familyRole || "");
+    $("#uie-add-rel-status").val(person.relationshipStatus || "");
+    $("#uie-add-tab").val(person.tab || currentTab);
+    $("#uie-add-affinity").val(Number.isFinite(Number(person?.affinity)) ? Number(person.affinity) : 50);
+    $("#uie-add-url").val(person.url || "");
+    $("#uie-add-bday").val(person.birthday || "");
+    $("#uie-add-loc").val(person.location || "");
+    $("#uie-add-thoughts").val(person.thoughts || "");
+    $("#uie-add-likes").val(person.likes || "");
+    $("#uie-add-dislikes").val(person.dislikes || "");
+    try { $("#uie-add-known-past").prop("checked", person.known_from_past === true); } catch (_) {}
+    try { $("#uie-add-met-phys").prop("checked", person.met_physically === true); } catch (_) {}
 
     if (tempImgBase64) {
         $("#uie-add-preview").attr("src", tempImgBase64).show();
@@ -689,19 +880,26 @@ function applyAddOrEdit() {
         avatar: tempImgBase64 || "",
         tab,
         known_from_past: $("#uie-add-known-past").prop("checked") === true,
-        met_physically: $("#uie-add-met-phys").prop("checked") === true
+        met_physically: $("#uie-add-met-phys").prop("checked") === true,
     };
     if (person.met_physically) person.known_from_past = false;
 
     if (editingIndex !== null && s.social[currentTab] && s.social[currentTab][editingIndex]) {
         const prev = s.social[currentTab][editingIndex];
         s.social[currentTab].splice(editingIndex, 1);
-        const t = tab || currentTab;
-        s.social[t].push({ ...prev, ...person });
+        const nextTab = tab || currentTab;
+        s.social[nextTab].push({ ...prev, ...person });
     } else {
-        const t = tab || currentTab;
-        s.social[t].push({ id: newId("person"), memories: [], familyRole: "", relationshipStatus: "", ...person });
+        const nextTab = tab || currentTab;
+        s.social[nextTab].push({
+            id: newId("person"),
+            memories: [],
+            familyRole: "",
+            relationshipStatus: "",
+            ...person,
+        });
     }
+
     try { unforgetDeletedName(s, name); } catch (_) {}
     commitStateUpdate({ save: true, layout: false, emit: true });
     closeAddModal();
@@ -722,6 +920,7 @@ function confirmMassDelete() {
     const s = getSettings();
     normalizeSocial(s);
     const list = s.social[currentTab] || [];
+
     const selectedIdx = new Set((selectedForDelete || []).map(x => Number(x)).filter(n => Number.isFinite(n)));
     const selectedNames = new Set(
         (selectedForDelete || [])
@@ -729,23 +928,27 @@ function confirmMassDelete() {
             .map(x => x.trim().toLowerCase())
             .filter(Boolean)
     );
+
     const isSelected = (p, idx) => {
         if (selectedIdx.has(idx)) return true;
         const nm = String(p?.name || "").trim().toLowerCase();
         return nm && selectedNames.has(nm);
     };
+
     const removed = list.filter((p, idx) => isSelected(p, idx)).map(p => String(p?.name || "").trim()).filter(Boolean);
     if (!removed.length) {
         try { window.toastr?.info?.("No contacts selected."); } catch (_) {}
         return;
     }
+
     try { rememberDeletedNames(s, removed); } catch (_) {}
-    const keep = list.filter((p, idx) => !isSelected(p, idx));
-    s.social[currentTab] = keep;
+    s.social[currentTab] = list.filter((p, idx) => !isSelected(p, idx));
     commitStateUpdate({ save: true, layout: false, emit: true });
+
     deleteMode = false;
     selectedForDelete = [];
     renderSocial();
+
     try { window.toastr?.success?.(`Deleted ${removed.length} contact(s).`); } catch (_) {}
     try { injectRpEvent(`[System: Deleted ${removed.length} social contact(s): ${removed.join(", ")}.]`); } catch (_) {}
 }
@@ -762,6 +965,7 @@ function extractNamesFromChatDom(maxMessages) {
         const nodes = getChatMessageNodes(maxMessages || 180);
         const ctx = getContext ? getContext() : {};
         const userName = String(ctx?.name1 || "").trim().toLowerCase();
+
         for (const m of nodes) {
             const isUser =
                 m.classList?.contains("is_user") ||
@@ -769,6 +973,7 @@ function extractNamesFromChatDom(maxMessages) {
                 m.getAttribute?.("data-is-user") === "true" ||
                 m.dataset?.isUser === "true";
             if (isUser) continue;
+
             const nm =
                 m.querySelector(".mes_name")?.textContent ||
                 m.querySelector(".name_text")?.textContent ||
@@ -779,6 +984,7 @@ function extractNamesFromChatDom(maxMessages) {
                 m.dataset?.name ||
                 m.dataset?.chName ||
                 "";
+
             const n = String(nm || "").trim();
             if (userName && n.toLowerCase() === userName) continue;
             if (n && n.length <= 64) names.add(n);
@@ -808,16 +1014,10 @@ function extractTaggedNamesFromChatText(maxMessages) {
     return Array.from(names);
 }
 
-function normalizeNameKey(name) {
-    return String(name || "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 function isLikelyToolOrMetaCardName(name) {
     const raw = String(name || "").trim();
     if (!raw) return true;
-    const key = normalizeNameKey(raw)
-        .replace(/^[\[{(<\s]+|[\]})>\s]+$/g, "")
-        .trim();
+    const key = normalizeNameKey(raw).replace(/^[\[{(<\s]+|[\]})>\s]+$/g, "").trim();
     if (!key) return true;
 
     const exact = new Set([
@@ -863,6 +1063,7 @@ function shouldExcludeName(n, { userNames, deletedSet } = {}) {
     const k = normalizeNameKey(name);
     if (deletedSet && deletedSet.has(k)) return true;
     if (isLikelyToolOrMetaCardName(name)) return true;
+
     const hard = new Set(["you", "user", "narrator", "system", "assistant", "story", "gm", "game master", "unknown"]);
     if (hard.has(k)) return true;
     if (Array.isArray(userNames) && userNames.some(u => normalizeNameKey(u) === k)) return true;
@@ -872,18 +1073,21 @@ function shouldExcludeName(n, { userNames, deletedSet } = {}) {
 async function promptOrganizationForNewContacts(names) {
     const list = Array.isArray(names) ? names.map(x => String(x || "").trim()).filter(Boolean) : [];
     if (!list.length) return;
+
     const max = 8;
     const subset = list.slice(0, max);
     for (const nm of subset) {
-        const tab = prompt(`Organize contact: ${nm}\nTab? (friends/associates/romance/family/rivals)\nBlank = keep default (friends)`, "") ?? "";
-        if (tab === null) break;
-        const t = String(tab || "").trim().toLowerCase();
+        const tabRaw = prompt(`Organize contact: ${nm}\nTab? (friends/associates/romance/family/rivals)\nBlank = keep default (friends)`, "");
+        if (tabRaw === null) break;
+
+        const t = String(tabRaw || "").trim().toLowerCase();
         const wantTab =
             (t === "romance" || t === "relationships") ? "romance" :
             (t === "family") ? "family" :
             (t === "rivals" || t === "rival") ? "rivals" :
             (t === "associates" || t === "associate" || t === "acquaintance" || t === "acquaintances") ? "associates" :
             (t === "friends" ? "friends" : "");
+
         const rel = prompt(`Relationship status for ${nm}? (optional)`, "") ?? "";
         const affRaw = prompt(`Initial affinity for ${nm}? (0-100)`, "50");
         if (affRaw === null) break;
@@ -892,10 +1096,11 @@ async function promptOrganizationForNewContacts(names) {
 
         const s = getSettings();
         normalizeSocial(s);
-        const allTabs = ["friends","associates","romance","family","rivals"];
-        let curTab = allTabs.find(k => (s.social[k] || []).some(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase())) || "friends";
-        let idx = (s.social[curTab] || []).findIndex(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
+        const allTabs = ["friends", "associates", "romance", "family", "rivals"];
+        const curTab = allTabs.find(k => (s.social[k] || []).some(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase())) || "friends";
+        const idx = (s.social[curTab] || []).findIndex(p => String(p?.name || "").trim().toLowerCase() === nm.toLowerCase());
         if (idx < 0) continue;
+
         const p = s.social[curTab][idx];
         p.affinity = aff;
         if (String(rel || "").trim()) p.relationshipStatus = String(rel || "").trim().slice(0, 80);
@@ -903,14 +1108,15 @@ async function promptOrganizationForNewContacts(names) {
             const o = String(origin || "").trim().slice(0, 160);
             p.thoughts = p.thoughts ? String(p.thoughts).slice(0, 240) : `Origin: ${o}`;
         }
-        const move = wantTab && wantTab !== curTab;
-        if (move) {
+
+        if (wantTab && wantTab !== curTab) {
             s.social[curTab].splice(idx, 1);
             p.tab = wantTab;
             s.social[wantTab].push(p);
         }
         commitStateUpdate({ save: true, layout: false, emit: true });
     }
+
     renderSocial();
     if (list.length > max) {
         try { notify("info", `Added ${list.length} names. Prompted for ${max}; organize the rest later in Social.`, "Social", "social"); } catch (_) {}
@@ -955,6 +1161,7 @@ async function aiExtractNamesFromChat(maxMessages) {
             if (!t) continue;
             msgs.push(`${n}: ${t}`);
         }
+
         const transcript = msgs.join("\n").slice(-14000);
         if (!transcript) return { names: [], questions: [] };
 
@@ -979,7 +1186,7 @@ Rules:
 - Exclude the User name. Include the Main character name if it appears in chat.
 - Do not invent new people. Only output names that appear in the transcript.
 - If uncertain about whether a token is a name, do NOT include it; instead add a short question in questions asking what it refers to.
-- Keep names short (2â€“40 chars), no emojis, no titles like "Mr.", no roles like "Guard #2" unless that is literally used as the name.`;
+- Keep names short (2-40 chars), no emojis, no titles like "Mr.", no roles like "Guard #2" unless that is literally used as the name.`;
 
         const res = await generateContent(prompt, "System Check");
         if (!res) return { names: [], questions: [] };
@@ -1016,7 +1223,6 @@ async function scanChatIntoSocial({ silent } = {}) {
         const deleted = deletedNameSet(s);
         const userNames = [userName, mainCharName].filter(Boolean);
 
-        // Keep scan window large enough to consistently include context depth.
         const transcript = await getChatTranscript(240);
         if (!transcript) {
             if (!silent) notify("info", "No chat transcript found.", "Social", "social");
@@ -1070,6 +1276,16 @@ Rules:
                     .map((name) => ({ name: String(name || "").trim(), role: "associate", affinity: 50, presence: "mentioned" }))
                     .filter((x) => x.name);
             } catch (_) {}
+        }
+
+        if (!found.length) {
+            const fallbackNames = [
+                ...extractNamesFromChatDom(240),
+                ...extractTaggedNamesFromChatText(240),
+                ...extractNamesFromTextHeuristics(240),
+            ];
+            const uniq = Array.from(new Set(fallbackNames.map(n => String(n || "").trim()).filter(Boolean)));
+            found = uniq.map((name) => ({ name, role: "associate", affinity: 50, presence: "mentioned" }));
         }
 
         if (!found.length) {
@@ -1213,7 +1429,7 @@ Rules:
                 tab,
                 memories: [],
                 met_physically: flags.met,
-                known_from_past: flags.met ? false : flags.knownPast
+                known_from_past: flags.met ? false : flags.knownPast,
             };
 
             s.social[tab].push(p);
@@ -1242,6 +1458,7 @@ export async function updateRelationshipScore(name, text, source) {
     const tx = String(text || "").trim();
     const src = String(source || "").trim();
     if (!nm || !tx) return;
+
     const s = getSettings();
     normalizeSocial(s);
     const deleted = deletedNameSet(s);
@@ -1255,6 +1472,7 @@ export async function updateRelationshipScore(name, text, source) {
         curTab = "friends";
         idx = s.social.friends.length - 1;
     }
+
     const person = s.social[curTab][idx];
     const prevAff = Math.max(0, Math.min(100, Number(person?.affinity ?? 50)));
     const prevRole = String(person?.relationshipStatus || "").trim();
@@ -1282,17 +1500,17 @@ export async function updateRelationshipScore(name, text, source) {
 
     if (delta !== 0 || (role && role !== prevRole)) {
         commitStateUpdate({ save: true, layout: false, emit: true });
-        try { injectRpEvent(`[Canon Event: Interaction with ${nm}. Affinity: ${Math.round(Number(person.affinity || prevAff))}. Status: ${String(person.relationshipStatus || prevRole || "").trim() || "â€”"}.]`); } catch (_) {}
+        try {
+            injectRpEvent(`[Canon Event: Interaction with ${nm}. Affinity: ${Math.round(Number(person.affinity || prevAff))}. Status: ${String(person.relationshipStatus || prevRole || "").trim() || "-"}.]`);
+        } catch (_) {}
     } else {
         commitStateUpdate({ save: true, layout: false, emit: true });
     }
 }
 
-// --- INIT (Updated with Calendar Button) ---
 export function initSocial() {
     const $win = $("#uie-social-window");
 
-    // Events
     $win.off("click", ".uie-tab");
     $win.on("click", ".uie-tab", function() {
         $win.find(".uie-tab").removeClass("active");
@@ -1313,7 +1531,7 @@ export function initSocial() {
     });
 
     $win.off("pointerdown.uieSocialCard touchstart.uieSocialCard");
-    $win.on("pointerdown.uieSocialCard touchstart.uieSocialCard", ".uie-social-card", function(e) {
+    $win.on("pointerdown.uieSocialCard touchstart.uieSocialCard", ".uie-social-card", function() {
         const idx = Number($(this).data("idx"));
         if (!Number.isFinite(idx)) return;
         socialLongPressFired = false;
@@ -1336,12 +1554,14 @@ export function initSocial() {
         try { clearTimeout(socialLongPressTimer); } catch (_) {}
     });
 
+    $win.off("click", ".uie-social-card");
     $win.on("click", ".uie-social-card", function(e) {
         e.stopPropagation();
         if (socialLongPressFired) {
             socialLongPressFired = false;
             return;
         }
+
         const idx = $(this).data("idx");
         if (deleteMode) {
             const i = Number(idx);
@@ -1364,8 +1584,12 @@ export function initSocial() {
     });
 
     $win.off("click.uieSocialMenu");
-    $win.on("click.uieSocialMenu", "#uie-social-sparkle", (e)=>{ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); $("#uie-social-menu").toggle(); });
-    // Close menu if clicking elsewhere in the window
+    $win.on("click.uieSocialMenu", "#uie-social-sparkle", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        $("#uie-social-menu").toggle();
+    });
     $win.on("click.uieSocialMenu", function(e) {
         const $t = $(e.target);
         if ($t.closest("#uie-social-sparkle, #uie-social-menu").length) return;
@@ -1381,7 +1605,7 @@ export function initSocial() {
     });
 
     $win.off("click.uieSocialMemActions");
-    $win.on("click.uieSocialMemActions", "#uie-social-mem-add, #uie-social-mem-clear, #uie-social-mem-scan, #uie-social-mem-inject", async function (e) {
+    $win.on("click.uieSocialMemActions", "#uie-social-mem-add, #uie-social-mem-clear, #uie-social-mem-scan, #uie-social-mem-inject", async function(e) {
         e.preventDefault();
         e.stopPropagation();
         const { person } = getActivePerson();
@@ -1390,14 +1614,22 @@ export function initSocial() {
         if (this.id === "uie-social-mem-add") {
             const text = prompt("Add a vital memory (consequence-based):", "");
             if (text === null) return;
-            const t = String(text || "").trim();
+            let t = String(text || "").trim();
             if (!t) return;
+            if (!lineMentionsName(t, person.name)) t = `${person.name}: ${t}`;
             const impact = prompt("Impact on the character (optional):", "") ?? "";
-            if (isTrivialMemory(t)) {
-                try { window.toastr?.info?.("That looks trivial. Keep only vital, consequence-based memories."); } catch (_) {}
+            const tagsRaw = prompt("Tags (comma-separated, optional):", "") ?? "";
+            if (isTrivialMemory(t) || isMetaMemoryText(t)) {
+                try { window.toastr?.info?.("That looks trivial or meta. Keep only vital, in-world memories."); } catch (_) {}
                 return;
             }
-            person.memories.push({ id: newId("mem"), t: Date.now(), text: t.slice(0, 320), impact: String(impact || "").trim().slice(0, 240), tags: [] });
+            person.memories.push({
+                id: newId("mem"),
+                t: Date.now(),
+                text: t.slice(0, 320),
+                impact: String(impact || "").trim().slice(0, 240),
+                tags: parseTagsInput(tagsRaw, []),
+            });
             commitStateUpdate({ save: true, layout: false, emit: true });
             renderMemoryOverlay();
             return;
@@ -1425,8 +1657,41 @@ export function initSocial() {
         }
     });
 
+    $win.off("click.uieSocialMemEdit");
+    $win.on("click.uieSocialMemEdit", ".uie-social-mem-edit", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const mid = String($(this).data("mid") || "");
+        const { person } = getActivePerson();
+        if (!person || !mid) return;
+        const mem = (Array.isArray(person.memories) ? person.memories : []).find(m => String(m?.id || "") === mid);
+        if (!mem) return;
+
+        const nextTextRaw = prompt("Edit memory text:", String(mem?.text || ""));
+        if (nextTextRaw === null) return;
+        const nextImpactRaw = prompt("Edit impact (optional):", String(mem?.impact || ""));
+        if (nextImpactRaw === null) return;
+        const nextTagsRaw = prompt("Edit tags (comma-separated):", Array.isArray(mem?.tags) ? mem.tags.join(", ") : "");
+        if (nextTagsRaw === null) return;
+
+        let nextText = String(nextTextRaw || "").trim();
+        if (!nextText) return;
+        if (!lineMentionsName(nextText, person.name)) nextText = `${person.name}: ${nextText}`;
+        if (isTrivialMemory(nextText) || isMetaMemoryText(nextText)) {
+            try { window.toastr?.info?.("Keep only vital, in-world, character-specific memories."); } catch (_) {}
+            return;
+        }
+
+        mem.text = nextText.slice(0, 320);
+        mem.impact = String(nextImpactRaw || "").trim().slice(0, 240);
+        mem.tags = parseTagsInput(nextTagsRaw, mem?.tags).slice(0, 6);
+        mem.t = Date.now();
+        commitStateUpdate({ save: true, layout: false, emit: true });
+        renderMemoryOverlay();
+    });
+
     $win.off("click.uieSocialMemDel");
-    $win.on("click.uieSocialMemDel", ".uie-social-mem-del", function (e) {
+    $win.on("click.uieSocialMemDel", ".uie-social-mem-del", function(e) {
         e.preventDefault();
         e.stopPropagation();
         const mid = String($(this).data("mid") || "");
@@ -1448,7 +1713,8 @@ export function initSocial() {
 
     $win.on("click.uieSocialActions", "#uie-act-scan", async (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-menu").hide(); await scanChatIntoSocial(); });
     $win.on("click.uieSocialActions", "#uie-act-toggle-auto", (e) => {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         $("#uie-social-menu").hide();
         const s = getSettings();
         if (!s.socialMeta) s.socialMeta = { autoScan: false };
@@ -1456,6 +1722,7 @@ export function initSocial() {
         commitStateUpdate({ save: true, layout: false, emit: true });
         $("#uie-auto-scan-state").text(s.socialMeta.autoScan ? "ON" : "OFF");
         notify("info", `Auto Scan: ${s.socialMeta.autoScan ? "ON" : "OFF"}`, "Social", "social");
+        syncSocialAutoScanLoop({ immediate: s.socialMeta.autoScan === true });
     });
 
     $win.on("click.uieSocialActions", "#uie-act-bg", (e) => {
@@ -1514,7 +1781,8 @@ export function initSocial() {
     });
 
     $win.on("click.uieSocialActions", "#uie-social-edit", (e) => {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         if (activeProfileIndex === null) return;
         $("#uie-social-overlay").hide();
         openAddModal({ mode: "edit", index: activeProfileIndex });
@@ -1531,7 +1799,8 @@ export function initSocial() {
     });
 
     $win.on("click.uieSocialActions", "#uie-social-del-one", (e) => {
-        e.preventDefault(); e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
         if (activeProfileIndex === null) return;
         const s = getSettings();
         normalizeSocial(s);
@@ -1550,16 +1819,14 @@ export function initSocial() {
 
     try {
         const s = getSettings();
-        if (s.socialMeta && typeof s.socialMeta.autoScan === "boolean") $("#uie-auto-scan-state").text(s.socialMeta.autoScan ? "ON" : "OFF");
+        if (s.socialMeta && typeof s.socialMeta.autoScan === "boolean") {
+            $("#uie-auto-scan-state").text(s.socialMeta.autoScan ? "ON" : "OFF");
+        }
     } catch (_) {}
 
-    // Init auto-scanner hooks (Event-based instead of DOM observer)
+    syncSocialAutoScanLoop();
+
     import("./stateTracker.js").then(mod => {
         if (typeof mod.initAutoScanning === "function") mod.initAutoScanning();
     });
 }
-
-
-
-
-

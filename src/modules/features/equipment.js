@@ -1,5 +1,6 @@
 import { getSettings, saveSettings } from "../core.js";
 import { injectRpEvent } from "./rp_log.js";
+import { addInventoryItemWithStack } from "../inventoryItems.js";
 
 let currentLayerIndex = 2; // ARMOR default
 let currentPage = 0;       // page within layer (3 per side)
@@ -325,7 +326,7 @@ export function init() {
           const putBack = { ...found.item };
           delete putBack.slotId;
           s.inventory.equipped.splice(found.index, 1);
-          s.inventory.items.push(putBack);
+          addInventoryItemWithStack(s.inventory.items, putBack, { source: "unequip" });
           saveSettings();
           renderLayer();
           injectRpEvent(`[System: User unequipped ${putBack.name}.]`);

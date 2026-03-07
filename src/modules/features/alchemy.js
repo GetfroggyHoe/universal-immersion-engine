@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "../core.js";
 import { inferItemType } from "../slot_types_infer.js";
 import { injectRpEvent } from "./rp_log.js";
+import { addInventoryItemWithStack } from "../inventoryItems.js";
 
 let selectedIds = new Set();
 
@@ -176,7 +177,7 @@ async function brew() {
     slotCategory: "ALCHEMY"
   };
   out.id = `uie_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  s.inventory.items.push(out);
+  addInventoryItemWithStack(s.inventory.items, out, { source: "alchemy" });
   saveSettings();
 
   selectedIds = new Set();

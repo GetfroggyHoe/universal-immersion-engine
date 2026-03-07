@@ -4,6 +4,7 @@ import { initBattle, renderBattle } from "./battle.js";
 import { init as initInventory } from "./features/items.js";
 import { initShop } from "./shop.js";
 import { notify } from "./notifications.js";
+import { addInventoryItemWithStack } from "./inventoryItems.js";
 
 let uieMenuTabSwitchedAt = 0;
 
@@ -1760,37 +1761,6 @@ function initMenuTabs() {
             setPopups($(this).prop("checked") === true);
         });
 
-    $(document).off("click.uieBattleTestBtn").on("click.uieBattleTestBtn", "#uie-battle-test-btn", async function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const el = this;
-        if (el?.dataset?.busy === "1") return;
-        if (el?.dataset) el.dataset.busy = "1";
-
-        const $btn = $(el);
-        const $label = $btn.find("span");
-        const prevLabel = String($label.text() || "Battle Test: Scan + Open War Room");
-        $btn.prop("disabled", true).css("opacity", "0.7");
-        $label.text("Scanning...");
-
-        try {
-            openWindow("#uie-battle-window");
-            try { initBattle(); } catch (_) {}
-
-            const battleMod = await import("./battle.js");
-            if (typeof battleMod?.scanBattleNow === "function") {
-                await battleMod.scanBattleNow();
-            }
-        } catch (err) {
-            console.error("[UIE] Battle test button failed", err);
-            try { notify("error", "Battle test failed. Check console.", "War Room", "api"); } catch (_) {}
-        } finally {
-            if (el?.dataset) el.dataset.busy = "0";
-            $btn.prop("disabled", false).css("opacity", "");
-            $label.text(prevLabel);
-        }
-    });
     const setAiAllow = (key, checked) => {
         const s = getSettings();
         if (!s.ai || typeof s.ai !== "object") s.ai = {};
@@ -2224,10 +2194,14 @@ Return ONLY the item name. No punctuation.`;
     // Add to Inventory
     if (!s.inventory) s.inventory = {};
     if (!s.inventory.items) s.inventory.items = [];
-
-    const existing = s.inventory.items.find(x => x.name === item);
-    if (existing) existing.qty = (existing.qty || 1) + 1;
-    else s.inventory.items.push({ name: item, qty: 1, type: "Material" });
+    addInventoryItemWithStack(s.inventory.items, {
+        kind: "item",
+        name: item,
+        qty: 1,
+        type: "Material",
+        description: "Found while scavenging.",
+        rarity: "common",
+    }, { source: "interaction_loot" });
 
     saveSettings();
 

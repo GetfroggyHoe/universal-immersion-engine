@@ -2,6 +2,7 @@
 import { getSettings, saveSettings } from "../core.js";
 import { notify } from "../notifications.js";
 import { injectRpEvent } from "./rp_log.js";
+import { addInventoryItemWithStack } from "../inventoryItems.js";
 
 let timer = null;
 let currentActivity = null; // { id, name, startTime, duration, type }
@@ -192,7 +193,7 @@ function applyPartyActivity() {
     if (act.rewards) {
         if (Array.isArray(act.rewards.items)) {
             act.rewards.items.forEach(it => {
-                s.inventory.items.push({ ...it, qty: it.qty || 1 });
+                addInventoryItemWithStack(s.inventory.items, { ...it, qty: it.qty || 1 }, { source: "activity_reward" });
                 msg.push(`Item: ${it.name}`);
             });
         }
@@ -426,7 +427,7 @@ function completeActivity() {
             if (Array.isArray(act.rewards.items)) {
                 if (!s.inventory.items) s.inventory.items = [];
                 act.rewards.items.forEach(it => {
-                    s.inventory.items.push({ ...it, qty: it.qty || 1 });
+                    addInventoryItemWithStack(s.inventory.items, { ...it, qty: it.qty || 1 }, { source: "activity_reward" });
                     msg.push(`Item: ${it.name}`);
                 });
             }

@@ -14,6 +14,8 @@ import { SCAN_TEMPLATES } from "./scanTemplates.js";
 import { scanEverything } from "./stateTracker.js";
 import { getChatTranscriptText } from "./chatLog.js";
 import { injectRpEvent } from "./features/rp_log.js";
+import { addInventoryItemWithStack, createOpenableContainerItem, normalizeInventoryStacksInPlace } from "./inventoryItems.js";
+import { t } from "./i18n.js";
 
 export const MEDALLIONS = {
     "medallion_water": {
@@ -62,11 +64,95 @@ let editorItemIndex = null;
 let pendingImageTarget = null;
 let lastLootMesId = null;
 
+const CREATION_CONTAINER_TYPES = Object.freeze({
+  bag: { label: "Bag", defaultName: "Supply Bag" },
+  chest: { label: "Chest", defaultName: "Loot Chest" },
+  container: { label: "Container", defaultName: "Supply Container" },
+});
+
+function resolveCreationContainerType(rawValue) {
+  const key = String(rawValue || "").trim().toLowerCase();
+  return CREATION_CONTAINER_TYPES[key] ? key : "bag";
+}
+
+function parseContainerContentsFromDescription(desc, containerLabel = "Container") {
+  const raw = String(desc || "").trim();
+  if (!raw) return [];
+
+  let normalized = raw
+    .replace(/\r/g, "\n")
+    .replace(/[|]/g, ",")
+    .replace(/[•·]/g, "\n")
+    .replace(/\b(contents?|inside|contains?|holding|holds?)\b[:\-]*/gi, ",")
+    .replace(/\b(and|plus)\b/gi, ",")
+    .replace(/\n{2,}/g, "\n");
+
+  const parts = normalized.split(/[\n,;]+/);
+  const out = [];
+  const seen = new Set();
+
+  for (const part of parts) {
+    let name = String(part || "").trim();
+    name = name.replace(/^[\-*\d\.\)\s]+/, "");
+    name = name.replace(/^(a|an|the)\s+/i, "");
+    name = name.replace(/^(bag|chest|container)\s+(with|of)\s+/i, "");
+    name = name.replace(/\s{2,}/g, " ").trim();
+    if (!name) continue;
+    name = name.slice(0, 80);
+
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      kind: "item",
+      name,
+      type: "Item",
+      description: `Stored inside this ${String(containerLabel || "container").toLowerCase()}.`,
+      rarity: "common",
+      qty: 1,
+      mods: {},
+      statusEffects: [],
+    });
+
+    if (out.length >= 24) break;
+  }
+
+  return out;
+}
+
+function buildCreationContainerDraft(rawItem, { containerType = "bag", desc = "", chatHint = "" } = {}) {
+  const key = resolveCreationContainerType(containerType);
+  const spec = CREATION_CONTAINER_TYPES[key] || CREATION_CONTAINER_TYPES.bag;
+  const src = rawItem && typeof rawItem === "object" ? rawItem : {};
+  const aiContents = Array.isArray(src?.openable?.contents) ? src.openable.contents : [];
+  const parsedContents = parseContainerContentsFromDescription(desc, spec.label);
+  const seededContents = aiContents.length ? aiContents : parsedContents;
+
+  const built = createOpenableContainerItem({
+    chatHint: `${String(chatHint || "")}\n${String(desc || "")}`.trim(),
+    containerName: String(src.name || "").trim() || spec.defaultName,
+    containerType: spec.label,
+    description: String(desc || "").trim() || String(src.description || "").trim() || `A ${spec.label.toLowerCase()} filled with useful items.`,
+    rarity: String(src.rarity || "common"),
+    contents: seededContents,
+    source: "creation_station",
+  });
+
+  if (String(src.img || "").trim()) {
+    built.img = String(src.img || "").trim().slice(0, 1200);
+  }
+
+  built.kind = "item";
+  return built;
+}
+
 function ensureModel(s) {
   if (!s) return;
   if (!s.character) s.character = {};
   if (!s.inventory) s.inventory = {};
   if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+  try { normalizeInventoryStacksInPlace(s.inventory.items, { source: "inventory_module" }); } catch (_) {}
 }
 
 function applyClassWithResets(s, obj, resets) {
@@ -454,7 +540,7 @@ const performRebirth = (medalId) => {
     // Add Medallion Item
     const def = MEDALLIONS[medalId];
     if (def) {
-        s.inventory.items.push({
+        addInventoryItemWithStack(s.inventory.items, {
             kind: "item",
             name: def.name,
             type: "Key Item",
@@ -464,7 +550,7 @@ const performRebirth = (medalId) => {
             img: def.img,
             statusEffects: def.statusEffects || [],
             mods: {}
-        });
+        }, { source: "rebirth" });
     }
 
     saveSettings();
@@ -943,7 +1029,12 @@ function portalInventoryOverlaysToBody() {
     const otherMenus = ["uie-inv-sparkle-menu", "uie-inv-gear-menu"].filter(x => x !== menuId);
     for (const oid of otherMenus) {
       const o = document.getElementById(oid);
-      if (o) o.style.display = "none";
+      if (!o) continue;
+      if (oid === "uie-inv-sparkle-menu") {
+        try { closeCreateStation(); } catch (_) { o.style.display = "none"; }
+        continue;
+      }
+      o.style.display = "none";
     }
     if (!nextOpen) { menu.style.display = "none"; return; }
     menu.style.position = "fixed";
@@ -977,6 +1068,25 @@ function portalInventoryOverlaysToBody() {
 
 const createStation = { open: false, parent: null, next: null };
 
+function resetCreateStationMenuStyles(menu) {
+  if (!menu) return;
+  menu.style.inset = "";
+  menu.style.width = "";
+  menu.style.height = "";
+  menu.style.maxHeight = "";
+  menu.style.borderRadius = "";
+  menu.style.overflow = "";
+  menu.style.zIndex = "";
+  menu.style.position = "";
+  menu.style.margin = "";
+  menu.style.transform = "";
+  menu.style.top = "";
+  menu.style.left = "";
+  menu.style.right = "";
+  menu.style.bottom = "";
+  menu.style.pointerEvents = "";
+}
+
 function ensureCreateStationOverlay() {
   if (document.getElementById("uie-create-station-overlay")) return;
   const tmpl = document.getElementById("uie-template-create-station-overlay");
@@ -989,7 +1099,7 @@ function ensureCreateStationOverlay() {
     div.id = "uie-create-station-overlay";
     div.className = "uie-overlay";
     div.style.cssText = "display:none; position:fixed; inset:0; z-index:2147483650; background:rgba(0,0,0,0.65); backdrop-filter:blur(4px); align-items:center; justify-content:center;";
-    div.innerHTML = '<div id="uie-create-station-shell" style="width:min(380px, 92vw); height:min(600px, 90vh); position:relative;"></div>';
+    div.innerHTML = '<div id="uie-create-station-shell" style="width:min(520px, 96vw); height:min(760px, 92dvh); position:relative;"></div>';
     document.body.appendChild(div);
   }
 
@@ -1009,35 +1119,57 @@ function openCreateStation() {
       return;
   }
 
+  if (!createStation.parent || !createStation.parent.isConnected) {
+      createStation.parent = menu.parentElement;
+      createStation.next = menu.nextSibling;
+  }
+
   // Desktop: Toggle dropdown
   if (!isMobileLayout()) {
-      if (menu.dataset.uiePortaled !== "1") {
+      if (menu.parentElement !== document.body) {
           document.body.appendChild(menu);
-          menu.dataset.uiePortaled = "1";
       }
+      menu.dataset.uiePortaled = "1";
 
       if (menu.style.display === "block") {
           closeCreateStation();
       } else {
           const btn = document.getElementById("uie-inv-sparkle");
-          if (btn) {
-              const rect = btn.getBoundingClientRect();
-              menu.style.position = "fixed";
-              menu.style.zIndex = "2147483655";
-              // Align right edge
-              const w = 340; 
-              let left = rect.right - w;
-              if (left < 10) left = 10;
-              menu.style.top = `${rect.bottom + 10}px`;
+          const vw = window.innerWidth || document.documentElement.clientWidth || 0;
+          const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+          const pad = 10;
+          resetCreateStationMenuStyles(menu);
+          menu.style.position = "fixed";
+          menu.style.zIndex = "2147483655";
+          menu.style.pointerEvents = "auto";
+          menu.style.width = `min(420px, calc(100vw - ${pad * 2}px))`;
+          menu.style.maxHeight = `calc(100dvh - ${pad * 2}px)`;
+          menu.style.height = "auto";
+          menu.style.transform = "none";
+          menu.style.margin = "0";
+          menu.style.display = "block";
+
+          const place = () => {
+              const ar = btn?.getBoundingClientRect?.() || null;
+              const mr = menu.getBoundingClientRect();
+              const w = mr.width || Math.min(420, Math.max(220, vw - pad * 2));
+              const h = mr.height || Math.min(Math.max(240, vh - pad * 2), 760);
+              const badAnchor = !ar || !Number.isFinite(ar.left) || !Number.isFinite(ar.top) || (ar.left === 0 && ar.top === 0 && ar.width === 0 && ar.height === 0);
+
+              let left = badAnchor ? Math.round((vw - w) / 2) : Math.round(ar.right - w);
+              let top = badAnchor ? Math.round((vh - h) / 2) : Math.round(ar.bottom + 10);
+
+              if (!badAnchor && top + h > vh - pad) top = Math.round(ar.top - h - 10);
+              left = Math.max(pad, Math.min(left, vw - w - pad));
+              top = Math.max(pad, Math.min(top, vh - h - pad));
+
+              menu.style.top = `${top}px`;
               menu.style.left = `${left}px`;
               menu.style.right = "auto";
               menu.style.bottom = "auto";
-              menu.style.width = "340px";
-              menu.style.height = "auto";
-              menu.style.transform = "none";
-              menu.style.margin = "0";
-          }
-          menu.style.display = "block";
+          };
+
+          try { requestAnimationFrame(place); } catch (_) { setTimeout(place, 0); }
           createStation.open = true;
       }
       return;
@@ -1048,10 +1180,6 @@ function openCreateStation() {
   const shell = document.getElementById("uie-create-station-shell");
   if (!ov || !shell) return;
 
-  if (!createStation.open) {
-    createStation.parent = menu.parentElement;
-    createStation.next = menu.nextSibling;
-  }
   createStation.open = true;
 
   // Ensure we move it to the shell
@@ -1061,17 +1189,36 @@ function openCreateStation() {
 
   menu.dataset.uiePortaled = "1";
   menu.style.display = "block";
-  menu.style.position = "absolute";
+  menu.style.position = "fixed";
+  menu.style.top = "0";
+  menu.style.left = "0";
+  menu.style.right = "0";
+  menu.style.bottom = "0";
   menu.style.inset = "0";
-  menu.style.width = "100%";
-  menu.style.height = "100%";
-  menu.style.maxHeight = "100%";
+  menu.style.width = "100vw";
+  menu.style.height = "100vh";
+  menu.style.height = "100dvh";
+  menu.style.maxHeight = "100dvh";
   menu.style.borderRadius = "0";
   menu.style.overflow = "auto";
+  menu.style.margin = "0";
+  menu.style.transform = "none";
   menu.style.zIndex = "2147483655";
 
-  ov.style.display = "flex"; // Flex to center
+  shell.style.width = "100vw";
+  shell.style.height = "100vh";
+  shell.style.height = "100dvh";
+  shell.style.maxWidth = "100vw";
+  shell.style.maxHeight = "100dvh";
+  shell.style.position = "fixed";
+  shell.style.top = "0";
+  shell.style.left = "0";
+  shell.style.borderRadius = "0";
+
+  ov.style.display = "flex";
   ov.style.zIndex = "2147483654";
+  ov.style.alignItems = "stretch";
+  ov.style.justifyContent = "stretch";
 }
 
 function closeCreateStation() {
@@ -1079,29 +1226,12 @@ function closeCreateStation() {
   const ov = document.getElementById("uie-create-station-overlay");
   if (ov) ov.style.display = "none";
   if (!menu) { createStation.open = false; return; }
-  
-  if (!isMobileLayout()) {
-      menu.style.display = "none";
-      createStation.open = false;
-      return;
-  }
 
   menu.style.display = "none";
-  menu.style.inset = "";
-  menu.style.width = "";
-  menu.style.height = "";
-  menu.style.maxHeight = "";
-  menu.style.borderRadius = "";
-  menu.style.overflow = "";
-  menu.style.zIndex = "";
-  menu.style.position = "";
-  menu.style.top = "";
-  menu.style.left = "";
-  menu.style.right = "";
-  menu.style.bottom = "";
+  resetCreateStationMenuStyles(menu);
   const parent = createStation.parent;
   const next = createStation.next;
-  if (parent && parent.isConnected) {
+  if (parent && parent.isConnected && menu.parentElement !== parent) {
     if (next && next.parentNode === parent) parent.insertBefore(menu, next);
     else parent.appendChild(menu);
   }
@@ -1410,7 +1540,7 @@ export function initInventory() {
       if ($(e.target).closest("#uie-create-station-overlay, #uie-inv-sparkle-menu").length) return;
       if ($(e.target).closest("#uie-inv-pencil, #uie-inv-sparkle, #uie-inv-sparkle-menu, #uie-inv-gear, #uie-inv-gear-menu").length) return;
       const sm = document.getElementById("uie-inv-sparkle-menu");
-      if (sm) sm.style.display = "none";
+      if (sm && sm.style.display !== "none") closeCreateStation();
       const gm = document.getElementById("uie-inv-gear-menu");
       if (gm) gm.style.display = "none";
     });
@@ -1479,6 +1609,31 @@ export function initInventory() {
       closeCreateStation();
     });
 
+  const syncCreateInputs = () => {
+    const kind = String($("#uie-create-kind").val() || "item").trim().toLowerCase();
+    const isContainer = kind === "container";
+    const $containerControls = $("#uie-create-container-controls");
+    if ($containerControls.length) {
+      $containerControls.css("display", isContainer ? "flex" : "none");
+    }
+    const $desc = $("#uie-create-desc");
+    if ($desc.length) {
+      $desc.attr(
+        "placeholder",
+        isContainer
+          ? t("inv.create.desc_placeholder_container", "Describe what is inside (e.g. lockpick set, 2 healing potions, old map)...")
+          : t("inv.create.desc_placeholder", "Describe what you're creating (optional)...")
+      );
+    }
+  };
+
+  $sparkle.off("change.uieCreateKind", "#uie-create-kind")
+    .on("change.uieCreateKind", "#uie-create-kind", function () {
+      syncCreateInputs();
+    });
+
+  syncCreateInputs();
+
   function closeClassResetModal() {
     const $m = $("#uie-class-reset-modal");
     $m.hide().removeData("uie-class-obj").removeData("uie-class-status-el");
@@ -1531,6 +1686,7 @@ export function initInventory() {
       ensureInventoryUi(s2);
 
       const kind = String($("#uie-create-kind").val() || "item");
+      const containerTypeChoice = resolveCreationContainerType($("#uie-create-container-type").val());
       const desc = String($("#uie-create-desc").val() || "").trim().slice(0, 600);
       const qty = Math.max(1, Math.min(20, Number($("#uie-create-qty").val() || 1)));
       const genImg = $("#uie-create-gen-img").is(":checked");
@@ -1551,7 +1707,7 @@ export function initInventory() {
         : "User request (TOP PRIORITY): None provided.\n";
 
       // Determine if we use Staging Area
-      const useStaging = ["item", "skill", "asset"].includes(kind);
+      const useStaging = ["item", "skill", "asset", "container"].includes(kind);
       const isArrayReq = useStaging && qty > 1;
       if (kind === "currency") {
         if (st) st.textContent = "Use + Money / XP below.";
@@ -1563,6 +1719,15 @@ export function initInventory() {
           prompt = `${base}\n${priorityRules}\nReturn ONLY JSON: {"className":"","level":1,"stats":{"str":10,"dex":10,"con":10,"int":10,"wis":10,"cha":10,"per":10,"luk":10,"agi":10,"vit":10,"end":10,"spi":10},"skills":[{"name":"","description":""}],"assets":[{"name":"","description":""}],"items":[{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}],"equipment":[{"slotId":"","name":"","type":"","rarity":"","statusEffects":[""],"img":""}],"statusEffects":[""],"trackers":[{"name":"","current":0,"max":100,"color":"#89b4fa","notes":""}]}\nClass-specific rules:\n- If user requested a specific level, set it.\n- If not requested, use Current level.\n- Keep arrays short (<= 10 each). Always include at least 2-4 assets (class abilities/features) and 2-4 trackers (e.g. HP, MP, Stamina, Mana).\n- assets: class abilities, features, or resources (name + description).\n- trackers: life trackers for this class. Use colors like #ef4444 (red), #22c55e (green), #3b82f6 (blue).\nCurrent level: ${Number(s2.character?.level || 1)}\nPersona:${persona}\nContext (supporting only):\n${chat}`;
       } else if (kind === "status") {
           prompt = `${base}\n${priorityRules}\nReturn ONLY JSON: {"statusEffects":[""]}\nRules:\n- 0-6 short strings\nPersona:${persona}\nContext (supporting only):\n${chat}`;
+      } else if (kind === "container") {
+          const selected = CREATION_CONTAINER_TYPES[containerTypeChoice] || CREATION_CONTAINER_TYPES.bag;
+          const schema = `{"name":"","description":"","type":"${selected.label}","rarity":"common|uncommon|rare|epic|legendary","qty":1,"openable":{"kind":"container","containerType":"${selected.label}","contents":[{"name":"","description":"","type":"Item","rarity":"common|uncommon|rare|epic|legendary","qty":1}]}}`;
+          const rules = `Container rules:\n- This draft is a ${selected.label}. Keep type and openable.containerType as \"${selected.label}\".\n- The user description tells you what items are inside the container.\n- Always include openable.kind = \"container\".\n- Always include openable.contents with 1-12 concrete items.\n- Keep container qty at 1.`;
+          if (isArrayReq) {
+              prompt = `${base}\n${priorityRules}\n${rules}\nReturn ONLY JSON Array of ${qty} items: [${schema}, ...]\nPersona:${persona}\nContext (supporting only):\n${chat}`;
+          } else {
+              prompt = `${base}\n${priorityRules}\n${rules}\nReturn ONLY JSON: ${schema}\nPersona:${persona}\nContext (supporting only):\n${chat}`;
+          }
       } else {
           // Item / Skill / Asset
           const schema = kind === "skill"
@@ -1635,8 +1800,24 @@ export function initInventory() {
             $stage.show().empty();
 
             for (let i = 0; i < results.length; i++) {
-                const item = results[i];
-                item.kind = kind;
+                let item = results[i];
+                if (kind === "container") {
+                    item = buildCreationContainerDraft(item, {
+                        containerType: containerTypeChoice,
+                        desc,
+                        chatHint: chat,
+                    });
+                    item._meta = {
+                        ...(item._meta && typeof item._meta === "object" ? item._meta : {}),
+                        source: "creation_station",
+                        creationKind: "container",
+                        updatedAt: Date.now(),
+                    };
+                    if (!item._meta.createdAt) item._meta.createdAt = Date.now();
+                    item.kind = "item";
+                } else {
+                    item.kind = kind;
+                }
                 const uid = Date.now() + Math.random().toString(36).substr(2, 9);
 
                 // Render Card
@@ -1677,7 +1858,7 @@ export function initInventory() {
                     });
                 }
             }
-            if (st) st.textContent = `Drafted ${results.length} item(s). Review below.`;
+            if (st) st.textContent = `Drafted ${results.length} entr${results.length === 1 ? "y" : "ies"}. Review below.`;
         }
 
       } finally {
@@ -1729,7 +1910,7 @@ export function initInventory() {
           s.activities.custom.push(item);
       } else {
           if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
-          s.inventory.items.push(item);
+          addInventoryItemWithStack(s.inventory.items, item, { source: "creation_station" });
       }
 
       saveSettings();

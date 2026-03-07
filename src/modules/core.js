@@ -698,6 +698,18 @@ const SESSION_KEYS = [
     "xp", "hp", "mp", "ap", "maxHp", "maxMp", "maxAp", "maxXp", "life", "image"
 ];
 
+function getChatScopedSocialDeletedNames(meta) {
+    try {
+        const arr = Array.isArray(meta?.deletedNames) ? meta.deletedNames : [];
+        return arr
+            .map((x) => String(x || "").trim())
+            .filter(Boolean)
+            .slice(-400);
+    } catch (_) {
+        return [];
+    }
+}
+
 function saveCurrentChatState() {
     if (!lastChatId) return;
     const s = getSettings();
@@ -711,6 +723,12 @@ function saveCurrentChatState() {
             hasData = true;
         }
     }
+
+    const deletedNames = getChatScopedSocialDeletedNames(s?.socialMeta);
+    if (deletedNames.length) {
+        data.socialMeta = { deletedNames };
+        hasData = true;
+    }
     
     if (hasData) {
         s.chats[lastChatId] = JSON.parse(safeJson(data));
@@ -719,6 +737,7 @@ function saveCurrentChatState() {
 
 function loadChatState(chatId) {
     const s = getSettings();
+    const autoScanPref = s?.socialMeta?.autoScan === true;
     
     // First, ensure we save the PREVIOUS chat state if we switched
     if (lastChatId && lastChatId !== chatId) {
@@ -746,6 +765,11 @@ function loadChatState(chatId) {
             delete s[k];
         }
     }
+
+    s.socialMeta = {
+        autoScan: autoScanPref,
+        deletedNames: getChatScopedSocialDeletedNames(saved?.socialMeta),
+    };
     
     // Re-hydrate defaults
     sanitizeSettings();

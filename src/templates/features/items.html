@@ -402,7 +402,7 @@
 
     <div class="uie-items-actions">
       <button id="uie-items-select" class="uie-btn">Select</button>
-      <button class="uie-btn" onclick="uie.phone.openBooksGuide('guide-inventory')" title="Help"><i class="fa-solid fa-circle-question"></i></button>
+      <button class="uie-btn" onclick="uie.phone.openBooksGuide('guide-inventory')" title="Inventory Manual"><i class="fa-solid fa-circle-info"></i></button>
     </div>
   </div>
   <div id="uie-items-cat-chips" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;"></div>
@@ -430,6 +430,7 @@
     <div style="margin-top:10px; padding:10px; border-radius:6px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); color:rgba(255,255,255,0.82); font-size:12px; line-height:1.45;" id="uie-item-modal-meta"></div>
     <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap;">
       <button id="uie-item-use" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(46,204,113,0.35); background:rgba(46,204,113,0.18); color:#2ecc71; font-weight:900; cursor:pointer;">Use</button>
+      <button id="uie-item-open" style="display:none; flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(76,201,240,0.35); background:rgba(76,201,240,0.15); color:#8bdff5; font-weight:900; cursor:pointer;">Open</button>
       <button id="uie-item-custom-use" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(241,196,15,0.35); background:rgba(241,196,15,0.18); color:#f1c40f; font-weight:900; cursor:pointer;">Custom Use</button>
       <button id="uie-item-use-chat" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(52,152,219,0.35); background:rgba(52,152,219,0.18); color:#3498db; font-weight:900; cursor:pointer;">Use (Chat)</button>
       <button id="uie-item-send-party" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(225,193,122,0.35); background:rgba(0,0,0,0.18); color:#f6e7c8; font-weight:900; cursor:pointer;">Send to Party</button>
@@ -437,6 +438,16 @@
       <button id="uie-item-custom-equip" style="display:none; flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(186,187,241,0.35); background:rgba(186,187,241,0.14); color:#babbf1; font-weight:900; cursor:pointer;">Custom Equip</button>
       <button id="uie-item-discard" style="flex:1; min-width:150px; height:40px; border-radius:6px; border:1px solid rgba(243,139,168,0.35); background:rgba(243,139,168,0.14); color:#f38ba8; font-weight:900; cursor:pointer;">Discard</button>
     </div>
+  </div>
+</div>
+
+<div id="uie-item-reader-modal" style="display:none; position:fixed; inset:0; z-index:2147483647; background:rgba(0,0,0,0.72); align-items:center; justify-content:center; padding:14px;">
+  <div style="width:min(760px, 96vw); max-height:min(88vh, 920px); border-radius:10px; border:1px solid rgba(225,193,122,0.32); background:rgba(14,10,8,0.96); display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; align-items:center; gap:10px; padding:12px; border-bottom:1px solid rgba(255,255,255,0.12);">
+      <div id="uie-item-reader-title" style="font-weight:900; letter-spacing:0.5px; color:#f1c40f; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Book</div>
+      <button id="uie-item-reader-close" style="height:34px; border-radius:6px; border:1px solid rgba(255,255,255,0.18); background:rgba(0,0,0,0.32); color:#fff; font-weight:800; padding:0 12px; cursor:pointer;">Close</button>
+    </div>
+    <div id="uie-item-reader-body" style="padding:14px; overflow:auto; white-space:pre-wrap; color:rgba(255,255,255,0.9); font-size:14px; line-height:1.55; font-family:Georgia, 'Times New Roman', serif;"></div>
   </div>
 </div>
 

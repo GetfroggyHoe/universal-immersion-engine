@@ -421,6 +421,10 @@ export function injectSettingsUI() {
         s2.calendar = {};
         s2.map = {};
         s2.social = {};
+        s2.socialMeta = {
+            autoScan: s2?.socialMeta?.autoScan === true,
+            deletedNames: [],
+        };
         s2.diary = {};
         s2.databank = {};
         s2.activities = {};

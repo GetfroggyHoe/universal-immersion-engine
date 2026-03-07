@@ -4,6 +4,17 @@ import { getContext } from "/scripts/extensions.js";
 import { SLOT_TYPES_CORE } from "../slot_types_core.js";
 import { inferItemType } from "../slot_types_infer.js";
 import { injectRpEvent } from "./rp_log.js";
+import {
+  INVENTORY_STACK_LIMIT,
+  addInventoryItemWithStack,
+  addManyInventoryItemsWithStack,
+  ensureOpenableContents,
+  isBookItem,
+  isContainerItem,
+  isOpenableItem,
+  normalizeInventoryStacksInPlace,
+  summarizeItemsForLog,
+} from "../inventoryItems.js";
 
 let mounted = false;
 let activeIdx = null;
@@ -29,6 +40,7 @@ function ensureModel(s) {
   if (!Array.isArray(s.inventory.skills)) s.inventory.skills = [];
   if (!Array.isArray(s.inventory.assets)) s.inventory.assets = [];
   if (!Array.isArray(s.inventory.statuses)) s.inventory.statuses = [];
+  try { normalizeInventoryStacksInPlace(s.inventory.items, { source: "items_module" }); } catch (_) {}
 }
 
 function esc(s) {
@@ -182,6 +194,109 @@ function titleCase(s) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+function closeBookReader() {
+  $("#uie-item-reader-modal").hide();
+}
+
+function openBookReader(title, text) {
+  const safeTitle = String(title || "Book").trim() || "Book";
+  const safeText = String(text || "").trim() || "(This book has no readable text yet.)";
+  $("#uie-item-reader-title").text(safeTitle);
+  $("#uie-item-reader-body").text(safeText);
+  $("#uie-item-reader-modal").css("display", "flex");
+}
+
+function consumeOneFromStack(list, idx) {
+  const it = list[idx];
+  if (!it || typeof it !== "object") return false;
+  const q = Number(it.qty || 1);
+  if (Number.isFinite(q) && q > 1) {
+    it.qty = q - 1;
+    return true;
+  }
+  list.splice(idx, 1);
+  return true;
+}
+
+async function ensureBookText(it) {
+  if (!it || typeof it !== "object") return null;
+  if (!it.book || typeof it.book !== "object") {
+    it.book = {
+      title: String(it.name || "Book").trim().slice(0, 120) || "Book",
+      text: "",
+      generatedAt: Date.now(),
+      source: "item_open",
+    };
+  }
+
+  if (String(it.book.text || "").trim()) return it.book;
+
+  const itemName = String(it.name || "Book").trim().slice(0, 120) || "Book";
+  const itemType = String(it.type || "Book").trim().slice(0, 80) || "Book";
+  const itemDesc = String(it.description || it.desc || "").trim().slice(0, 1200);
+  const context = String(chatSnippet() || "").trim().slice(0, 2400);
+
+  let title = String(it.book.title || itemName || "Book").trim().slice(0, 120) || "Book";
+  let text = String(it.book.text || "").trim();
+
+  const prompt = `Return ONLY JSON object:\n{"title":"","text":""}\n\nTask: Write the readable in-world content of a physical item book.\nBook item:\n- Name: ${itemName}\n- Type: ${itemType}\n- Description: ${itemDesc || "(none)"}\n\nRules:\n- Match the setting and tone of the context.\n- 3-8 short paragraphs or bullet notes.\n- Max 1800 characters.\n- No markdown code fences.\n\nContext excerpt:\n${context || "(no context)"}`;
+
+  try {
+    const res = await generateContent(prompt.slice(0, 6000), "System Check");
+    const cleaned = String(res || "").replace(/```json|```/g, "").trim();
+    if (cleaned) {
+      try {
+        const obj = JSON.parse(cleaned);
+        if (obj && typeof obj === "object") {
+          title = String(obj.title || title || itemName || "Book").trim().slice(0, 120) || "Book";
+          text = String(obj.text || obj.content || "").trim();
+        }
+      } catch (_) {
+        text = cleaned;
+      }
+    }
+  } catch (_) {}
+
+  if (!text) {
+    text = itemDesc
+      ? `Title: ${title}\n\n${itemDesc}`
+      : `${title}\n\nThe pages are mostly blank, but a few faint lines suggest this text has weathered many journeys.`;
+  }
+
+  it.book = {
+    title,
+    text: String(text).trim().slice(0, 12000),
+    generatedAt: Number(it.book.generatedAt || Date.now()) || Date.now(),
+    source: String(it.book.source || "item_open").trim().slice(0, 40) || "item_open",
+  };
+
+  return it.book;
+}
+
+function openContainerAndLoot(list, idx, it) {
+  const hint = `${String(it?.description || it?.desc || "")}\n${String(chatSnippet() || "").slice(0, 1600)}`;
+  const contents = ensureOpenableContents(it, hint);
+  const loot = Array.isArray(contents) ? contents : [];
+
+  if (it?.openable && typeof it.openable === "object") {
+    it.openable.openedCount = Math.max(0, Number(it.openable.openedCount || 0)) + 1;
+    it.openable.lastOpenedAt = Date.now();
+  }
+
+  const out = addManyInventoryItemsWithStack(list, loot, {
+    source: "container_open",
+    chatHint: hint,
+  });
+
+  consumeOneFromStack(list, idx);
+  return {
+    loot,
+    addedQty: Number(out?.addedQty || 0),
+    addedStacks: Number(out?.addedStacks || 0),
+    stackedQty: Number(out?.stackedQty || 0),
+  };
+}
+
 function ensureSlotCategory(s, it) {
   if (!it || typeof it !== "object") return "UNCATEGORIZED";
   try {
@@ -193,7 +308,10 @@ function ensureSlotCategory(s, it) {
   const existing = String(it.slotCategory || "").trim().toUpperCase();
   if (existing) return existing;
   const inferred = inferItemType(it);
-  const cat = String(inferred?.category || "UNCATEGORIZED").toUpperCase();
+  let cat = String(inferred?.category || "UNCATEGORIZED").toUpperCase();
+  if (cat === "UNCATEGORIZED" && isBookItem(it) && inferred?.source !== "disabled") {
+    cat = "KNOWLEDGE";
+  }
   it.slotCategory = cat;
   return cat;
 }
@@ -395,6 +513,7 @@ function bind() {
   });
 
   doc.off("click.uieItemUse", "#uie-item-use").on("click.uieItemUse", "#uie-item-use", () => actOnItem("use"));
+  doc.off("click.uieItemOpen", "#uie-item-open").on("click.uieItemOpen", "#uie-item-open", () => actOnItem("open"));
   doc.off("click.uieItemCustomUse", "#uie-item-custom-use").on("click.uieItemCustomUse", "#uie-item-custom-use", () => actOnItem("custom_use"));
   doc.off("click.uieItemUseChat", "#uie-item-use-chat").on("click.uieItemUseChat", "#uie-item-use-chat", () => actOnItem("use_chat"));
 
@@ -411,6 +530,18 @@ function bind() {
   doc.off("click.uieItemCustomEquip", "#uie-item-custom-equip").on("click.uieItemCustomEquip", "#uie-item-custom-equip", () => actOnItem("custom_equip"));
   doc.off("click.uieItemDiscard", "#uie-item-discard").on("click.uieItemDiscard", "#uie-item-discard", () => actOnItem("discard"));
   doc.off("click.uieItemSendParty", "#uie-item-send-party").on("click.uieItemSendParty", "#uie-item-send-party", () => actOnItem("send_party"));
+
+  doc.off("click.uieItemReaderClose", "#uie-item-reader-close").on("click.uieItemReaderClose", "#uie-item-reader-close", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeBookReader();
+  });
+  doc.off("click.uieItemReaderBackdrop", "#uie-item-reader-modal").on("click.uieItemReaderBackdrop", "#uie-item-reader-modal", function (e) {
+    if (e.target !== this) return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeBookReader();
+  });
 }
 
 function closeItemModal() {
@@ -456,6 +587,14 @@ function openItemModal(idx, anchorEl) {
     const guess = inferEquipSlotId(it);
     meta.push(`<div><strong>Equip Slot (suggested):</strong> ${esc(guess || "manual")}</div>`);
   }
+  if (isContainerItem(it)) {
+    const count = Array.isArray(it?.openable?.contents) ? it.openable.contents.length : 0;
+    meta.push(`<div><strong>Openable:</strong> ${esc(count > 0 ? `${count} cached loot entries` : "Yes")}</div>`);
+  }
+  if (isBookItem(it)) {
+    const title = String(it?.book?.title || it?.name || "Book").trim().slice(0, 120) || "Book";
+    meta.push(`<div><strong>Readable Book:</strong> ${esc(title)}</div>`);
+  }
   $("#uie-item-modal-meta").html(meta.join(""));
 
   if (it.img) {
@@ -467,6 +606,11 @@ function openItemModal(idx, anchorEl) {
   const equippable = isEquippable(it);
   $("#uie-item-equip").toggle(!!equippable);
   $("#uie-item-custom-equip").toggle(!!equippable);
+  const openable = isOpenableItem(it);
+  const readableBook = isBookItem(it);
+  $("#uie-item-open")
+    .text(readableBook ? "Read" : "Open")
+    .toggle(openable || readableBook);
   const $modal = $("#uie-item-modal");
   const $card = $("#uie-item-modal > div").first();
   $modal.css("display", "flex");
@@ -535,6 +679,9 @@ function openItemContextMenu(idx, x, y) {
   };
 
   menu.append(mkBtn("Inspect", "inspect", "fa-circle-info"));
+  if (isOpenableItem(it) || isBookItem(it)) {
+    menu.append(mkBtn(isBookItem(it) ? "Read" : "Open", "open", isBookItem(it) ? "fa-book-open" : "fa-box-open"));
+  }
   menu.append(mkBtn("Use", "use", "fa-hand-sparkles"));
   menu.append(mkBtn("Use (Chat)", "use_chat", "fa-comment-dots"));
 
@@ -622,7 +769,7 @@ function equipItemToSlot(s, item, slotId) {
   if (idxExisting >= 0) {
     const prev = { ...s.inventory.equipped[idxExisting] };
     delete prev.slotId;
-    s.inventory.items.push(prev);
+    addInventoryItemWithStack(s.inventory.items, prev, { source: "unequip_swap" });
     s.inventory.equipped.splice(idxExisting, 1);
   }
 
@@ -654,7 +801,7 @@ async function actOnItem(kind) {
   const name = String(it.name || "Item");
 
   try {
-    const confirmKinds = new Set(["use", "use_chat", "custom_use", "equip", "custom_equip", "send_party"]);
+    const confirmKinds = new Set(["use", "use_chat", "custom_use", "equip", "custom_equip", "send_party", "open"]);
     if (it.needsUserConfirm && confirmKinds.has(String(kind || ""))) {
       const ok = confirm(`${name} is marked as UNVERIFIED. Continue?`);
       if (!ok) return;
@@ -662,6 +809,39 @@ async function actOnItem(kind) {
       saveSettings();
     }
   } catch (_) {}
+
+  if (kind === "inspect") {
+    openItemModal(idx);
+    return;
+  }
+
+  if (kind === "open") {
+    if (isBookItem(it)) {
+      const book = await ensureBookText(it);
+      logAction(s, { action: "read", item: name });
+      saveSettings();
+      openBookReader(book?.title || name, book?.text || it.description || "(No readable text)");
+      return;
+    }
+
+    if (isContainerItem(it)) {
+      const out = openContainerAndLoot(list, idx, it);
+      logAction(s, { action: "open", item: name, qty: Number(out?.addedQty || 0) });
+      saveSettings();
+      closeItemModal();
+      render();
+
+      const lootLine = summarizeItemsForLog(out?.loot || [], 4);
+      const addedQty = Number(out?.addedQty || 0);
+      if (addedQty > 0) {
+        try { window.toastr?.success?.(`Opened ${name}: ${lootLine}`); } catch (_) {}
+      } else {
+        try { window.toastr?.info?.(`${name} was empty.`); } catch (_) {}
+      }
+      try { await injectRpEvent(`[System: Opened ${name}. Loot: ${lootLine}.]`); } catch (_) {}
+      return;
+    }
+  }
 
   if (kind === "use_chat") {
     const consumes = !!it?.use?.consumes;
@@ -780,9 +960,24 @@ async function actOnItem(kind) {
     const base = moved[0];
     const keyName = String(base?.name || name);
     const keyType = String(base?.type || it.type || "");
-    const existing = s.party.sharedItems.find(x => String(x?.name || "") === keyName && String(x?.type || "") === keyType);
-    if (existing) existing.qty = Number(existing.qty || 1) + moved.length;
-    else s.party.sharedItems.push({ ...base, qty: moved.length });
+    let remaining = moved.length;
+    const shared = Array.isArray(s.party.sharedItems) ? s.party.sharedItems : [];
+    for (const row of shared) {
+      if (remaining <= 0) break;
+      const same = String(row?.name || "") === keyName && String(row?.type || "") === keyType;
+      if (!same) continue;
+      const cur = Math.max(0, Math.floor(Number(row.qty || 0)));
+      const room = Math.max(0, INVENTORY_STACK_LIMIT - cur);
+      if (!room) continue;
+      const put = Math.min(room, remaining);
+      row.qty = cur + put;
+      remaining -= put;
+    }
+    while (remaining > 0) {
+      const put = Math.min(INVENTORY_STACK_LIMIT, remaining);
+      shared.push({ ...base, qty: put });
+      remaining -= put;
+    }
 
     logAction(s, { action: "send_party", item: name, qty: moved.length });
     saveSettings();

@@ -1005,7 +1005,7 @@
       </div>
       <div class="uie-inv-currency">150 G</div>
       <div class="uie-inv-actions">
-        <div class="uie-inv-icon" onclick="UIE_openGuide('guide-inventory')" title="Help" data-i18n-title="inv.help"><i class="fa-solid fa-circle-question"></i></div>
+        <div class="uie-inv-icon" onclick="UIE_openGuide('guide-inventory')" title="Inventory Manual" data-i18n-title="inv.help"><i class="fa-solid fa-circle-info"></i></div>
         <div class="uie-inv-icon" id="uie-inv-pencil" title="Edit Mode" data-i18n-title="inv.edit_mode"><i class="fa-solid fa-pencil"></i></div>
         <div class="uie-inv-icon" id="uie-inv-sparkle" title="Creation Station" data-i18n-title="inv.creation_station"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
         <div id="uie-inv-sparkle-menu" class="uie-create-menu" style="display:none;">
@@ -1017,15 +1017,25 @@
 
           <div class="uie-create-row" style="display:flex; gap:10px; margin-bottom:10px;">
             <select id="uie-create-kind" class="uie-create-select" style="flex:1;">
-              <option value="item" selected>Item</option>
-              <option value="skill">Skill</option>
-              <option value="asset">Asset</option>
-              <option value="class">Class</option>
-              <option value="status">Status</option>
-              <option value="currency">Currency</option>
+              <option value="item" selected data-i18n="inv.create.kind.item">Item</option>
+              <option value="container" data-i18n="inv.create.kind.container">Container</option>
+              <option value="skill" data-i18n="inv.create.kind.skill">Skill</option>
+              <option value="asset" data-i18n="inv.create.kind.asset">Asset</option>
+              <option value="class" data-i18n="inv.create.kind.class">Class</option>
+              <option value="status" data-i18n="inv.create.kind.status">Status</option>
+              <option value="currency" data-i18n="inv.create.kind.currency">Currency</option>
             </select>
             <input id="uie-create-qty" type="number" min="1" max="20" value="1" placeholder="#" title="Quantity" data-i18n-title="inv.create.quantity" style="width:46px; height:38px; border-radius:14px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); color:#fff; padding:0 5px; font-weight:900; text-align:center;">
             <button id="uie-create-run" class="uie-create-btn" title="Generate" data-i18n-title="inv.create.generate" style="flex:0 0 auto;"><i class="fa-solid fa-wand-magic-sparkles"></i></button>
+          </div>
+
+          <div id="uie-create-container-controls" style="display:none; align-items:center; gap:8px; margin-bottom:10px;">
+            <label for="uie-create-container-type" style="font-size:0.85em; color:#cfcfcf; min-width:96px;" data-i18n="inv.create.container_type">Container Type</label>
+            <select id="uie-create-container-type" class="uie-create-select" style="flex:1; height:36px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:rgba(0,0,0,0.25); color:#fff; padding:0 10px;">
+              <option value="bag" selected data-i18n="inv.create.container.bag">Bag</option>
+              <option value="chest" data-i18n="inv.create.container.chest">Chest</option>
+              <option value="container" data-i18n="inv.create.container.container">Container</option>
+            </select>
           </div>
 
           <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-left:4px;">
@@ -1080,7 +1090,7 @@
         </div>
         <div class="uie-inv-icon" id="uie-inv-gear" title="Inventory Settings" data-i18n-title="inv.settings"><i class="fa-solid fa-gear"></i></div>
         <div id="uie-inv-gear-menu" style="display:none; position:absolute; top:70px; right:124px; width:280px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(10,6,5,0.92); backdrop-filter: blur(6px); padding:10px; z-index:2147483670;">
-          <div style="padding:8px; border-radius:10px; background:rgba(255,255,255,0.08); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:900; color:#cba35c;" onclick="uie.phone.openBooksGuide('guide-inventory');"><i class="fa-solid fa-circle-question"></i> <span data-i18n="inv.help_guide">Help / Guide</span></div>
+          <div style="padding:8px; border-radius:10px; background:rgba(255,255,255,0.08); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:900; color:#cba35c;" onclick="uie.phone.openBooksGuide('guide-inventory');"><i class="fa-solid fa-circle-info"></i> <span data-i18n="inv.help_guide">Help / Guide</span></div>
           <div style="font-weight:900; color:#fff; margin-bottom:8px;" data-i18n="inv.tabs.title">Inventory Tabs</div>
           <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-items"> <span data-i18n="inv.tab.items">Items</span></label>
           <label style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:10px; background:rgba(255,255,255,0.05); margin-bottom:6px; cursor:pointer;"><input type="checkbox" id="inv-tab-skills"> <span data-i18n="inv.tab.skills">Skills</span></label>

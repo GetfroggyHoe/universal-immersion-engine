@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "../core.js";
 import { generateContent } from "../apiClient.js";
 import * as Items from "./items.js";
+import { addInventoryItemWithStack } from "../inventoryItems.js";
 
 export function init() {
     const doc = $(document);
@@ -33,7 +34,9 @@ export function init() {
             const s = getSettings();
 
             if (type === "item") {
-                s.inventory.items.push(data);
+                if (!s.inventory) s.inventory = {};
+                if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
+                addInventoryItemWithStack(s.inventory.items, data, { source: "generation" });
                 // Refresh Items Tab if active
                 if ($(".pop-tab[data-tab='items']").hasClass("active")) Items.render();
             }

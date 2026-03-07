@@ -25,7 +25,8 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - **Mobile Optimized**: Equipment tab automatically switches to a focused grid view on mobile, hiding stats/portrait for better usability.
 - **Leveling**: Earn XP and gain Stat Points to manually distribute (STR, DEX, etc.) in the Skills tab.
 - **Rebirth (Level 150+)**: Rebirth resets progression and grants Medallions used for permanent upgrades.
-- **Creation Station**: Immersive in-menu builder for Items, Skills, Assets, and Classes. Includes **AI Image Generation** for visual flair.
+- **Creation Station**: Immersive in-menu builder for Items, **Containers** (Bag / Chest / Container), Skills, Assets, and Classes. Includes **AI Image Generation** for visual flair.
+- **Container Drafting**: Choose a container type, then use the description box to describe what is inside (for example: `lockpick set, 2 healing potions, old map`) and UIE will seed openable contents.
 - Gear menu toggles: disable tabs/functions, slot type categorization, leveling, and UI bars/stats
 - Status effects render as icons (no emojis) with smart, on-screen info popovers
 
@@ -91,6 +92,7 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Phone → Cookies: clear stored data / saved numbers
 - Inventory → Gear: toggle tabs/functions, slot categories, leveling, UI bars
 - Inventory → Pencil: set per-tab backgrounds and character details
+- Inventory → Sparkle (Creation Station): choose **Container**, pick Bag/Chest/Container, describe contents, then review and **Save & Add** from staging cards
 - War Room: press Scan to sync combat state from the chat log
 - Map: use Map Actions → Generate (Instant)
 

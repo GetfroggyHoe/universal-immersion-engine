@@ -1,6 +1,7 @@
 import { getSettings, saveSettings } from "../core.js";
 import { inferItemType } from "../slot_types_infer.js";
 import { injectRpEvent } from "./rp_log.js";
+import { addInventoryItemWithStack } from "../inventoryItems.js";
 
 let mounted = false;
 let openCtx = { onExit: null };
@@ -457,14 +458,7 @@ function takeOneById(s, itemId) {
 function mergeBack(s, unit) {
   ensureIds(s);
   const list = s.inventory.items || [];
-  const key = `${String(unit?.name || "")}::${String(unit?.slotCategory || "")}::${String(unit?.rarity || "")}`;
-  const idx = list.findIndex(x => `${String(x?.name || "")}::${String(x?.slotCategory || "")}::${String(x?.rarity || "")}` === key);
-  if (idx >= 0) {
-    const q = Number(list[idx].qty || 1);
-    list[idx].qty = q + 1;
-    return;
-  }
-  list.push({ ...unit, qty: 1, id: `uie_${Date.now()}_${Math.random().toString(16).slice(2)}` });
+  addInventoryItemWithStack(list, { ...unit, qty: 1, id: `uie_${Date.now()}_${Math.random().toString(16).slice(2)}` }, { source: "kitchen_refund" });
 }
 
 async function startCooking() {
@@ -595,7 +589,7 @@ async function serve() {
   if (ses.state !== "done") return;
   const quality = Number(ses.mistakes || 0) === 0 ? "perfect" : Number(ses.mistakes || 0) <= 1 ? "ok" : "rough";
   const out = outputItemFor(s, quality);
-  s.inventory.items.push(out);
+  addInventoryItemWithStack(s.inventory.items, out, { source: "kitchen_serve" });
   ses.reserved = [];
   await injectRpEvent(`Served ${out.name}.`, { uie: { type: "kitchen_serve", item: out.name } });
   await setState("idle", `Served ${out.name}.`);
