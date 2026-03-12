@@ -101,7 +101,7 @@ function gateModalClick(ms = 220) {
   return true;
 }
 
-function render() {
+export function render() {
   const s = getSettings();
   if (!s) return;
   ensureLife(s);
@@ -419,6 +419,7 @@ export function init() {
         e.preventDefault(); e.stopPropagation();
         
         const s = getSettings();
+        ensureLife(s);
         if (!s || editingIndex < 0 || !s.life.trackers[editingIndex]) return;
         
         const normalized = normalizeLifeTracker({
@@ -443,6 +444,7 @@ export function init() {
         if (!confirm("Delete this tracker?")) return;
         
         const s = getSettings();
+        ensureLife(s);
         if (!s || editingIndex < 0) return;
         
         s.life.trackers.splice(editingIndex, 1);

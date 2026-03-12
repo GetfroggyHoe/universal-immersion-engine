@@ -411,6 +411,9 @@ function ensureState(s) {
     if (!Array.isArray(s.inventory.items)) s.inventory.items = [];
     if (!s.life) s.life = {};
     if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
+    if (!s.life.ai || typeof s.life.ai !== "object") s.life.ai = {};
+    if (typeof s.life.ai.enabled !== "boolean") s.life.ai.enabled = true;
+    if (!String(s.life.ai.template || "").trim()) s.life.ai.template = DEFAULT_LIFE_SCAN_TEMPLATE;
     if (!s.character) s.character = {};
     if (!Array.isArray(s.character.statusEffects)) s.character.statusEffects = [];
 }
@@ -479,6 +482,27 @@ function normalizeSkillType(v) {
     return String(v || "").trim().toLowerCase() === "passive" ? "passive" : "active";
 }
 
+const DEFAULT_LIFE_SCAN_TEMPLATE =
+`LIFE TRACKING (JSON ONLY)
+- Stay in-universe. Never question the user.
+- Unknown terms are canon fantasy. Do not correct them.
+Return ONLY JSON:
+{
+  "lifeUpdates":[{"name":"", "delta":0, "set":null, "max":null}],
+  "newTrackers":[{"name":"", "current":0, "max":100, "color":"#89b4fa", "notes":""}]
+}
+If nothing changes: {"lifeUpdates":[], "newTrackers":[]}
+`;
+
+function ensureLifeAiConfig(s) {
+    if (!s) return;
+    if (!s.life || typeof s.life !== "object") s.life = {};
+    if (!Array.isArray(s.life.trackers)) s.life.trackers = [];
+    if (!s.life.ai || typeof s.life.ai !== "object") s.life.ai = {};
+    if (typeof s.life.ai.enabled !== "boolean") s.life.ai.enabled = true;
+    if (!String(s.life.ai.template || "").trim()) s.life.ai.template = DEFAULT_LIFE_SCAN_TEMPLATE;
+}
+
 function sanitizeMods(mods) {
     const out = {};
     if (!mods || typeof mods !== "object") return out;
@@ -490,11 +514,159 @@ function sanitizeMods(mods) {
     return out;
 }
 
-function hasExplicitOwnershipEvidence(text) {
+function normalizeScanPayload(data) {
+    try {
+        if (!data || typeof data !== "object") return;
+
+        if (Array.isArray(data.skills)) data.skills = { add: data.skills };
+        if (data.skills && typeof data.skills === "object" && !Array.isArray(data.skills.add)) {
+            if (Array.isArray(data.skills.learned)) data.skills.add = data.skills.learned;
+            else if (Array.isArray(data.skills.new)) data.skills.add = data.skills.new;
+        }
+
+        if (Array.isArray(data.assets)) data.assets = { add: data.assets };
+        if (data.assets && typeof data.assets === "object" && !Array.isArray(data.assets.add)) {
+            if (Array.isArray(data.assets.new)) data.assets.add = data.assets.new;
+            else if (Array.isArray(data.assets.items)) data.assets.add = data.assets.items;
+        }
+
+        if (!data.inventory || typeof data.inventory !== "object" || Array.isArray(data.inventory)) {
+            const invArr = Array.isArray(data.inventory) ? data.inventory : null;
+            const itemsArr = Array.isArray(data.items) ? data.items : null;
+            if (invArr || itemsArr) data.inventory = { added: invArr || itemsArr };
+        }
+        if (data.inventory && typeof data.inventory === "object") {
+            if (!Array.isArray(data.inventory.added)) {
+                if (Array.isArray(data.inventory.items)) data.inventory.added = data.inventory.items;
+                else if (Array.isArray(data.inventory.add)) data.inventory.added = data.inventory.add;
+                else if (Array.isArray(data.inventory.found)) data.inventory.added = data.inventory.found;
+                else if (Array.isArray(data.items)) data.inventory.added = data.items;
+            }
+            if (!Array.isArray(data.inventory.removed)) {
+                if (Array.isArray(data.inventory.remove)) data.inventory.removed = data.inventory.remove;
+                else if (Array.isArray(data.inventory.lost)) data.inventory.removed = data.inventory.lost;
+                else if (Array.isArray(data.inventory.used)) data.inventory.removed = data.inventory.used;
+            }
+        }
+
+        if (!data.character || typeof data.character !== "object") {
+            const topName = String(data?.name || "").trim();
+            const topClass = String(data?.className || data?.class || "").trim();
+            const topLevel = Number(data?.level);
+            const nextCharacter = {};
+            if (topName) nextCharacter.name = topName;
+            if (topClass) nextCharacter.className = topClass;
+            if (Number.isFinite(topLevel) && topLevel > 0) nextCharacter.level = Math.floor(topLevel);
+            if (Object.keys(nextCharacter).length) data.character = nextCharacter;
+        } else {
+            const cls = String(data.character.className || data.character.class || "").trim();
+            if (cls && !String(data.character.className || "").trim()) data.character.className = cls;
+        }
+
+        const statMap = { hp: "maxHp", mp: "maxMp", ap: "maxAp", xp: "maxXp" };
+        const bars = (data.bars && typeof data.bars === "object")
+            ? data.bars
+            : ((data.vitals && typeof data.vitals === "object") ? data.vitals : null);
+
+        if (bars || (data.stats && typeof data.stats === "object")) {
+            if (!data.stats || typeof data.stats !== "object") data.stats = {};
+        }
+
+        const applySetIfMissing = (key, value) => {
+            const n = Number(value);
+            if (!Number.isFinite(n)) return;
+            const cur = data.stats[key];
+            if (cur === undefined) {
+                data.stats[key] = { set: n };
+                return;
+            }
+            if (cur && typeof cur === "object" && !Array.isArray(cur)) {
+                const hasSet = Number.isFinite(Number(cur.set)) || Number.isFinite(Number(cur.current));
+                if (!hasSet) data.stats[key] = { ...cur, set: n };
+            }
+        };
+
+        if (bars && data.stats && typeof data.stats === "object") {
+            for (const [key, maxKey] of Object.entries(statMap)) {
+                const raw = bars[key];
+                if (raw && typeof raw === "object") {
+                    if (Number.isFinite(Number(raw.set))) applySetIfMissing(key, raw.set);
+                    else if (Number.isFinite(Number(raw.current))) applySetIfMissing(key, raw.current);
+                    if (Number.isFinite(Number(raw.max))) data.stats[maxKey] = Number(raw.max);
+                } else if (Number.isFinite(Number(raw))) {
+                    applySetIfMissing(key, raw);
+                }
+                if (Number.isFinite(Number(bars[maxKey]))) data.stats[maxKey] = Number(bars[maxKey]);
+            }
+        }
+
+        if (data.stats && typeof data.stats === "object") {
+            for (const [key, maxKey] of Object.entries(statMap)) {
+                if (Number.isFinite(Number(data[key]))) applySetIfMissing(key, data[key]);
+                if (Number.isFinite(Number(data[maxKey]))) data.stats[maxKey] = Number(data[maxKey]);
+            }
+        }
+
+        if (!data.life || typeof data.life !== "object" || Array.isArray(data.life)) {
+            const hasTopLevel = Array.isArray(data.lifeUpdates) || Array.isArray(data.newTrackers);
+            if (hasTopLevel) {
+                data.life = {
+                    lifeUpdates: Array.isArray(data.lifeUpdates) ? data.lifeUpdates : [],
+                    newTrackers: Array.isArray(data.newTrackers) ? data.newTrackers : []
+                };
+            } else if (Array.isArray(data.life)) {
+                const arr = data.life;
+                const looksLikeUpdate = arr.some((x) => x && typeof x === "object" && (
+                    x.delta !== undefined || x.set !== undefined || x.max !== undefined
+                ));
+                data.life = looksLikeUpdate
+                    ? { lifeUpdates: arr, newTrackers: [] }
+                    : { lifeUpdates: [], newTrackers: arr };
+            }
+        }
+
+        if (data.life && typeof data.life === "object" && !Array.isArray(data.life)) {
+            if (!Array.isArray(data.life.lifeUpdates)) {
+                if (Array.isArray(data.life.updates)) data.life.lifeUpdates = data.life.updates;
+                else if (Array.isArray(data.life.apply)) data.life.lifeUpdates = data.life.apply;
+                else data.life.lifeUpdates = [];
+            }
+            if (!Array.isArray(data.life.newTrackers)) {
+                if (Array.isArray(data.life.trackers)) data.life.newTrackers = data.life.trackers;
+                else if (Array.isArray(data.life.add)) data.life.newTrackers = data.life.add;
+                else data.life.newTrackers = [];
+            }
+        }
+    } catch (_) {}
+}
+
+function escapeRegExp(text) {
+    return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function hasExplicitOwnershipEvidence(text, entityName = "", chatHint = "") {
     const t = String(text || "").toLowerCase();
-    if (!t) return false;
-    return /(user|you|player|party).{0,80}(found|finds|picked up|pick up|bought|buy|purchased|got|gains|gained|acquired|obtained|received|receives|earned|earns|crafted|crafts|created|creates|learned|learns|owns|owned|obtains|looted|loot)/i.test(t) ||
+    const ownsInText =
+        /(user|you|player|party).{0,80}(found|finds|picked up|pick up|bought|buy|purchased|got|gains|gained|acquired|obtained|received|receives|earned|earns|crafted|crafts|created|creates|learned|learns|owns|owned|obtains|looted|loot)/i.test(t) ||
         /(found|picked up|bought|purchased|gained|acquired|obtained|received|earned|crafted|created|learned|owns|owned|looted)/i.test(t);
+    if (ownsInText) return true;
+
+    const nm = String(entityName || "").trim();
+    const hint = String(chatHint || "");
+    if (!nm || !hint) return false;
+
+    const nameRx = escapeRegExp(nm).replace(/\s+/g, "\\s+");
+    const acq = "(?:found|finds|picked\\s+up|pick\\s+up|bought|buy|purchased|got|gains?|gained|acquired|obtained|received|receives|earned|earns|crafted|crafts|created|creates|learned|learns|looted|loot|obtains)";
+    const owner = "(?:user|you|player|party|inventory|bag|backpack)";
+
+    try {
+        const ownerThenAcquire = new RegExp(`${owner}[\\s\\S]{0,160}${acq}[\\s\\S]{0,140}${nameRx}`, "i");
+        const acquireThenItem = new RegExp(`${acq}[\\s\\S]{0,120}${nameRx}`, "i");
+        const itemThenInventory = new RegExp(`${nameRx}[\\s\\S]{0,120}(?:added\\s+to\\s+(?:your\\s+)?(?:inventory|bag|backpack)|in\\s+your\\s+(?:inventory|bag|backpack)|now\\s+in\\s+inventory)`, "i");
+        return ownerThenAcquire.test(hint) || acquireThenItem.test(hint) || itemThenInventory.test(hint);
+    } catch (_) {
+        return false;
+    }
 }
 
 function findLifeTracker(s, name) {
@@ -889,7 +1061,7 @@ function shouldExcludeSocialName(name, { deletedSet, userNames } = {}) {
     if (!raw) return true;
     if (raw.length > 64) return true;
     const key = normalizeSocialNameKey(raw)
-        .replace(/^[\[{(<\s]+|[\]})>\s]+$/g, "")
+        .replace(/^[\[{(<\s"']+|[\]})>\s"']+$/g, "")
         .trim();
     if (!key) return true;
 
@@ -923,8 +1095,21 @@ function shouldExcludeSocialName(name, { deletedSet, userNames } = {}) {
     if (/^(meta|metadata|ooc|system|narrator|story|tool|gm|game master)\b/.test(key)) return true;
     if (/\b(omniscient|omniscent|tool\s*card|npc\s*tool|metadata\s*card|lorebook|author'?s?\s*note|control\s*card|system\s*prompt|stage\s*direction)\b/.test(key)) return true;
 
+    if (/^(mr|mrs|ms|dr|prof)\.?$/.test(key)) return true;
+    const roleSingles = new Set([
+        "captain", "commander", "general", "admiral", "colonel", "major", "lieutenant", "sergeant", "officer",
+        "chief", "director", "agent", "master", "mistress", "professor", "doctor", "doc", "teacher",
+        "king", "queen", "prince", "princess", "duke", "duchess", "lord", "lady", "sir", "madam",
+        "merchant", "shopkeeper", "bartender", "innkeeper", "guard", "soldier", "knight", "nurse", "pilot",
+        "driver", "clerk", "receptionist", "villager", "stranger", "boss",
+    ]);
+    if (roleSingles.has(key)) return true;
+    if (/^(?:the\s+)?(?:captain|commander|general|admiral|colonel|major|lieutenant|sergeant|officer|chief|director|agent|merchant|shopkeeper|bartender|innkeeper|guard|soldier|knight|villager|stranger)(?:\s*#?\d+|\s+[ivx]+)?$/.test(key)) return true;
+
     if (Array.isArray(userNames)) {
-        const set = new Set(userNames.map(x => normalizeSocialNameKey(x)).filter(Boolean));
+        const set = new Set(userNames
+            .map(x => normalizeSocialNameKey(x).replace(/^[\[{(<\s"']+|[\]})>\s"']+$/g, "").trim())
+            .filter(Boolean));
         if (set.has(key)) return true;
     }
     return false;
@@ -971,6 +1156,7 @@ export async function scanEverything(opts = {}) {
     if (s.enabled === false && !force) return;
     if (!force && s.generation?.scanAllEnabled === false) return;
     ensureState(s);
+    ensureLifeAiConfig(s);
     const countSocialPeople = (st) => {
         try {
             const social = st?.social && typeof st.social === "object" ? st.social : {};
@@ -1141,11 +1327,24 @@ export async function scanEverything(opts = {}) {
             return [];
         }
     })();
+    const lifeTemplateBlock = (() => {
+        try {
+            const lifeEnabled = s?.life?.ai?.enabled !== false;
+            if (!lifeEnabled) return "";
+            const tpl = String(s?.life?.ai?.template || "").trim();
+            if (!tpl) return "";
+            return `\nLife Tracking Template (STRICT):\n${tpl.slice(0, 2400)}\n`;
+        } catch (_) {
+            return "";
+        }
+    })();
     const prompt = `[UIE_LOCKED]
 Analyze the chat history to update the RPG State.
 Current World: ${JSON.stringify(s.worldState)}
 Current HP: ${Number(s.hp ?? 100)} / ${Number(s.maxHp ?? 100)}
 Current MP: ${Number(s.mp ?? 50)} / ${Number(s.maxMp ?? 50)}
+Current AP: ${Number(s.ap ?? 10)} / ${Number(s.maxAp ?? 10)}
+Current XP: ${Number(s.xp ?? 0)} / ${Number(s.maxXp ?? 1000)}
 Life Trackers: ${JSON.stringify((s.life?.trackers || []).slice(0, 30).map(t => ({ name: t.name, current: t.current, max: t.max })))}
 Current Status Effects: ${JSON.stringify((s.character?.statusEffects || []).slice(0, 30))}
 Existing Inventory Items: ${JSON.stringify(invNames)}
@@ -1159,7 +1358,10 @@ Task: Return a SINGLE JSON object with these keys:
 1. "world": Update location, threat, status, time, weather.
 1.5. "character": (optional) { "name":"", "className":"", "level":1 } for explicit user identity/progression updates.
 2. "inventory": Lists of "added" (items found/acquired/created) and "removed" (items lost/used/given). Ignore currency.
-3. "stats": Integer deltas for "hp" and "mp" (e.g. -10, +5).
+3. "stats": Update bars using one of these forms:
+   - Delta form: {"hp":-10,"mp":+5,"ap":-2,"xp":+20}
+   - Set form: {"hp":{"set":70},"mp":{"set":30},"ap":{"set":8},"xp":{"set":240}}
+   - Include max updates when explicit: {"maxHp":120,"maxMp":80,"maxAp":12,"maxXp":1200}
 4. "skills": (optional) { "add":[{"name":"","desc":"","type":"active|passive","mods":{},"active":{},"passive":{},"evidence":""}] } for NEW skills learned/purchased/acquired by the user.
 5. "assets": (optional) { "add":[{"name":"","desc":"","category":"property|vehicle|ship|business|other","owned":true,"evidence":""}] } for NEW owned assets.
 6. "quests": List of quest-like objectives { "title": "...", "desc": "...", "type": "main|side" }. Add anything that could logically be a quest from context. Must be grounded in chat; no random additions.
@@ -1208,6 +1410,8 @@ Rules:
 - Status effects should be short labels like "Tired", "Poisoned", "Smells like smoke". No emojis.
 - For battle enemies, keep hp/maxHp as null when unknown instead of inventing numbers. Include maxHp/level only when grounded in chat.
 
+${lifeTemplateBlock}
+
 Chat:
 ${chatSnippet}
 `;
@@ -1229,9 +1433,10 @@ ${chatSnippet}
             }
             return { ok: false, error: "invalid_json" };
         }
+        normalizeScanPayload(data);
         if (scanScope && scanScope !== "all") {
             const keepByScope = {
-                inventory: new Set(["character", "inventory", "stats", "skills", "assets", "equipped", "life", "statusEffects"]),
+                inventory: new Set(["character", "inventory", "items", "stats", "bars", "vitals", "skills", "assets", "equipped", "life", "statusEffects"]),
                 social: new Set(["social"]),
                 battle: new Set(["battle"]),
                 party: new Set(["party"]),
@@ -1293,11 +1498,12 @@ ${chatSnippet}
                 data.inventory.added.forEach(it => {
                     if (!it || !it.name) return;
                     const evidence = String(it?.evidence || it?.desc || "").trim();
-                    if (!hasExplicitOwnershipEvidence(evidence)) return;
+                    const itemName = String(it?.name || "").trim();
+                    if (!hasExplicitOwnershipEvidence(evidence, itemName, chatSnippet)) return;
                     const qty = Math.max(1, Math.round(Number(it?.qty || 1)));
                     const baseItem = {
                         kind: "item",
-                        name: String(it?.name || "").trim().slice(0, 120),
+                        name: itemName.slice(0, 120),
                         type: String(it?.type || "item").trim().slice(0, 80),
                         description: String(it?.desc || "Found item.").trim().slice(0, 1200),
                         qty,
@@ -1356,31 +1562,68 @@ ${chatSnippet}
             }
         }
 
-        // 3. Stats (HP/MP)
+        // 3. Stats / Bars (HP/MP/AP/XP + max values)
         if (data.stats && typeof data.stats === "object") {
-            const dhp = Number(data.stats.hp);
-            const dmp = Number(data.stats.mp);
+            const statDefs = [
+                { key: "hp", maxKey: "maxHp", defaultMax: 100, minMax: 1, clampToMax: true },
+                { key: "mp", maxKey: "maxMp", defaultMax: 50, minMax: 1, clampToMax: true },
+                { key: "ap", maxKey: "maxAp", defaultMax: 10, minMax: 0, clampToMax: true },
+                { key: "xp", maxKey: "maxXp", defaultMax: 1000, minMax: 1, clampToMax: false },
+            ];
             let vitalsChanged = false;
-            if (Number.isFinite(dhp) && dhp !== 0) {
-                const maxHp = Number(s.maxHp ?? 100);
-                const curHp = Number(s.hp ?? maxHp);
-                s.hp = clamp(curHp + dhp, 0, Number.isFinite(maxHp) ? maxHp : 100);
-                vitalsChanged = true;
-                needsSave = true;
+            for (const def of statDefs) {
+                const raw = data.stats?.[def.key];
+                const rawObj = (raw && typeof raw === "object" && !Array.isArray(raw)) ? raw : null;
+
+                const delta = rawObj ? Number(rawObj.delta) : Number(raw);
+                const setValue = rawObj
+                    ? (Number.isFinite(Number(rawObj.set)) ? Number(rawObj.set) : Number(rawObj.current))
+                    : Number.NaN;
+
+                let maxValue = rawObj ? Number(rawObj.max) : Number.NaN;
+                if (!Number.isFinite(maxValue)) {
+                    maxValue = Number(data.stats?.[def.maxKey]);
+                }
+
+                if (Number.isFinite(maxValue)) {
+                    const nextMax = Math.max(def.minMax, Math.round(maxValue));
+                    const curMax = Number(s?.[def.maxKey]);
+                    if (!Number.isFinite(curMax) || curMax !== nextMax) {
+                        s[def.maxKey] = nextMax;
+                        vitalsChanged = true;
+                        needsSave = true;
+                    }
+                }
+
+                const safeMax = Number.isFinite(Number(s?.[def.maxKey])) ? Number(s[def.maxKey]) : def.defaultMax;
+                const curValue = Number(s?.[def.key] ?? (def.key === "xp" ? 0 : safeMax));
+                let nextValue = curValue;
+
+                if (Number.isFinite(setValue)) {
+                    nextValue = setValue;
+                } else if (Number.isFinite(delta) && delta !== 0) {
+                    nextValue = curValue + delta;
+                } else {
+                    continue;
+                }
+
+                if (def.clampToMax) {
+                    nextValue = clamp(nextValue, 0, Math.max(0, safeMax));
+                } else {
+                    nextValue = Math.max(0, nextValue);
+                }
+
+                if (nextValue !== curValue || !Number.isFinite(curValue)) {
+                    s[def.key] = nextValue;
+                    vitalsChanged = true;
+                    needsSave = true;
+                }
             }
-            if (Number.isFinite(dmp) && dmp !== 0) {
-                const maxMp = Number(s.maxMp ?? 50);
-                const curMp = Number(s.mp ?? maxMp);
-                s.mp = clamp(curMp + dmp, 0, Number.isFinite(maxMp) ? maxMp : 50);
-                vitalsChanged = true;
-                needsSave = true;
-            }
+
             if (vitalsChanged) {
                 try { if (typeof $ !== "undefined") $(document).trigger("uie:updateVitals"); } catch (_) {}
                 try { window.dispatchEvent(new CustomEvent("uie:updateVitals")); } catch (_) {}
-                if ((Math.abs(dhp) >= 5 || Math.abs(dmp) >= 5)) {
-                    try { injectRpEvent(`[System: HP ${s.hp}/${s.maxHp ?? 100}, MP ${s.mp}/${s.maxMp ?? 50}.]`); } catch (_) {}
-                }
+                try { injectRpEvent(`[System: Vitals updated - HP ${s.hp}/${s.maxHp ?? 100}, MP ${s.mp}/${s.maxMp ?? 50}, AP ${s.ap}/${s.maxAp ?? 10}, XP ${s.xp}/${s.maxXp ?? 1000}.]`); } catch (_) {}
             }
         }
 
@@ -1394,7 +1637,7 @@ ${chatSnippet}
                 const nm = String(sk?.name || "").trim();
                 if (!nm) continue;
                 const evidence = String(sk?.evidence || sk?.desc || "").trim();
-                if (!hasExplicitOwnershipEvidence(evidence)) continue;
+                if (!hasExplicitOwnershipEvidence(evidence, nm, chatSnippet)) continue;
                 const key = normKey(nm);
                 if (have.has(key)) continue;
                 const type = normalizeSkillType(sk?.skillType || sk?.type);
@@ -1428,7 +1671,7 @@ ${chatSnippet}
                 const nm = String(a?.name || "").trim();
                 if (!nm) continue;
                 const evidence = String(a?.evidence || a?.desc || "").trim();
-                if (!hasExplicitOwnershipEvidence(evidence)) continue;
+                if (!hasExplicitOwnershipEvidence(evidence, nm, chatSnippet)) continue;
                 const key = normKey(nm);
                 if (have.has(key)) continue;
                 s.inventory.assets.push({
@@ -1458,8 +1701,8 @@ ${chatSnippet}
                 const nm = String(nt?.name || "").trim();
                 if (!nm) continue;
                 if (findLifeTracker(s, nm)) continue;
-                const cur = Number(nt?.current ?? 0);
-                const mx = Number(nt?.max ?? 100);
+                const mx = Math.max(1, Number.isFinite(Number(nt?.max)) ? Number(nt.max) : 100);
+                const cur = clamp(Number.isFinite(Number(nt?.current)) ? Number(nt.current) : 0, 0, mx);
                 const color = String(nt?.color || "#89b4fa");
                 const notes = String(nt?.notes || "");
                 s.life.trackers.push({ name: nm.slice(0, 60), current: cur, max: mx, color: color.slice(0, 30), notes: notes.slice(0, 240), updatedAt: Date.now() });
@@ -1481,7 +1724,11 @@ ${chatSnippet}
                 t.updatedAt = Date.now();
                 changed = true;
             }
-            if (changed) needsSave = true;
+            if (changed) {
+                needsSave = true;
+                try { if (typeof $ !== "undefined") $(document).trigger("uie:updateVitals"); } catch (_) {}
+                try { window.dispatchEvent(new CustomEvent("uie:updateVitals")); } catch (_) {}
+            }
         }
 
         // 3.6 Status Effects

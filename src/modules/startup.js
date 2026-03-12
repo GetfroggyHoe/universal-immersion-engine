@@ -120,6 +120,13 @@ export async function loadTemplates() {
         try { setTimeout(() => { void applyI18nBatch(document); }, 0); } catch (_) {}
         });
     }, 700);
+
+    // Scanner hooks must be initialized globally so scans work even before Social module is opened.
+    try {
+        import("./stateTracker.js").then((mod) => {
+            try { mod?.initAutoScanning?.(); } catch (_) {}
+        });
+    } catch (_) {}
 }
 
 export function patchToastr() {
@@ -425,6 +432,7 @@ export function injectSettingsUI() {
             autoScan: s2?.socialMeta?.autoScan === true,
             deletedNames: [],
         };
+        s2.worldState = {};
         s2.diary = {};
         s2.databank = {};
         s2.activities = {};

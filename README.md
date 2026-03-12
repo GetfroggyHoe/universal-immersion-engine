@@ -30,10 +30,14 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Gear menu toggles: disable tabs/functions, slot type categorization, leveling, and UI bars/stats
 - Status effects render as icons (no emojis) with smart, on-screen info popovers
 
-### War Room (Combat Tracking)
-- One-click scan that reads recent messages and converts them into combat state: enemies, hp/max hp, status effects, turn order, and a combat log
-- Optional post-battle rewards: can auto-generate items/currency/xp when combat ends (toggleable)
-- Optional dice rolling (default OFF): when enabled, rolls inject into chat so the next AI reply can react to outcomes
+### War Room (Chat-Driven Combat Assistant)
+- War Room reads recent chat and builds a combat snapshot (active/inactive state, enemies, HP, status effects, turn order, and timeline log).
+- Built for clarity, not hard rules: it helps you organize tactical info, but your story/AI still decides outcomes.
+- **Turn Planner:** queue member actions (skill + target + action text) and submit them as one **Battle Turn** context injection.
+- **Dice Tools:** roll expressions like `d20` or `2d6+1`; with Dice Influence enabled, results are injected so the next AI reply can react.
+- **Battle History Tabs:** review Combat events, Defeated enemies, Wins/Losses, and Deaths.
+- **Post-Battle Rewards (Manual Claim):** rewards are queued into an inbox when combat ends and only added after you claim them.
+- **Readiness Warnings:** alerts can fire when the party appears underprepared (low HP, weak lane coverage, dangerous enemy pressure).
 
 ### Party (RPG Party UI)
 - Fullscreen mobile Party window + fullscreen member sheet
@@ -93,7 +97,7 @@ UIE is a full immersion overlay for SillyTavern: an in-world UI layer that turns
 - Inventory → Gear: toggle tabs/functions, slot categories, leveling, UI bars
 - Inventory → Pencil: set per-tab backgrounds and character details
 - Inventory → Sparkle (Creation Station): choose **Container**, pick Bag/Chest/Container, describe contents, then review and **Save & Add** from staging cards
-- War Room: press Scan to sync combat state from the chat log
+- War Room: press Scan to sync combat state, review Turn Planner, submit Battle Turn, continue chat, then claim Rewards after combat
 - Map: use Map Actions → Generate (Instant)
 
 Built to sell immersion: fast to use, hard to break, and story-consistent by design.

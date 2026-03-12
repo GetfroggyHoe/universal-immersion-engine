@@ -250,7 +250,7 @@ async function applyEnchant() {
 
   selectedIds = new Set();
   addLog(`Applied ${name} to ${base.name} using ${used.map(x => x.name).join(", ")}`);
-  try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
+  try { const mod = await import("./equipment.js"); if (mod?.render) mod.render(); } catch (_) {}
   await injectRpEvent(`Enchanted ${base.name} with ${name}.`, { uie: { type: "enchant", item: base.name } });
 }
 

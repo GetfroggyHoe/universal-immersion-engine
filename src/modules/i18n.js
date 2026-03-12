@@ -1,11 +1,22 @@
 import { getContext } from "/scripts/extensions.js";
 
+const EXT_ID = "universal-immersion-engine";
+
 let bound = false;
 let langResyncTries = 0;
 let observerBound = false;
 let applyQueued = false;
 let stReverseBuiltForLang = "";
 let stReverseIndex = null;
+
+function getUieLangPreference() {
+    try {
+        const pref = String(window?.extension_settings?.[EXT_ID]?.ui?.lang || "").trim();
+        return pref;
+    } catch (_) {
+        return "";
+    }
+}
 
 function getI18nextInstance() {
     try {
@@ -518,6 +529,11 @@ function resolveUieKey(key, fallback) {
 
 export function getLang() {
     try {
+        const pref = getUieLangPreference();
+        if (pref && pref !== "auto") return pref;
+    } catch (_) {}
+
+    try {
         const st = getI18nextInstance();
         const stLang = String(st?.resolvedLanguage || st?.language || "");
         if (stLang) return stLang;
@@ -526,7 +542,34 @@ export function getLang() {
 }
 
 export function setLang(lang) {
-    try { void lang; } catch (_) {}
+    const next = String(lang || "auto").trim() || "auto";
+
+    try {
+        if (!window.extension_settings || typeof window.extension_settings !== "object") window.extension_settings = {};
+        const root = window.extension_settings;
+        if (!root[EXT_ID] || typeof root[EXT_ID] !== "object") root[EXT_ID] = {};
+        const s = root[EXT_ID];
+        if (!s.ui || typeof s.ui !== "object") s.ui = {};
+        s.ui.lang = next;
+    } catch (_) {}
+
+    try {
+        const ctx = getContext?.();
+        if (ctx?.saveSettingsDebounced) ctx.saveSettingsDebounced();
+        else if (ctx?.saveSettings) ctx.saveSettings();
+        else if (window.saveSettingsDebounced) window.saveSettingsDebounced();
+    } catch (_) {}
+
+    try {
+        for (const id of ["uie-lang-select", "uie-sw-lang-select"]) {
+            const el = document.getElementById(id);
+            if (!el) continue;
+            const hasVal = Array.from(el.options || []).some((o) => String(o.value || "") === next);
+            el.value = hasVal ? next : "auto";
+        }
+    } catch (_) {}
+
+    try { applyI18n(document); } catch (_) {}
 }
 
 export function t(key, fallback) {

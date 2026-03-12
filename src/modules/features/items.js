@@ -897,7 +897,7 @@ async function actOnItem(kind) {
     saveSettings();
     closeItemModal();
     render();
-    try { const mod = await import("./equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
+    try { const mod = await import("./equipment.js"); if (mod?.render) mod.render(); } catch (_) {}
     const msg = String(note || "").trim()
       ? `[System: User equipped ${name}. Stats updated.] (${String(note).trim()})`
       : `[System: User equipped ${name}. Stats updated.]`;

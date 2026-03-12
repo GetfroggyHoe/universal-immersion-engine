@@ -871,11 +871,15 @@ export function initImageUi() {
         const s = getSettings();
         const img = s.image || {};
         if (typeof img.enabled === "boolean") $("#uie-img-enable").prop("checked", img.enabled);
+        if (typeof img.enabled === "boolean") $("#uie-sw-img-enable").prop("checked", img.enabled);
         if (img.provider) $("#uie-img-provider").val(img.provider);
         if (img.url) $("#uie-img-url").val(img.url);
+        if (img.url) $("#uie-sw-img-url").val(img.url);
         if (img.key) $("#uie-img-key").val(img.key);
+        if (img.key) $("#uie-sw-img-key").val(img.key);
         if (img.model) {
             $("#uie-img-model").val(img.model);
+            $("#uie-sw-img-model").val(img.model);
             if ($("#uie-img-model-select option[value='" + img.model + "']").length) {
                 $("#uie-img-model-select").val(img.model);
             } else {
@@ -901,6 +905,15 @@ export function initImageUi() {
         $("#uie-img-url-adv").val(img.url || "");
         $("#uie-img-key-adv").val(img.key || "");
         $("#uie-img-model-adv").val(img.model || "");
+
+        const feats = (img.features && typeof img.features === "object") ? img.features : {};
+        $("#uie-img-map, #uie-sw-img-map").prop("checked", feats.map !== false);
+        $("#uie-img-doll, #uie-sw-img-doll").prop("checked", feats.doll !== false);
+        $("#uie-img-social, #uie-sw-img-social").prop("checked", feats.social !== false);
+        $("#uie-img-phone-bg, #uie-sw-img-phone-bg").prop("checked", feats.phoneBg !== false);
+        $("#uie-img-msg, #uie-sw-img-msg").prop("checked", feats.msg !== false);
+        $("#uie-img-party, #uie-sw-img-party").prop("checked", feats.party !== false);
+        $("#uie-img-items, #uie-sw-img-items").prop("checked", feats.items !== false);
     };
 
     const syncSetting = (updater) => {
@@ -1083,17 +1096,21 @@ export function initImageUi() {
         try { window.toastr?.success?.("Imported ComfyUI settings from SillyTavern."); } catch (_) {}
     });
 
-    $(document).off("change.uieImgEnable").on("change.uieImgEnable", "#uie-img-enable", function() {
-        syncSetting((img) => { img.enabled = $(this).is(":checked"); });
+    $(document).off("change.uieImgEnable").on("change.uieImgEnable", "#uie-img-enable, #uie-sw-img-enable", function() {
+        const on = $(this).is(":checked");
+        $("#uie-img-enable, #uie-sw-img-enable").prop("checked", on);
+        syncSetting((img) => { img.enabled = on; });
     });
 
-    $(document).off("input.uieImgUrl change.uieImgUrl").on("input.uieImgUrl change.uieImgUrl", "#uie-img-url, #uie-img-url-adv", function() {
+    $(document).off("input.uieImgUrl change.uieImgUrl").on("input.uieImgUrl change.uieImgUrl", "#uie-img-url, #uie-img-url-adv, #uie-sw-img-url", function() {
         const val = String($(this).val() || "").trim();
+        $("#uie-img-url, #uie-img-url-adv, #uie-sw-img-url").val(val);
         syncSetting((img) => { img.url = val; });
     });
 
-    $(document).off("input.uieImgKey change.uieImgKey").on("input.uieImgKey change.uieImgKey", "#uie-img-key, #uie-img-key-adv", function() {
+    $(document).off("input.uieImgKey change.uieImgKey").on("input.uieImgKey change.uieImgKey", "#uie-img-key, #uie-img-key-adv, #uie-sw-img-key", function() {
         const val = String($(this).val() || "").trim();
+        $("#uie-img-key, #uie-img-key-adv, #uie-sw-img-key").val(val);
         syncSetting((img) => { img.key = val; });
     });
 
@@ -1101,16 +1118,18 @@ export function initImageUi() {
         const val = String($(this).val() || "").trim();
         if (val && val !== "__custom__") {
             $("#uie-img-model").val(val);
+            $("#uie-sw-img-model").val(val);
             syncSetting((img) => { img.model = val; });
         }
     });
 
-    $(document).off("input.uieImgModel change.uieImgModel").on("input.uieImgModel change.uieImgModel", "#uie-img-model, #uie-img-model-adv", function() {
+    $(document).off("input.uieImgModel change.uieImgModel").on("input.uieImgModel change.uieImgModel", "#uie-img-model, #uie-img-model-adv, #uie-sw-img-model", function() {
         const val = String($(this).val() || "").trim();
         if (val) {
             if ($("#uie-img-model-select option[value='" + val + "']").length) $("#uie-img-model-select").val(val);
             else $("#uie-img-model-select").val("__custom__");
         }
+        $("#uie-img-model, #uie-img-model-adv, #uie-sw-img-model").val(val);
         syncSetting((img) => { img.model = val; });
     });
 

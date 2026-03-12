@@ -116,20 +116,20 @@
                             <option value="nvidia_nim">NVIDIA NIM</option>
                             <option value="custom">Custom</option>
                         </select>
-                        <button id="uie-turbo-preset-apply" title="Apply Preset" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">â†»</button>
+                        <button id="uie-turbo-preset-apply" title="Apply Preset" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-rotate-right"></i></button>
                     </div>
                 </div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-turbo-url" placeholder="https://openrouter.ai/api/v1/chat/completions (or http://127.0.0.1:1234/v1 , or https://integrate.api.nvidia.com/v1)" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
-                <div style="font-size:0.75em; color:#888; margin-top:6px;">Local endpoints (localhost/127.0.0.1) are supported; API Key can be left blank if your local server does not require auth. If you see â€œFailed to fetchâ€, enable SillyTavern's CORS proxy (enableCorsProxy) or use a local gateway.</div>
+                <div style="font-size:0.75em; color:#888; margin-top:6px;">Local endpoints (localhost/127.0.0.1) are supported; API Key can be left blank if your local server does not require auth. If you see "Failed to fetch", enable SillyTavern's CORS proxy (enableCorsProxy) or use a local gateway.</div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">API Key</label><input type="password" id="uie-turbo-key" placeholder="sk-..." style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
                 <div class="uie-control-group" style="margin-top:8px;">
                     <label style="font-size:0.8em;">Model</label>
                     <div style="display:flex; gap:6px;">
                         <select id="uie-turbo-model-select" style="flex:1; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
                             <option value="">(Refresh to load models)</option>
-                            <option value="__custom__">Customâ€¦</option>
+                            <option value="__custom__">Custom...</option>
                         </select>
-                        <button id="uie-turbo-model-refresh" title="Refresh Models" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">â†»</button>
+                        <button id="uie-turbo-model-refresh" title="Refresh Models" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-rotate-right"></i></button>
                     </div>
                 </div>
                 <div class="uie-control-group"><label style="font-size:0.8em;">Custom Model ID</label><input type="text" id="uie-turbo-model" placeholder="google/gemini-2.0-flash-exp" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
@@ -141,7 +141,7 @@
                 <div class="uie-control-group" style="margin-top:6px;">
                     <label style="font-size:0.8em;">Provider</label>
                     <select id="uie-img-provider" style="width:100%; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
-                        <option value="openai">OpenAI-compatible (DALLÂ·E / gpt-image-1)</option>
+                        <option value="openai">OpenAI-compatible (DALL-E / gpt-image-1)</option>
                         <option value="comfy">ComfyUI (Local)</option>
                         <option value="sdwebui">SD WebUI (Local)</option>
                         <option value="custom">Custom / Advanced</option>
@@ -158,7 +158,7 @@
                                 <option value="nvidia_nim">NVIDIA NIM (OpenAI-compatible)</option>
                                 <option value="custom">Custom</option>
                             </select>
-                            <button id="uie-img-preset-apply" title="Apply Preset" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">â†»</button>
+                            <button id="uie-img-preset-apply" title="Apply Preset" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-rotate-right"></i></button>
                         </div>
                     </div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">Endpoint</label><input type="text" id="uie-img-url" placeholder="https://api.openai.com/v1/images/generations" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
@@ -172,7 +172,7 @@
                             <option value="hidream">hidream (NanoGPT)</option>
                             <option value="stabilityai/stable-diffusion-3.5-large">stabilityai/stable-diffusion-3.5-large</option>
                             <option value="stabilityai/stable-diffusion-3.5-large-turbo">stabilityai/stable-diffusion-3.5-large-turbo</option>
-                            <option value="__custom__">Customâ€¦</option>
+                            <option value="__custom__">Custom...</option>
                         </select>
                     </div>
                     <div class="uie-control-group"><label style="font-size:0.8em;">Custom Model ID</label><input type="text" id="uie-img-model" placeholder="dall-e-3" style="width:100%; background:#222; border:1px solid #444; color:#fff; padding:3px;"></div>
@@ -185,7 +185,7 @@
                     <div class="uie-control-group" style="margin-top:8px;">
                         <label style="font-size:0.8em;">Import</label>
                         <select id="uie-img-comfy-import" style="width:100%; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
-                            <option value="">(Chooseâ€¦)</option>
+                            <option value="">(Choose...)</option>
                             <option value="st">Import from SillyTavern settings</option>
                         </select>
                     </div>
@@ -195,7 +195,7 @@
                             <select id="uie-img-comfy-ckpt" style="flex:1; background:#222; border:1px solid #444; color:#fff; padding:6px; border-radius:8px;">
                                 <option value="">(Click refresh to detect)</option>
                             </select>
-                            <button id="uie-img-comfy-ckpt-refresh" title="Detect Checkpoints" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">â†»</button>
+                            <button id="uie-img-comfy-ckpt-refresh" title="Detect Checkpoints" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-rotate-right"></i></button>
                         </div>
                     </div>
                     <div class="uie-control-group" style="margin-top:8px;">
@@ -352,7 +352,7 @@
                     <select id="uie-st-preset-select" style="flex:1; height:36px; background:#222; border:1px solid #444; color:#fff; padding:0 10px; border-radius:8px;">
                         <option value="">(Loading...)</option>
                     </select>
-                    <button id="uie-st-preset-refresh" title="Refresh Presets" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;">â†»</button>
+                    <button id="uie-st-preset-refresh" title="Refresh Presets" style="width:44px; background:#333; border:1px solid #555; color:#fff; border-radius:8px; cursor:pointer;"><i class="fa-solid fa-rotate-right"></i></button>
                 </div>
                 <div style="margin-top:10px; font-size:0.8em; color:#888;">
                     Select a preset to instantly switch SillyTavern's main connection settings.

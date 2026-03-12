@@ -8,6 +8,7 @@ import { notify } from "./notifications.js";
 let chatObserver = null;
 let reverseSyncInt = null;
 let chatSyncInited = false;
+let lastSwipeAction = { key: "", at: 0 };
 
 export function initChatSync() {
     if (chatSyncInited) return;
@@ -159,6 +160,24 @@ function cloneMessage(stMsg, reChatLog) {
 
     // Swipe
     const btnSwipe = createCtrlBtn("fa-rotate", "Swipe", () => {
+        const now = Date.now();
+        const mesKey = String(
+            stMsg.getAttribute("mesid") ||
+            stMsg.getAttribute("data-mesid") ||
+            stMsg.getAttribute("data-id") ||
+            ""
+        ).trim();
+        const fallbackKey = String(
+            stMsg.querySelector?.(".mes_text, .mes-text")?.textContent ||
+            stMsg.textContent ||
+            ""
+        ).trim().slice(0, 120);
+        const guardKey = mesKey || fallbackKey || "dom_message";
+        if (lastSwipeAction.key === guardKey && (now - Number(lastSwipeAction.at || 0) < 900)) {
+            return;
+        }
+        lastSwipeAction = { key: guardKey, at: now };
+
         const clickFirst = (root, selectors) => {
             for (const sel of selectors) {
                 try {
@@ -172,8 +191,13 @@ function cloneMessage(stMsg, reChatLog) {
             return false;
         };
 
-        // Prefer controls that request a fresh generation.
-        if (clickFirst(stMsg, [".mes_regenerate", ".swipe_right"])) return;
+        // Prefer explicit regenerate controls to request a fresh response.
+        if (clickFirst(stMsg, [
+            ".mes_regenerate",
+            ".mes_regen",
+            "[data-action='regenerate']",
+            "[data-testid='regenerate']"
+        ])) return;
 
         // Global fallback for varying ST layouts.
         clickFirst(document, [

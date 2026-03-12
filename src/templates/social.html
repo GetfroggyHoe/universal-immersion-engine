@@ -153,7 +153,16 @@
             text-shadow: 0 0 5px rgba(255,171,64,0.6);
         }
 
-        #uie-social-window #uie-social-content { min-height: 0; overflow: auto; background: rgba(0,0,0,0.02); padding: 15px; }
+        #uie-social-window #uie-social-content {
+            min-height: 0;
+            flex: 1 1 auto;
+            max-height: none;
+            overflow: auto;
+            -webkit-overflow-scrolling: touch;
+            background: rgba(0,0,0,0.02);
+            padding: 15px;
+            padding-bottom: 72px;
+        }
 
         #uie-social-window .uie-social-grid{
             display: grid;
@@ -316,6 +325,15 @@
             #uie-social-window {
                 width: 96vw;
                 max-height: 80vh;
+            }
+            #uie-social-window .uie-dropdown {
+                right: 8px;
+                top: 42px;
+                max-width: calc(100vw - 24px);
+            }
+            #uie-social-window #uie-social-content {
+                padding: 12px;
+                padding-bottom: 80px;
             }
             #uie-social-window .uie-social-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }

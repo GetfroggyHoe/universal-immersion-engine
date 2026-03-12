@@ -1038,7 +1038,7 @@
             </select>
           </div>
 
-          <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-left:4px;">
+          <div id="uie-create-gen-img-row" style="display:flex; align-items:center; gap:8px; margin-bottom:10px; padding-left:4px;">
              <label style="display:flex; align-items:center; gap:6px; font-size:0.85em; opacity:0.9; cursor:pointer;">
                  <input type="checkbox" id="uie-create-gen-img"> <span data-i18n="inv.create.generate_image">Generate Image</span>
              </label>
@@ -1088,6 +1088,23 @@
             </div>
           </div>
         </div>
+        <style>
+          @media (max-width: 700px), (pointer: coarse) {
+            #uie-class-reset-modal {
+              align-items: flex-end !important;
+              justify-content: center !important;
+              padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)) !important;
+            }
+            #uie-class-reset-modal .uie-class-reset-box {
+              width: min(640px, 100%) !important;
+              min-width: 0 !important;
+              max-height: calc(100dvh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+              overflow: auto;
+              border-radius: 16px 16px 12px 12px !important;
+              padding: 16px !important;
+            }
+          }
+        </style>
         <div class="uie-inv-icon" id="uie-inv-gear" title="Inventory Settings" data-i18n-title="inv.settings"><i class="fa-solid fa-gear"></i></div>
         <div id="uie-inv-gear-menu" style="display:none; position:absolute; top:70px; right:124px; width:280px; border-radius:14px; border:1px solid rgba(225,193,122,0.25); background:rgba(10,6,5,0.92); backdrop-filter: blur(6px); padding:10px; z-index:2147483670;">
           <div style="padding:8px; border-radius:10px; background:rgba(255,255,255,0.08); margin-bottom:10px; cursor:pointer; display:flex; align-items:center; gap:8px; font-weight:900; color:#cba35c;" onclick="uie.phone.openBooksGuide('guide-inventory');"><i class="fa-solid fa-circle-info"></i> <span data-i18n="inv.help_guide">Help / Guide</span></div>

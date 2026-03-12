@@ -1,6 +1,5 @@
 ﻿import { getSettings, saveSettings, isMobileUI, updateLayout } from "./core.js";
 import { initDragging } from "./dragging.js";
-import { initBattle, renderBattle } from "./battle.js";
 import { init as initInventory } from "./features/items.js";
 import { initShop } from "./shop.js";
 import { notify } from "./notifications.js";
@@ -10,12 +9,23 @@ let uieMenuTabSwitchedAt = 0;
 
 let uieBattlePopupBridgeInited = false;
 let uieBattlePopupLastOpenAt = 0;
+let battleModulePromise = null;
+
+async function getBattleModule() {
+    if (!battleModulePromise) {
+        battleModulePromise = import("./battle.js").catch((err) => {
+            battleModulePromise = null;
+            throw err;
+        });
+    }
+    return await battleModulePromise;
+}
 
 function initBattlePopupBridge() {
     if (uieBattlePopupBridgeInited) return;
     uieBattlePopupBridgeInited = true;
 
-    window.addEventListener("uie:battle_detected", function () {
+    window.addEventListener("uie:battle_detected", async function () {
         try {
             const s = getSettings();
             if (!s || s.enabled === false) return;
@@ -38,8 +48,11 @@ function initBattlePopupBridge() {
             }
 
             openWindow("#uie-battle-window");
-            try { initBattle(); } catch (_) {}
-            try { renderBattle(); } catch (_) {}
+            try {
+                const battle = await getBattleModule();
+                try { battle?.initBattle?.(); } catch (_) {}
+                try { battle?.renderBattle?.(); } catch (_) {}
+            } catch (_) {}
             try { notify("warning", "Combat detected. War Room opened.", "War Room", "api"); } catch (_) {}
         } catch (_) {}
     });
@@ -48,7 +61,11 @@ function initBattlePopupBridge() {
         try {
             const $win = $("#uie-battle-window");
             if (!$win.length || !$win.is(":visible")) return;
-            renderBattle();
+            getBattleModule()
+                .then((battle) => {
+                    try { battle?.renderBattle?.(); } catch (_) {}
+                })
+                .catch(() => {});
         } catch (_) {}
     };
 
@@ -290,6 +307,28 @@ function initMobileBackNav() {
 
     const closeTopmostOverlay = () => {
         try {
+            const kitchen = document.getElementById("uie-kitchen-overlay");
+            if (kitchen) {
+                const kd = String(getComputedStyle(kitchen).display || "none");
+                if (kd !== "none") {
+                    try {
+                        const btn = document.getElementById("uie-kitchen-exit");
+                        if (btn) {
+                            btn.click();
+                            return true;
+                        }
+                    } catch (_) {}
+                    try {
+                        if (typeof window.UIE_closeKitchen === "function") {
+                            window.UIE_closeKitchen();
+                            return true;
+                        }
+                    } catch (_) {}
+                    try { $(kitchen).hide(); } catch (_) { try { kitchen.style.display = "none"; } catch (_) {} }
+                    return true;
+                }
+            }
+
             const ids = [
                 "re-quick-modal",
                 "re-vn-settings-modal",
@@ -303,6 +342,17 @@ function initMobileBackNav() {
                 if (!el) continue;
                 const disp = String(getComputedStyle(el).display || "none");
                 if (disp === "none") continue;
+
+                if (id === "uie-create-overlay") {
+                    try {
+                        const btn = document.getElementById("uie-create-overlay-exit");
+                        if (btn) {
+                            btn.click();
+                            return true;
+                        }
+                    } catch (_) {}
+                }
+
                 try { $(el).hide(); } catch (_) { try { el.style.display = "none"; } catch (_) {} }
                 return true;
             }
@@ -425,6 +475,26 @@ function getMenuHidden() {
     return (hid && typeof hid === "object") ? hid : {};
 }
 
+function getMenuVisibilityMap() {
+    return {
+        "uie-hide-inventory": "inventory",
+        "uie-hide-shop": "shop",
+        "uie-hide-journal": "journal",
+        "uie-hide-diary": "diary",
+        "uie-hide-social": "social",
+        "uie-hide-party": "party",
+        "uie-hide-battle": "battle",
+        "uie-hide-phone": "phone",
+        "uie-hide-map": "map",
+        "uie-hide-calendar": "calendar",
+        "uie-hide-databank": "databank",
+        "uie-hide-world": "world",
+        "uie-hide-settings": "settings",
+        "uie-hide-debug": "debug",
+        "uie-hide-help": "help",
+    };
+}
+
 function applyMenuHiddenToButtons() {
     try {
         const hid = getMenuHidden();
@@ -465,23 +535,7 @@ function applyMenuHiddenToButtons() {
 function syncMenuVisibilityCheckboxes() {
     try {
         const hid = getMenuHidden();
-        const map = {
-            "uie-hide-inventory": "inventory",
-            "uie-hide-shop": "shop",
-            "uie-hide-journal": "journal",
-            "uie-hide-diary": "diary",
-            "uie-hide-social": "social",
-            "uie-hide-party": "party",
-            "uie-hide-battle": "battle",
-            "uie-hide-phone": "phone",
-            "uie-hide-map": "map",
-            "uie-hide-calendar": "calendar",
-            "uie-hide-databank": "databank",
-            "uie-hide-world": "world",
-            "uie-hide-settings": "settings",
-            "uie-hide-debug": "debug",
-            "uie-hide-help": "help",
-        };
+        const map = getMenuVisibilityMap();
         for (const id of Object.keys(map)) {
             const key = map[id];
             const el = document.getElementById(id);
@@ -962,8 +1016,9 @@ function initGenericHandlers() {
         "#uie-sprites-close", "#uie-map-card-close", ".uie-sticker-close",
         "#uie-chatbox-close", "#uie-chatbox-options-close",
         "#uie-stats-close-btn", "#uie-inv-editor-close", "#uie-fx-close",
+        "#uie-create-overlay-exit",
         "#life-create-close", "#life-edit-close", "#life-template-close",
-        "#uie-item-modal-close", "#uie-battle-close",
+        "#uie-battle-close",
         "#uie-launcher-opt-close",
         "#life-create-cancel",
         "#uie-diary-close", "#uie-databank-close", "#uie-journal-close"
@@ -972,6 +1027,38 @@ function initGenericHandlers() {
     let lastPointerTime = 0;
     // SCOPED FIX: Use body instead of document to catch events before they hit the document-level blocker
     $("body").off("click.uieGenericClose pointerup.uieGenericClose", selectors).on("click.uieGenericClose pointerup.uieGenericClose", selectors, function(e) {
+        const closeId = String(this?.id || "");
+        if (closeId === "uie-create-overlay-exit") {
+            e.preventDefault();
+            e.stopPropagation();
+            try { e.stopImmediatePropagation(); } catch (_) {}
+            try {
+                if (typeof window.UIE_closeCreateOverlay === "function") {
+                    window.UIE_closeCreateOverlay();
+                } else {
+                    const ov = document.getElementById("uie-create-overlay");
+                    if (ov) {
+                        try { ov.style.setProperty("display", "none", "important"); } catch (_) { ov.style.display = "none"; }
+                    }
+                    const body = document.getElementById("uie-create-overlay-body");
+                    if (body) {
+                        body.style.background = "transparent";
+                        body.innerHTML = "";
+                    }
+                }
+            } catch (_) {}
+            return;
+        }
+
+        if (
+            closeId === "uie-create-overlay-exit" ||
+            closeId === "uie-kitchen-exit" ||
+            closeId === "uie-k-pick-close" ||
+            $(this).is(".uie-create-close")
+        ) {
+            return;
+        }
+
         // Mobile Double-Click Fix: De-dup pointerup vs click
         if (e.type === "pointerup") {
             lastPointerTime = Date.now();
@@ -1220,7 +1307,7 @@ function initMenuButtons() {
     // Battle
     $menu.off("click.uieMenuBattle").on("click.uieMenuBattle", "#uie-btn-battle", async function() {
         openWindow("#uie-battle-window");
-        try { (await import("./battle.js")).initBattle?.(); } catch (_) {}
+        try { (await getBattleModule())?.initBattle?.(); } catch (_) {}
     });
 
     // Settings
@@ -1547,11 +1634,10 @@ function initMenuTabs() {
         // Force a save after ST handlers apply settings.
         setTimeout(() => {
             try {
-                if (window.saveSettingsDebounced) window.saveSettingsDebounced();
-                else {
-                    const ctx = getContext?.();
-                    if (ctx?.saveSettings) ctx.saveSettings();
-                }
+                const ctx = getContext?.();
+                if (ctx?.saveSettingsDebounced) ctx.saveSettingsDebounced();
+                else if (ctx?.saveSettings) ctx.saveSettings();
+                else if (window.saveSettingsDebounced) window.saveSettingsDebounced();
             } catch (_) {}
         }, 120);
 
@@ -1565,6 +1651,234 @@ function initMenuTabs() {
 
     // Scan Now Button (Moved to Wand Menu)
     // Handler removed from here as the button was removed from settings.
+
+    const popupCategoryById = {
+        "uie-pop-quests-accepted": "questsAccepted",
+        "uie-pop-quests-abandoned": "questsAbandoned",
+        "uie-pop-quests-failed": "questsFailed",
+        "uie-pop-quests-completed": "questsCompleted",
+        "uie-pop-phone-calls": "phoneCalls",
+        "uie-pop-phone-messages": "phoneMessages",
+        "uie-pop-loot": "loot",
+        "uie-pop-currency": "currency",
+        "uie-pop-xp": "xp",
+        "uie-pop-levelup": "levelUp",
+        "uie-pop-postbattle": "postBattle",
+        "uie-pop-api": "api",
+        "uie-pop-social": "social",
+        "uie-pop-lowhp-enabled": "lowHp",
+    };
+
+    const ensureUiCustomization = (s) => {
+        if (!s.ui || typeof s.ui !== "object") s.ui = {};
+        if (!s.ui.css || typeof s.ui.css !== "object") s.ui.css = { global: "", stats: "", activities: "", byTarget: {} };
+        if (typeof s.ui.css.global !== "string") s.ui.css.global = "";
+        if (typeof s.ui.css.stats !== "string") s.ui.css.stats = "";
+        if (typeof s.ui.css.activities !== "string") s.ui.css.activities = "";
+        if (!s.ui.css.byTarget || typeof s.ui.css.byTarget !== "object") s.ui.css.byTarget = {};
+        if (!s.ui.backgrounds || typeof s.ui.backgrounds !== "object") s.ui.backgrounds = {};
+        return s.ui;
+    };
+
+    const ensureNotificationsSettings = (s) => {
+        if (!s.ui || typeof s.ui !== "object") s.ui = {};
+        if (s.ui.showPopups === undefined) s.ui.showPopups = true;
+        if (!s.ui.notifications || typeof s.ui.notifications !== "object") s.ui.notifications = {};
+        const n = s.ui.notifications;
+        if (!n.categories || typeof n.categories !== "object") n.categories = {};
+        if (!n.lowHp || typeof n.lowHp !== "object") n.lowHp = { enabled: false, threshold: 0.25, lastWarnAt: 0 };
+        if (n.lowHp.enabled === undefined) n.lowHp.enabled = false;
+        if (!Number.isFinite(Number(n.lowHp.threshold))) n.lowHp.threshold = 0.25;
+        if (!n.postBattle || typeof n.postBattle !== "object") n.postBattle = { enabled: false, lastSig: "" };
+        if (n.postBattle.enabled === undefined) n.postBattle.enabled = false;
+        if (!n.cssByCategory || typeof n.cssByCategory !== "object") n.cssByCategory = {};
+        if (typeof n.css !== "string") n.css = "";
+        return n;
+    };
+
+    const ensureMemSettings = (s) => {
+        if (!s.memories || typeof s.memories !== "object") s.memories = {};
+        if (typeof s.memories.auto !== "boolean") s.memories.auto = false;
+        return s.memories;
+    };
+
+    const ensureRpgToggleSettings = (s) => {
+        if (!s.rpg || typeof s.rpg !== "object") s.rpg = {};
+        if (typeof s.rpg.enabled !== "boolean") s.rpg.enabled = true;
+        if (typeof s.rpg.xpbar !== "boolean") s.rpg.xpbar = true;
+        if (typeof s.rpg.equipment !== "boolean") s.rpg.equipment = true;
+        if (typeof s.rpg.skills !== "boolean") s.rpg.skills = true;
+        if (typeof s.rpg.party !== "boolean") s.rpg.party = true;
+        if (typeof s.rpg.permadeath !== "boolean") s.rpg.permadeath = false;
+        return s.rpg;
+    };
+
+    const popupScopeToKey = (scopeRaw) => {
+        const scope = String(scopeRaw || "global").trim();
+        return scope || "global";
+    };
+
+    const getPopupCssForScope = (s, scopeRaw) => {
+        const n = ensureNotificationsSettings(s);
+        const scope = popupScopeToKey(scopeRaw);
+        if (scope === "global") return String(n.css || "");
+        return String(n.cssByCategory?.[scope] || "");
+    };
+
+    const setPopupCssForScope = (s, scopeRaw, cssRaw) => {
+        const n = ensureNotificationsSettings(s);
+        const scope = popupScopeToKey(scopeRaw);
+        const css = String(cssRaw || "").trim();
+        if (scope === "global") {
+            n.css = css;
+            return;
+        }
+        if (!n.cssByCategory || typeof n.cssByCategory !== "object") n.cssByCategory = {};
+        if (!css) delete n.cssByCategory[scope];
+        else n.cssByCategory[scope] = css;
+    };
+
+    const popupScopeClass = (scopeRaw) => String(scopeRaw || "").replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
+
+    const popupCssBlock = (scopeRaw, cssRaw) => {
+        const scope = popupScopeToKey(scopeRaw);
+        const css = String(cssRaw || "").trim();
+        if (!css) return "";
+        if (scope === "global") return css;
+        if (/[{}]/.test(css)) return css;
+        return `#toast-container .toast-uie-cat-${popupScopeClass(scope)} { ${css} }`;
+    };
+
+    const applyPopupCssFromSettings = () => {
+        try {
+            const s = getSettings();
+            const n = ensureNotificationsSettings(s);
+            const parts = [];
+            const globalCss = popupCssBlock("global", n.css || "");
+            if (globalCss) parts.push(globalCss);
+            const scoped = n.cssByCategory && typeof n.cssByCategory === "object" ? n.cssByCategory : {};
+            for (const [scope, raw] of Object.entries(scoped)) {
+                const block = popupCssBlock(scope, raw);
+                if (block) parts.push(block);
+            }
+
+            const finalCss = parts.join("\n\n").trim();
+            let styleEl = document.getElementById("uie-popup-css-style");
+            if (!finalCss) {
+                if (styleEl) styleEl.remove();
+                return;
+            }
+            if (!styleEl) {
+                styleEl = document.createElement("style");
+                styleEl.id = "uie-popup-css-style";
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent = finalCss;
+        } catch (_) {}
+    };
+
+    const styleTargetSelectors = {
+        menu: "#uie-main-menu",
+        inventory: "#uie-inventory-window",
+        shop: "#uie-shop-window",
+        journal: "#uie-journal-window",
+        diary: "#uie-diary-window",
+        social: "#uie-social-window",
+        party: "#uie-party-window",
+        phone: "#uie-phone-window",
+        map: "#uie-map-window",
+    };
+
+    const cssTargetSelectors = {
+        global: "",
+        menu: "#uie-main-menu",
+        inventory: "#uie-inventory-window",
+        shop: "#uie-shop-window",
+        journal: "#uie-journal-window",
+        diary: "#uie-diary-window",
+        social: "#uie-social-window",
+        party: "#uie-party-window",
+        phone: "#uie-phone-window",
+        map: "#uie-map-window",
+    };
+
+    const toScopedCss = (selector, cssRaw) => {
+        const css = String(cssRaw || "").trim();
+        if (!css) return "";
+        if (!selector) return css;
+        if (/[{}]/.test(css)) return css;
+        return `${selector} { ${css} }`;
+    };
+
+    const applyCustomCssFromSettings = () => {
+        try {
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            const css = ui.css || {};
+            const byTarget = css.byTarget && typeof css.byTarget === "object" ? css.byTarget : {};
+
+            const parts = [];
+            if (String(css.global || "").trim()) parts.push(String(css.global || ""));
+            const statsBlock = toScopedCss("#uie-stats-window", css.stats || "");
+            if (statsBlock) parts.push(statsBlock);
+            const activitiesBlock = toScopedCss("#uie-activities-window", css.activities || "");
+            if (activitiesBlock) parts.push(activitiesBlock);
+
+            for (const [target, raw] of Object.entries(byTarget)) {
+                const selector = cssTargetSelectors[String(target || "")] || "";
+                const block = toScopedCss(selector, raw);
+                if (block) parts.push(block);
+            }
+
+            const finalCss = parts.join("\n\n").trim();
+            let styleEl = document.getElementById("uie-custom-css-style");
+            if (!finalCss) {
+                if (styleEl) styleEl.remove();
+                return;
+            }
+            if (!styleEl) {
+                styleEl = document.createElement("style");
+                styleEl.id = "uie-custom-css-style";
+                document.head.appendChild(styleEl);
+            }
+            styleEl.textContent = finalCss;
+        } catch (_) {}
+    };
+
+    const applyBackgroundsFromSettings = () => {
+        try {
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            const bg = ui.backgrounds && typeof ui.backgrounds === "object" ? ui.backgrounds : {};
+            for (const [target, selector] of Object.entries(styleTargetSelectors)) {
+                const val = String(bg?.[target] || "").trim();
+                if (!selector) continue;
+                if (val) {
+                    $(selector).css({
+                        backgroundImage: `url("${val}")`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        backgroundRepeat: "no-repeat",
+                    });
+                } else {
+                    $(selector).css({
+                        backgroundImage: "",
+                        backgroundSize: "",
+                        backgroundPosition: "",
+                        backgroundRepeat: "",
+                    });
+                }
+            }
+        } catch (_) {}
+    };
+
+    const syncPopupCssEditorFromScope = () => {
+        try {
+            const s = getSettings();
+            const scope = String($("#uie-popup-css-scope").val() || "global");
+            $("#uie-popup-css-text").val(getPopupCssForScope(s, scope));
+        } catch (_) {}
+    };
 
     const syncKillSwitchUi = () => {
         try {
@@ -1590,6 +1904,8 @@ function initMenuTabs() {
             const s = getSettings();
             if (!s) return;
 
+            if (!s.ui || typeof s.ui !== "object") s.ui = {};
+
             // AI allow toggles
             if (!s.ai || typeof s.ai !== "object") s.ai = {};
             $("#uie-ai-phone-browser").prop("checked", s.ai.phoneBrowser !== false);
@@ -1602,6 +1918,18 @@ function initMenuTabs() {
             $("#uie-ai-map").prop("checked", s.ai.map !== false);
             $("#uie-ai-shop").prop("checked", s.ai.shop !== false);
             $("#uie-ai-loot").prop("checked", s.ai.loot !== false);
+            $("#uie-sw-ai-phone-browser").prop("checked", s.ai.phoneBrowser !== false);
+            $("#uie-sw-ai-phone-messages").prop("checked", s.ai.phoneMessages !== false);
+            $("#uie-sw-ai-phone-calls").prop("checked", s.ai.phoneCalls !== false);
+            $("#uie-sw-ai-app-builder").prop("checked", s.ai.appBuilder !== false);
+            $("#uie-sw-ai-books").prop("checked", s.ai.books !== false);
+            $("#uie-sw-ai-journal-quests").prop("checked", s.ai.journalQuestGen !== false);
+            $("#uie-sw-ai-databank").prop("checked", s.ai.databankScan !== false);
+            $("#uie-sw-ai-map").prop("checked", s.ai.map !== false);
+            $("#uie-sw-ai-shop").prop("checked", s.ai.shop !== false);
+            $("#uie-sw-ai-loot").prop("checked", s.ai.loot !== false);
+            $("#uie-ai-journal-gen").prop("checked", s.ai.journalQuestGen !== false);
+            $("#uie-ai-map-gen").prop("checked", s.ai.map !== false);
 
             if (!s.generation || typeof s.generation !== "object") s.generation = {};
             $("#uie-gen-require-confirm").prop("checked", s.generation.requireConfirmUnverified === true);
@@ -1654,26 +1982,90 @@ function initMenuTabs() {
                 lSel.value = has ? lSrc : "custom";
             }
 
-            // ComfyUI / Image Gen
-            if (s.imgGen) {
-                $("#uie-img-enable").prop("checked", s.imgGen.enabled === true);
-                $("#uie-img-provider").val(s.imgGen.provider || "openai");
-
-                // Show/Hide blocks
-                const prov = s.imgGen.provider || "openai";
-                $("#uie-img-openai-block").toggle(prov === "openai");
-                $("#uie-img-comfy-block").toggle(prov === "comfy");
-                $("#uie-img-sdwebui-block").toggle(prov === "sdwebui");
-
-                if (s.imgGen.comfy) {
-                    $("#uie-img-comfy-base").val(s.imgGen.comfy.baseUrl || "");
-                    $("#uie-img-comfy-key").val(s.imgGen.comfy.apiKey || "");
-                    $("#uie-img-comfy-workflow").val(s.imgGen.comfy.workflow || "");
-                    $("#uie-img-comfy-posnode").val(s.imgGen.comfy.nodeIds?.positive || "");
-                    $("#uie-img-comfy-negnode").val(s.imgGen.comfy.nodeIds?.negative || "");
-                    $("#uie-img-comfy-outnode").val(s.imgGen.comfy.nodeIds?.output || "");
-                }
+            // Settings window: language + menu visibility + memory
+            const langPref = String(s?.ui?.lang || "auto");
+            const langSel = document.getElementById("uie-sw-lang-select");
+            if (langSel) {
+                const hasPref = Array.from(langSel.options || []).some((o) => String(o.value || "") === langPref);
+                langSel.value = hasPref ? langPref : "auto";
             }
+            syncMenuVisibilityCheckboxes();
+            const mem = ensureMemSettings(s);
+            $("#uie-mem-auto").prop("checked", mem.auto === true);
+
+            const rpg = ensureRpgToggleSettings(s);
+            $("#uie-rpg-enable").prop("checked", rpg.enabled === true);
+            $("#uie-rpg-xpbar").prop("checked", rpg.xpbar === true);
+            $("#uie-rpg-equipment").prop("checked", rpg.equipment === true);
+            $("#uie-rpg-skills").prop("checked", rpg.skills === true);
+            $("#uie-rpg-party").prop("checked", rpg.party === true);
+            $("#uie-check-permadeath").prop("checked", rpg.permadeath === true);
+
+            // Popup settings
+            const n = ensureNotificationsSettings(s);
+            for (const [id, key] of Object.entries(popupCategoryById)) {
+                const on = key === "lowHp"
+                    ? n.lowHp?.enabled === true
+                    : n.categories?.[key] !== false;
+                $("#" + id).prop("checked", on);
+            }
+            $("#uie-postbattle-generate").prop("checked", n.postBattle?.enabled === true);
+            const lowHpThreshold = Math.max(0.05, Math.min(0.9, Number(n.lowHp?.threshold || 0.25)));
+            $("#uie-pop-lowhp-threshold").val(String(lowHpThreshold));
+            const cssScopeEl = document.getElementById("uie-popup-css-scope");
+            if (cssScopeEl && !String(cssScopeEl.value || "").trim()) cssScopeEl.value = "global";
+            syncPopupCssEditorFromScope();
+            applyPopupCssFromSettings();
+
+            // Custom style/background settings
+            const ui = ensureUiCustomization(s);
+            const cssTarget = String($("#uie-css-target").val() || "global");
+            if (document.getElementById("uie-style-css")) {
+                const cssByTarget = ui.css.byTarget && typeof ui.css.byTarget === "object" ? ui.css.byTarget : {};
+                $("#uie-style-css").val(String(cssByTarget[cssTarget] || ""));
+            }
+            $("#uie-custom-css").val(String(ui.css.global || ""));
+            $("#uie-custom-css-stats").val(String(ui.css.stats || ""));
+            $("#uie-custom-css-activities").val(String(ui.css.activities || ""));
+            const bgTarget = String($("#uie-bg-target").val() || "menu");
+            if (document.getElementById("uie-bg-url")) {
+                $("#uie-bg-url").val(String(ui.backgrounds?.[bgTarget] || ""));
+            }
+            applyCustomCssFromSettings();
+            applyBackgroundsFromSettings();
+
+            // ComfyUI / Image Gen
+            if (!s.image || typeof s.image !== "object") s.image = {};
+            const img = s.image;
+            $("#uie-img-enable, #uie-sw-img-enable").prop("checked", img.enabled === true);
+            $("#uie-img-provider").val(img.provider || "openai");
+            $("#uie-sw-img-url").val(String(img.url || ""));
+            $("#uie-sw-img-key").val(String(img.key || ""));
+            $("#uie-sw-img-model").val(String(img.model || ""));
+
+            // Show/Hide blocks
+            const prov = img.provider || "openai";
+            $("#uie-img-openai-block").toggle(prov === "openai");
+            $("#uie-img-comfy-block").toggle(prov === "comfy");
+            $("#uie-img-sdwebui-block").toggle(prov === "sdwebui");
+
+            if (img.comfy && typeof img.comfy === "object") {
+                $("#uie-img-comfy-base").val(img.comfy.base || "");
+                $("#uie-img-comfy-key").val(img.comfy.key || "");
+                $("#uie-img-comfy-workflow").val(img.comfy.workflow || "");
+                $("#uie-img-comfy-posnode").val(img.comfy.positiveNodeId || "");
+                $("#uie-img-comfy-negnode").val(img.comfy.negativeNodeId || "");
+                $("#uie-img-comfy-outnode").val(img.comfy.outputNodeId || "");
+            }
+
+            const feats = (img.features && typeof img.features === "object") ? img.features : {};
+            $("#uie-img-map, #uie-sw-img-map").prop("checked", feats.map !== false);
+            $("#uie-img-doll, #uie-sw-img-doll").prop("checked", feats.doll !== false);
+            $("#uie-img-social, #uie-sw-img-social").prop("checked", feats.social !== false);
+            $("#uie-img-phone-bg, #uie-sw-img-phone-bg").prop("checked", feats.phoneBg !== false);
+            $("#uie-img-msg, #uie-sw-img-msg").prop("checked", feats.msg !== false);
+            $("#uie-img-party, #uie-sw-img-party").prop("checked", feats.party !== false);
+            $("#uie-img-items, #uie-sw-img-items").prop("checked", feats.items !== false);
 
         } catch (_) {}
     };
@@ -1723,6 +2115,45 @@ function initMenuTabs() {
         if (!s.ui || typeof s.ui !== "object") s.ui = {};
         s.ui.showPopups = on === true;
         saveSettings();
+        $("[id='uie-show-popups']").prop("checked", on === true);
+    };
+
+    const aiSelectorsByKey = {
+        phoneBrowser: "#uie-ai-phone-browser, #uie-sw-ai-phone-browser",
+        phoneMessages: "#uie-ai-phone-messages, #uie-sw-ai-phone-messages",
+        phoneCalls: "#uie-ai-phone-calls, #uie-sw-ai-phone-calls",
+        appBuilder: "#uie-ai-app-builder, #uie-sw-ai-app-builder",
+        books: "#uie-ai-books, #uie-sw-ai-books",
+        journalQuestGen: "#uie-ai-journal-quests, #uie-sw-ai-journal-quests, #uie-ai-journal-gen",
+        databankScan: "#uie-ai-databank, #uie-sw-ai-databank",
+        map: "#uie-ai-map, #uie-sw-ai-map, #uie-ai-map-gen",
+        shop: "#uie-ai-shop, #uie-sw-ai-shop",
+        loot: "#uie-ai-loot, #uie-sw-ai-loot",
+    };
+
+    const setAiAllow = (key, checked) => {
+        const s = getSettings();
+        if (!s.ai || typeof s.ai !== "object") s.ai = {};
+        s.ai[key] = checked === true;
+        saveSettings();
+        const sel = aiSelectorsByKey[key];
+        if (sel) $(sel).prop("checked", checked === true);
+    };
+
+    const setGenFlag = (key, checked) => {
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        s.generation[key] = checked === true;
+        saveSettings();
+    };
+
+    const setGenNumberMs = (key, value) => {
+        const s = getSettings();
+        if (!s.generation || typeof s.generation !== "object") s.generation = {};
+        const raw = Number(value);
+        const sec = Number.isFinite(raw) ? Math.max(0, raw) : 0;
+        s.generation[key] = Math.round(sec * 1000);
+        saveSettings();
     };
 
     // Kill Switch Handlers - DELEGATED to BODY to ensure they catch clicks even if re-rendered
@@ -1758,50 +2189,31 @@ function initMenuTabs() {
         .on("change.uieKillPopups", "#uie-show-popups", function (e) {
             e.preventDefault();
             e.stopPropagation();
-            setPopups($(this).prop("checked") === true);
+            const on = $(this).prop("checked") === true;
+            setPopups(on);
         });
-
-    const setAiAllow = (key, checked) => {
-        const s = getSettings();
-        if (!s.ai || typeof s.ai !== "object") s.ai = {};
-        s.ai[key] = checked === true;
-        saveSettings();
-    };
-    const setGenFlag = (key, checked) => {
-        const s = getSettings();
-        if (!s.generation || typeof s.generation !== "object") s.generation = {};
-        s.generation[key] = checked === true;
-        saveSettings();
-    };
-    const setGenNumberMs = (key, sec) => {
-        const s = getSettings();
-        if (!s.generation || typeof s.generation !== "object") s.generation = {};
-        const n = Math.max(0, Number(sec));
-        s.generation[key] = Math.round((Number.isFinite(n) ? n : 0) * 1000);
-        saveSettings();
-    };
 
     $(document)
         .off("change.uieAiAllowPhoneBrowser")
-        .on("change.uieAiAllowPhoneBrowser", "#uie-ai-phone-browser", function () { setAiAllow("phoneBrowser", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowPhoneBrowser", "#uie-ai-phone-browser, #uie-sw-ai-phone-browser", function () { setAiAllow("phoneBrowser", $(this).prop("checked") === true); })
         .off("change.uieAiAllowPhoneMessages")
-        .on("change.uieAiAllowPhoneMessages", "#uie-ai-phone-messages", function () { setAiAllow("phoneMessages", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowPhoneMessages", "#uie-ai-phone-messages, #uie-sw-ai-phone-messages", function () { setAiAllow("phoneMessages", $(this).prop("checked") === true); })
         .off("change.uieAiAllowPhoneCalls")
-        .on("change.uieAiAllowPhoneCalls", "#uie-ai-phone-calls", function () { setAiAllow("phoneCalls", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowPhoneCalls", "#uie-ai-phone-calls, #uie-sw-ai-phone-calls", function () { setAiAllow("phoneCalls", $(this).prop("checked") === true); })
         .off("change.uieAiAllowAppBuilder")
-        .on("change.uieAiAllowAppBuilder", "#uie-ai-app-builder", function () { setAiAllow("appBuilder", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowAppBuilder", "#uie-ai-app-builder, #uie-sw-ai-app-builder", function () { setAiAllow("appBuilder", $(this).prop("checked") === true); })
         .off("change.uieAiAllowBooks")
-        .on("change.uieAiAllowBooks", "#uie-ai-books", function () { setAiAllow("books", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowBooks", "#uie-ai-books, #uie-sw-ai-books", function () { setAiAllow("books", $(this).prop("checked") === true); })
         .off("change.uieAiAllowJournalQuests")
-        .on("change.uieAiAllowJournalQuests", "#uie-ai-journal-quests", function () { setAiAllow("journalQuestGen", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowJournalQuests", "#uie-ai-journal-quests, #uie-sw-ai-journal-quests, #uie-ai-journal-gen", function () { setAiAllow("journalQuestGen", $(this).prop("checked") === true); })
         .off("change.uieAiAllowDatabank")
-        .on("change.uieAiAllowDatabank", "#uie-ai-databank", function () { setAiAllow("databankScan", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowDatabank", "#uie-ai-databank, #uie-sw-ai-databank", function () { setAiAllow("databankScan", $(this).prop("checked") === true); })
         .off("change.uieAiAllowMap")
-        .on("change.uieAiAllowMap", "#uie-ai-map", function () { setAiAllow("map", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowMap", "#uie-ai-map, #uie-sw-ai-map, #uie-ai-map-gen", function () { setAiAllow("map", $(this).prop("checked") === true); })
         .off("change.uieAiAllowShop")
-        .on("change.uieAiAllowShop", "#uie-ai-shop", function () { setAiAllow("shop", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowShop", "#uie-ai-shop, #uie-sw-ai-shop", function () { setAiAllow("shop", $(this).prop("checked") === true); })
         .off("change.uieAiAllowLoot")
-        .on("change.uieAiAllowLoot", "#uie-ai-loot", function () { setAiAllow("loot", $(this).prop("checked") === true); })
+        .on("change.uieAiAllowLoot", "#uie-ai-loot, #uie-sw-ai-loot", function () { setAiAllow("loot", $(this).prop("checked") === true); })
         .off("change.uieGenRequireConfirm")
         .on("change.uieGenRequireConfirm", "#uie-gen-require-confirm", function () { setGenFlag("requireConfirmUnverified", $(this).prop("checked") === true); })
         .off("change.uieGenShowPrompt")
@@ -1887,6 +2299,242 @@ function initMenuTabs() {
             if (!s.generation.promptPrefixes.byType || typeof s.generation.promptPrefixes.byType !== "object") s.generation.promptPrefixes.byType = {};
             s.generation.promptPrefixes.byType["Image Gen"] = String($(this).val() || "");
             saveSettings();
+        });
+
+    const menuVisibilitySelector = Object.keys(getMenuVisibilityMap()).map((id) => `#${id}`).join(", ");
+    const popupToggleSelector = Object.keys(popupCategoryById).map((id) => `#${id}`).join(", ");
+    let styleCssWriteTimer = 0;
+
+    $(document)
+        .off("change.uieMenuVisibilitySave")
+        .on("change.uieMenuVisibilitySave", menuVisibilitySelector, function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const id = String(this?.id || "");
+            const key = getMenuVisibilityMap()[id];
+            if (!key) return;
+            const s = getSettings();
+            if (!s.menuHidden || typeof s.menuHidden !== "object") s.menuHidden = {};
+            s.menuHidden[key] = $(this).prop("checked") === true;
+            saveSettings();
+            try { applyMenuHiddenToButtons(); } catch (_) {}
+            try { syncMenuVisibilityCheckboxes(); } catch (_) {}
+        })
+        .off("change.uieMemAutoSave")
+        .on("change.uieMemAutoSave", "#uie-mem-auto", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const mem = ensureMemSettings(s);
+            mem.auto = $(this).prop("checked") === true;
+            saveSettings();
+        })
+        .off("change.uieLangSelect")
+        .on("change.uieLangSelect", "#uie-sw-lang-select", async function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const lang = String($(this).val() || "auto").trim() || "auto";
+            try {
+                const i18n = await import("./i18n.js");
+                if (typeof i18n?.setLang === "function") i18n.setLang(lang);
+                i18n?.applyI18n?.(document);
+            } catch (_) {
+                const s = getSettings();
+                if (!s.ui || typeof s.ui !== "object") s.ui = {};
+                s.ui.lang = lang;
+                saveSettings();
+            }
+        })
+        .off("change.uieRpgToggles")
+        .on("change.uieRpgToggles", "#uie-rpg-enable, #uie-rpg-xpbar, #uie-rpg-equipment, #uie-rpg-skills, #uie-rpg-party, #uie-check-permadeath", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const id = String(this?.id || "");
+            const on = $(this).prop("checked") === true;
+            const s = getSettings();
+            const rpg = ensureRpgToggleSettings(s);
+            if (id === "uie-rpg-enable") rpg.enabled = on;
+            if (id === "uie-rpg-xpbar") rpg.xpbar = on;
+            if (id === "uie-rpg-equipment") rpg.equipment = on;
+            if (id === "uie-rpg-skills") rpg.skills = on;
+            if (id === "uie-rpg-party") rpg.party = on;
+            if (id === "uie-check-permadeath") rpg.permadeath = on;
+            saveSettings();
+        })
+        .off("change.uiePopupToggles")
+        .on("change.uiePopupToggles", popupToggleSelector, function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const id = String(this?.id || "");
+            const key = popupCategoryById[id];
+            if (!key) return;
+            const on = $(this).prop("checked") === true;
+            const s = getSettings();
+            const n = ensureNotificationsSettings(s);
+            if (key === "lowHp") n.lowHp.enabled = on;
+            else n.categories[key] = on;
+            saveSettings();
+        })
+        .off("change.uiePostBattleGenerate")
+        .on("change.uiePostBattleGenerate", "#uie-postbattle-generate", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const n = ensureNotificationsSettings(s);
+            n.postBattle.enabled = $(this).prop("checked") === true;
+            saveSettings();
+        })
+        .off("input.uieLowHpThreshold change.uieLowHpThreshold")
+        .on("input.uieLowHpThreshold change.uieLowHpThreshold", "#uie-pop-lowhp-threshold", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const n = ensureNotificationsSettings(s);
+            const raw = Number($(this).val());
+            const threshold = Math.max(0.05, Math.min(0.9, Number.isFinite(raw) ? raw : 0.25));
+            n.lowHp.threshold = Math.round(threshold * 100) / 100;
+            $(this).val(String(n.lowHp.threshold));
+            saveSettings();
+        })
+        .off("change.uiePopupCssScope")
+        .on("change.uiePopupCssScope", "#uie-popup-css-scope", function () {
+            syncPopupCssEditorFromScope();
+        })
+        .off("click.uiePopupCssApply")
+        .on("click.uiePopupCssApply", "#uie-popup-css-apply", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const scope = String($("#uie-popup-css-scope").val() || "global");
+            const css = String($("#uie-popup-css-text").val() || "");
+            setPopupCssForScope(s, scope, css);
+            saveSettings();
+            applyPopupCssFromSettings();
+        })
+        .off("click.uiePopupCssReset")
+        .on("click.uiePopupCssReset", "#uie-popup-css-reset", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const scope = String($("#uie-popup-css-scope").val() || "global");
+            setPopupCssForScope(s, scope, "");
+            saveSettings();
+            syncPopupCssEditorFromScope();
+            applyPopupCssFromSettings();
+        })
+        .off("click.uiePopupCssTest")
+        .on("click.uiePopupCssTest", "#uie-popup-test", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const scope = popupScopeToKey($("#uie-popup-css-scope").val() || "global");
+            const category = scope === "global" ? "api" : scope;
+            try { notify("info", "Popup style test", "UIE", category); } catch (_) {}
+        })
+        .off("click.uieCustomCssApply")
+        .on("click.uieCustomCssApply", "#uie-custom-css-apply", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            ui.css.global = String($("#uie-custom-css").val() || "");
+            ui.css.stats = String($("#uie-custom-css-stats").val() || "");
+            ui.css.activities = String($("#uie-custom-css-activities").val() || "");
+            saveSettings();
+            applyCustomCssFromSettings();
+        })
+        .off("change.uieCssTarget")
+        .on("change.uieCssTarget", "#uie-css-target", function () {
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            const target = String($(this).val() || "global");
+            const cssByTarget = ui.css.byTarget && typeof ui.css.byTarget === "object" ? ui.css.byTarget : {};
+            $("#uie-style-css").val(String(cssByTarget[target] || ""));
+        })
+        .off("input.uieStyleCss change.uieStyleCss")
+        .on("input.uieStyleCss change.uieStyleCss", "#uie-style-css", function () {
+            if (styleCssWriteTimer) clearTimeout(styleCssWriteTimer);
+            styleCssWriteTimer = setTimeout(() => {
+                const s = getSettings();
+                const ui = ensureUiCustomization(s);
+                const target = String($("#uie-css-target").val() || "global");
+                const css = String($("#uie-style-css").val() || "");
+                if (!ui.css.byTarget || typeof ui.css.byTarget !== "object") ui.css.byTarget = {};
+                if (!css.trim()) delete ui.css.byTarget[target];
+                else ui.css.byTarget[target] = css;
+                saveSettings();
+                applyCustomCssFromSettings();
+            }, 180);
+        })
+        .off("change.uieBgTarget")
+        .on("change.uieBgTarget", "#uie-bg-target", function () {
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            const target = String($(this).val() || "menu");
+            $("#uie-bg-url").val(String(ui.backgrounds?.[target] || ""));
+        })
+        .off("click.uieBgApply")
+        .on("click.uieBgApply", "#uie-bg-apply", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            const target = String($("#uie-bg-target").val() || "menu");
+            const raw = String($("#uie-bg-url").val() || "").trim();
+            if (raw) ui.backgrounds[target] = raw;
+            else delete ui.backgrounds[target];
+            saveSettings();
+            applyBackgroundsFromSettings();
+        })
+        .off("click.uieBgClear")
+        .on("click.uieBgClear", "#uie-bg-clear", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            const ui = ensureUiCustomization(s);
+            const target = String($("#uie-bg-target").val() || "menu");
+            delete ui.backgrounds[target];
+            $("#uie-bg-url").val("");
+            saveSettings();
+            applyBackgroundsFromSettings();
+        })
+        .off("click.uieBgPick")
+        .on("click.uieBgPick", "#uie-bg-pick", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            document.getElementById("uie-bg-file")?.click?.();
+        })
+        .off("change.uieBgFile")
+        .on("change.uieBgFile", "#uie-bg-file", function () {
+            const file = this.files && this.files[0];
+            if (!file) return;
+            const r = new FileReader();
+            r.onload = () => {
+                const dataUrl = String(r.result || "");
+                if (!dataUrl) return;
+                $("#uie-bg-url").val(dataUrl);
+                $("#uie-bg-apply").trigger("click");
+            };
+            r.readAsDataURL(file);
+            try { this.value = ""; } catch (_) {}
+        })
+        .off("click.uieLauncherSave")
+        .on("click.uieLauncherSave", "#uie-launcher-save", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            if (!s.launcher || typeof s.launcher !== "object") s.launcher = {};
+            if (!Array.isArray(s.launcher.savedIcons)) s.launcher.savedIcons = [];
+            const val = String($("#uie-launcher-icon").val() || "").trim();
+            const src = val && val !== "custom" ? val : String(s.launcher.src || "").trim();
+            if (!src) return;
+            if (!s.launcher.savedIcons.includes(src)) s.launcher.savedIcons.unshift(src);
+            saveSettings();
+        })
+        .off("click.uieLauncherDelete")
+        .on("click.uieLauncherDelete", "#uie-launcher-delete", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            if (!s.launcher || typeof s.launcher !== "object") s.launcher = {};
+            if (!Array.isArray(s.launcher.savedIcons)) s.launcher.savedIcons = [];
+            const val = String($("#uie-launcher-icon").val() || "").trim();
+            const src = val && val !== "custom" ? val : String(s.launcher.src || "").trim();
+            if (!src) return;
+            s.launcher.savedIcons = s.launcher.savedIcons.filter((x) => String(x || "") !== src);
+            saveSettings();
+        })
+        .off("click.uiePromptsClear")
+        .on("click.uiePromptsClear", "#uie-gen-prompts-clear", function (e) {
+            try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
+            const s = getSettings();
+            if (!s.generation || typeof s.generation !== "object") s.generation = {};
+            s.generation.promptPrefixes = { byType: {} };
+            saveSettings();
+            $("#uie-gen-prompt-global, #uie-gen-prompt-default, #uie-gen-prompt-webpage, #uie-gen-prompt-systemcheck, #uie-gen-prompt-phonecall, #uie-gen-prompt-image").val("");
         });
 
     // Save State

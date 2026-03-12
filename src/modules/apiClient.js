@@ -1389,19 +1389,57 @@ function uieTurboEnabled() {
   try {
     const st = window?.UIE?.getSettings?.() || null;
     if (!st) return false;
-    return !!(st.uieTurbo && st.uieTurbo.enabled && st.uieTurbo.key);
+    return !!(st.turbo && st.turbo.enabled && st.turbo.key);
   } catch (_) {
     return false;
   }
 }
 
 export function initTurboUi() {
+    const ensureTurboSettings = () => {
+        const s = getSettings();
+        if (!s.turbo || typeof s.turbo !== "object") s.turbo = {};
+        return s;
+    };
+
+    const syncTurboModelSelect = (modelRaw) => {
+        const sel = $("#uie-turbo-model-select");
+        if (!sel.length) return;
+
+        const model = String(modelRaw || "").trim();
+        if (!model) {
+            sel.val("");
+            return;
+        }
+
+        const hasModelOption = sel.find("option").toArray().some((opt) => String(opt?.value || "") === model);
+        if (hasModelOption) {
+            sel.val(model);
+            return;
+        }
+
+        if (!sel.find("option[value='__custom__']").length) {
+            sel.append("<option value='__custom__'>Custom...</option>");
+        }
+        sel.val("__custom__");
+    };
+
+    const syncTurboInputsFromSettings = () => {
+        const s = ensureTurboSettings();
+        const t = s.turbo || {};
+
+        $("#uie-turbo-enable").prop("checked", t.enabled === true);
+        $("#uie-turbo-url").val(String(t.url || ""));
+        $("#uie-turbo-key").val(String(t.key || ""));
+        $("#uie-turbo-model").val(String(t.model || ""));
+        syncTurboModelSelect(t.model);
+    };
+
     // Presets Logic
     const applyPreset = function(e) {
         if (e && e.preventDefault) e.preventDefault();
         const val = $("#uie-turbo-preset").val();
-        const s = getSettings();
-        if (!s.turbo) s.turbo = {};
+        const s = ensureTurboSettings();
 
         if (val === "openrouter") {
             $("#uie-turbo-url").val("https://openrouter.ai/api/v1");
@@ -1463,23 +1501,20 @@ export function initTurboUi() {
         .off("change.uieTurboEnabled input.uieTurboFields change.uieTurboFields")
         .on("change.uieTurboEnabled", "#uie-turbo-enable", function (e) {
             try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-            const s = getSettings();
-            if (!s.turbo) s.turbo = {};
+            const s = ensureTurboSettings();
             s.turbo.enabled = $(this).prop("checked") === true;
             saveSettings();
         })
         .on("input.uieTurboFields change.uieTurboFields", "#uie-turbo-url, #uie-turbo-key", function (e) {
             try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-            const s = getSettings();
-            if (!s.turbo) s.turbo = {};
+            const s = ensureTurboSettings();
             s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
             s.turbo.key = String($("#uie-turbo-key").val() || "").trim();
             saveSettings();
         })
         .on("input.uieTurboFields change.uieTurboFields", "#uie-turbo-model", function (e) {
             try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
-            const s = getSettings();
-            if (!s.turbo) s.turbo = {};
+            const s = ensureTurboSettings();
             s.turbo.model = String($("#uie-turbo-model").val() || "").trim();
             saveSettings();
         })
@@ -1489,8 +1524,7 @@ export function initTurboUi() {
             if (val && val !== "__custom__") {
                 $("#uie-turbo-model").val(val);
             }
-            const s = getSettings();
-            if (!s.turbo) s.turbo = {};
+            const s = ensureTurboSettings();
             s.turbo.model = String($("#uie-turbo-model").val() || "").trim();
             saveSettings();
         });
@@ -1501,8 +1535,7 @@ export function initTurboUi() {
         const btn = $(this);
         btn.addClass("fa-spin");
 
-        const s = getSettings();
-        if (!s.turbo) s.turbo = {};
+        const s = ensureTurboSettings();
         s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
         s.turbo.key = String($("#uie-turbo-key").val() || "").trim();
         saveSettings();
@@ -1553,8 +1586,7 @@ export function initTurboUi() {
         try { e.preventDefault(); e.stopPropagation(); } catch (_) {}
         const btn = $(this);
         btn.prop("disabled", true);
-        const s = getSettings();
-        if (!s.turbo) s.turbo = {};
+        const s = ensureTurboSettings();
         s.turbo.enabled = $("#uie-turbo-enable").prop("checked") === true;
         s.turbo.url = String($("#uie-turbo-url").val() || "").trim();
         s.turbo.key = String($("#uie-turbo-key").val() || "").trim();
@@ -1576,4 +1608,12 @@ export function initTurboUi() {
             btn.prop("disabled", false);
         }
     });
+
+    $(document)
+        .off("click.uieTurboSync pointerup.uieTurboSync")
+        .on("click.uieTurboSync pointerup.uieTurboSync", "#uie-settings-tabs .uie-set-tab[data-tab='turbo']", function () {
+            syncTurboInputsFromSettings();
+        });
+
+    syncTurboInputsFromSettings();
 }

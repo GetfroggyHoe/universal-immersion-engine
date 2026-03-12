@@ -7,6 +7,19 @@ export function init() {
 
   let closingOverlay = false;
 
+  const resetOverlayState = () => {
+    const $overlay = $("#uie-create-overlay");
+    const $body = $("#uie-create-overlay-body");
+    if ($overlay.length) {
+      const ov = $overlay.get(0);
+      try { ov?.style?.setProperty("display", "none", "important"); } catch (_) { if (ov) ov.style.display = "none"; }
+      $overlay.css({ pointerEvents: "auto", zIndex: 2147483647 });
+    }
+    if ($body.length) {
+      $body.css({ background: "transparent", overflow: "hidden", height: "100%", minHeight: 0 }).empty();
+    }
+  };
+
   const ensureOverlay = () => {
     // Overlay is now part of create.html
     return;
@@ -33,20 +46,28 @@ export function init() {
           }
         } catch (_) {}
       }
-      $("#uie-create-overlay").hide();
-      $("#uie-create-overlay-body").css({ background: "transparent" }).empty();
+      resetOverlayState();
     } finally {
       closingOverlay = false;
     }
   };
 
+  const closeOverlayFromEvent = (e) => {
+    if (e?.type === "pointerup") {
+      const pt = String(e?.pointerType || "").toLowerCase();
+      if (pt && pt !== "touch" && pt !== "pen") return;
+    }
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    try { e?.stopImmediatePropagation?.(); } catch (_) {}
+    closeOverlay();
+  };
+
+  try { window.UIE_closeCreateOverlay = closeOverlay; } catch (_) {}
+
   $(document)
-    .off("click.uieCreateOverlayExit", "#uie-create-overlay-exit")
-    .on("click.uieCreateOverlayExit", "#uie-create-overlay-exit", function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      closeOverlay();
-    });
+    .off("click.uieCreateOverlayExit pointerup.uieCreateOverlayExit", "#uie-create-overlay-exit")
+    .on("click.uieCreateOverlayExit pointerup.uieCreateOverlayExit", "#uie-create-overlay-exit", closeOverlayFromEvent);
 
   const loadStation = async (target) => {
     const { loadFeatureTemplate } = await import("../featureLoader.js");
@@ -54,7 +75,11 @@ export function init() {
 
     ensureOverlay();
     $("#uie-create-overlay-title").text(String(target || "CREATE").toUpperCase());
-    $("#uie-create-overlay").css("display", "flex");
+    {
+      const ov = document.getElementById("uie-create-overlay");
+      try { ov?.style?.setProperty("display", "flex", "important"); } catch (_) { if (ov) ov.style.display = "flex"; }
+      $("#uie-create-overlay").css({ pointerEvents: "auto", zIndex: 2147483647 });
+    }
     const $host = $("#uie-create-overlay-body");
     $host.css({ overflow: "hidden", background: "#000", height: "100%", minHeight: 0 }).html(`<div style="padding:16px;color:rgba(255,255,255,.7);font-weight:800;">Loading...</div>`);
     onExit = closeOverlay;
@@ -119,11 +144,11 @@ export function init() {
 
   // If your create HTML includes a back button, wire it:
   $(document)
-    .off("click.uieCreateBack", "#uie-create-overlay [data-action='back-create']")
-    .on("click.uieCreateBack", "#uie-create-overlay [data-action='back-create']", (e) => {
-      e.preventDefault(); e.stopPropagation();
-      closeOverlay();
-    });
+    .off("click.uieCreateBack pointerup.uieCreateBack", "#uie-create-overlay [data-action='back-create']")
+    .on("click.uieCreateBack pointerup.uieCreateBack", "#uie-create-overlay [data-action='back-create']", closeOverlayFromEvent);
 
   $(document).off("click.uieStationAct");
+
+  // In case a previous mobile session left a fullscreen overlay mounted, always start clean.
+  resetOverlayState();
 }

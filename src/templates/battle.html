@@ -11,7 +11,7 @@
   <div class="uie-header" style="border-bottom:1px solid rgba(203,163,92,0.35); background:linear-gradient(90deg,#1b202b,#0e121a); display:flex !important; flex-direction:row !important; align-items:center !important; justify-content:space-between !important; position:relative !important; top:0 !important; left:0 !important; right:auto !important; bottom:auto !important; writing-mode: horizontal-tb !important; text-orientation: mixed !important; transform: none !important; width:100% !important; height:auto !important; flex-shrink:0 !important; padding:10px 15px !important;">
     <div class="uie-info" style="display:flex !important; flex-direction:column !important; writing-mode: horizontal-tb !important; flex:1 !important; min-width:0 !important;">
       <h2 style="margin:0; font-family:serif; color:#cba35c; letter-spacing:1px; writing-mode: horizontal-tb !important; text-orientation: mixed !important; font-size:1em !important; line-height:1.2 !important;">War Room</h2>
-      <div style="font-size:11px; color:#aaa;" id="uie-battle-sub">Battle tracker</div>
+      <div style="font-size:11px; color:#aaa;" id="uie-battle-sub">Chat-driven combat assistant: scan battle state, plan turns, roll dice, and claim rewards</div>
     </div>
     <div class="uie-controls" style="margin-left:auto; display:flex !important; gap:10px; align-items:center; flex-shrink:0 !important;">
       <button id="uie-battle-info" title="War Room Manual" onclick="uie.phone.openBooksGuide('guide-warroom')" style="height:34px; width:44px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background:rgba(203,163,92,0.12); color:#cba35c; font-weight:900; cursor:pointer; touch-action:manipulation;"><i class="fa-solid fa-circle-info"></i></button>
@@ -28,32 +28,71 @@
     </div>
   </div>
 
-  <div class="uie-content" style="padding:12px; overflow:auto; flex:1; min-height:0; display:grid; grid-template-columns: 1fr; gap:12px;">
-    <div style="border-radius:18px; border:1px solid rgba(255,255,255,0.10); background:radial-gradient(120% 120% at 40% 20%, rgba(40,24,16,0.55) 0%, rgba(10,6,5,0.70) 60%, rgba(0,0,0,0.82) 100%); padding:12px;">
-      <div style="display:flex; gap:12px; flex-wrap:wrap;">
-        <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
-          <div style="font-weight:900; color:#f1c40f; margin-bottom:10px;">Enemies</div>
-          <div id="uie-battle-enemies"></div>
-        </div>
-        <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
-          <div style="font-weight:900; color:#89b4fa; margin-bottom:10px;">Turn Order</div>
-          <div id="uie-battle-turn"></div>
-        </div>
-        <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
-          <div style="font-weight:900; color:#f39c12; margin-bottom:10px;">Party Formation</div>
-          <div id="uie-battle-formation"></div>
-        </div>
-        <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
-          <div style="font-weight:900; color:#2ecc71; margin-bottom:10px;">Party Status</div>
-          <div id="uie-battle-party"></div>
-          <div id="uie-battle-advice" style="margin-top:10px;"></div>
-        </div>
-      </div>
+  <div class="uie-content" style="padding:12px; overflow:hidden; flex:1; min-height:0; display:flex; flex-direction:column; gap:10px;">
+    <div id="uie-battle-main-tabs" style="display:flex; gap:6px; flex-wrap:nowrap; align-items:center; flex-shrink:0; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:thin; padding-bottom:2px;">
+      <button class="uie-battle-main-tab" data-tab="combat" style="height:32px; padding:0 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(203,163,92,0.18); color:#f6e3b4; font-weight:900; cursor:pointer;">Combat</button>
+      <button class="uie-battle-main-tab" data-tab="planner" style="height:32px; padding:0 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.04); color:#ddd; font-weight:900; cursor:pointer;">Turn Planner</button>
+      <button class="uie-battle-main-tab" data-tab="rewards" style="height:32px; padding:0 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.04); color:#ddd; font-weight:900; cursor:pointer;">Rewards</button>
+      <button class="uie-battle-main-tab" data-tab="log" style="height:32px; padding:0 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.18); background:rgba(255,255,255,0.04); color:#ddd; font-weight:900; cursor:pointer;">Battle Log</button>
     </div>
 
-    <div style="border-radius:18px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); padding:12px;">
-      <div style="font-weight:900; color:#cba35c; margin-bottom:10px;">Battle Log</div>
-      <div id="uie-battle-log" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:1.45; white-space:pre-wrap; color:rgba(255,255,255,0.82);"></div>
+    <div id="uie-battle-main-panels" style="flex:1; min-height:0; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.18); padding:10px; overflow:hidden;">
+      <div class="uie-battle-main-panel" data-tab-panel="combat" style="height:100%; overflow:auto;">
+        <div style="border-radius:18px; border:1px solid rgba(255,255,255,0.10); background:radial-gradient(120% 120% at 40% 20%, rgba(40,24,16,0.55) 0%, rgba(10,6,5,0.70) 60%, rgba(0,0,0,0.82) 100%); padding:12px;">
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
+              <div style="font-weight:900; color:#f1c40f; margin-bottom:10px;">Enemies</div>
+              <div id="uie-battle-enemies"></div>
+            </div>
+            <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
+              <div style="font-weight:900; color:#89b4fa; margin-bottom:10px;">Turn Order</div>
+              <div id="uie-battle-turn"></div>
+            </div>
+            <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
+              <div style="font-weight:900; color:#f39c12; margin-bottom:10px;">Party Formation</div>
+              <div id="uie-battle-formation"></div>
+            </div>
+            <div style="flex:1; min-width:260px; border-radius:16px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.20); padding:12px;">
+              <div style="font-weight:900; color:#2ecc71; margin-bottom:10px;">Party Status</div>
+              <div id="uie-battle-party"></div>
+              <div id="uie-battle-advice" style="margin-top:10px;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="uie-battle-main-panel" data-tab-panel="planner" style="display:none; height:100%; overflow:auto;">
+        <div style="border-radius:18px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); padding:12px;">
+          <div style="font-weight:900; color:#89b4fa; margin-bottom:10px;">Turn Planner</div>
+          <div style="font-size:12px; opacity:0.78; margin-bottom:10px;">Pick skills and describe actions for you + party, then press <b>Battle Turn</b> to continue chat with those moves.</div>
+          <div id="uie-battle-turn-actions" style="display:flex; flex-direction:column; gap:8px;"></div>
+          <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button id="uie-battle-submit-turn" style="height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(137,180,250,0.45); background:rgba(137,180,250,0.15); color:#dbeafe; font-weight:900; cursor:pointer;">Battle Turn</button>
+            <button id="uie-battle-clear-turn" style="height:34px; padding:0 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.14); background:rgba(255,255,255,0.04); color:#ddd; font-weight:800; cursor:pointer;">Clear Actions</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="uie-battle-main-panel" data-tab-panel="rewards" style="display:none; height:100%; overflow:auto;">
+        <div style="border-radius:18px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); padding:12px;">
+          <div style="font-weight:900; color:#2ecc71; margin-bottom:10px;">Rewards (Manual Claim)</div>
+          <div id="uie-battle-rewards"></div>
+        </div>
+      </div>
+
+      <div class="uie-battle-main-panel" data-tab-panel="log" style="display:none; height:100%; overflow:auto;">
+        <div style="border-radius:18px; border:1px solid rgba(255,255,255,0.10); background:rgba(0,0,0,0.22); padding:12px;">
+          <div style="font-weight:900; color:#cba35c; margin-bottom:10px;">Battle Log</div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+            <button class="uie-battle-log-tab" data-tab="combat" style="height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.16); background:rgba(203,163,92,0.18); color:#f6e3b4; font-weight:900; cursor:pointer;">Combat</button>
+            <button class="uie-battle-log-tab" data-tab="defeated" style="height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.04); color:#ddd; font-weight:900; cursor:pointer;">Defeated</button>
+            <button class="uie-battle-log-tab" data-tab="outcomes" style="height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.04); color:#ddd; font-weight:900; cursor:pointer;">Wins / Losses</button>
+            <button class="uie-battle-log-tab" data-tab="deaths" style="height:30px; padding:0 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.16); background:rgba(255,255,255,0.04); color:#ddd; font-weight:900; cursor:pointer;">Deaths</button>
+          </div>
+          <div id="uie-battle-log-meta" style="font-size:11px; opacity:0.72; margin-bottom:8px;"></div>
+          <div id="uie-battle-log" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size:12px; line-height:1.45; white-space:pre-wrap; color:rgba(255,255,255,0.82); min-height:120px;"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

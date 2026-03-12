@@ -794,9 +794,18 @@ function openProfile(index, anchorEl) {
         const h = Math.max(240, Number($paper.outerHeight?.() || 0) || 520);
         const vw = window.innerWidth || document.documentElement.clientWidth || 0;
         const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-        const x = Math.max(14, Math.floor((vw - w) / 2));
-        const y = Math.max(14, Math.floor((vh - h) / 2));
-        $paper.css({ top: y, left: x, right: "", bottom: "", transform: "none" });
+        const isCoarse = (() => {
+            try { return window.matchMedia?.("(max-width: 700px), (pointer: coarse)")?.matches === true; } catch (_) { return false; }
+        })();
+        const x = isCoarse ? 6 : Math.max(14, Math.floor((vw - w) / 2));
+        const y = isCoarse ? 6 : Math.max(14, Math.floor((vh - h) / 2));
+        const css = { top: y, left: x, right: "", bottom: "", transform: "none", maxHeight: "", overflowY: "", width: "" };
+        if (isCoarse && vh > 0) {
+            css.maxHeight = `${Math.max(220, vh - 12)}px`;
+            css.overflowY = "auto";
+            if (vw > 0) css.width = `${Math.max(220, vw - 12)}px`;
+        }
+        $paper.css(css);
     } catch (_) {}
 }
 
@@ -1056,17 +1065,43 @@ function isLikelyToolOrMetaCardName(name) {
     return false;
 }
 
+function isLikelyRoleOnlyName(name) {
+    const raw = String(name || "").trim();
+    if (!raw) return true;
+    const key = normalizeNameKey(raw).replace(/^[\[{(<\s"']+|[\]})>\s"']+$/g, "").trim();
+    if (!key) return true;
+
+    if (/^(mr|mrs|ms|dr|prof)\.?$/.test(key)) return true;
+
+    const roleSingles = new Set([
+        "captain", "commander", "general", "admiral", "colonel", "major", "lieutenant", "sergeant", "officer",
+        "chief", "director", "agent", "master", "mistress", "professor", "doctor", "doc", "teacher",
+        "king", "queen", "prince", "princess", "duke", "duchess", "lord", "lady", "sir", "madam",
+        "merchant", "shopkeeper", "bartender", "innkeeper", "guard", "soldier", "knight", "nurse", "pilot",
+        "driver", "clerk", "receptionist", "villager", "stranger", "boss",
+    ]);
+    if (roleSingles.has(key)) return true;
+
+    if (/^(?:the\s+)?(?:captain|commander|general|admiral|colonel|major|lieutenant|sergeant|officer|chief|director|agent|merchant|shopkeeper|bartender|innkeeper|guard|soldier|knight|villager|stranger)(?:\s*#?\d+|\s+[ivx]+)?$/.test(key)) {
+        return true;
+    }
+
+    return false;
+}
+
 function shouldExcludeName(n, { userNames, deletedSet } = {}) {
     const name = String(n || "").trim();
     if (!name) return true;
     if (name.length > 64) return true;
-    const k = normalizeNameKey(name);
+    const k = normalizeNameKey(name).replace(/^[\[{(<\s"']+|[\]})>\s"']+$/g, "").trim();
+    if (!k) return true;
     if (deletedSet && deletedSet.has(k)) return true;
     if (isLikelyToolOrMetaCardName(name)) return true;
+    if (isLikelyRoleOnlyName(name)) return true;
 
     const hard = new Set(["you", "user", "narrator", "system", "assistant", "story", "gm", "game master", "unknown"]);
     if (hard.has(k)) return true;
-    if (Array.isArray(userNames) && userNames.some(u => normalizeNameKey(u) === k)) return true;
+    if (Array.isArray(userNames) && userNames.some(u => normalizeNameKey(u).replace(/^[\[{(<\s"']+|[\]})>\s"']+$/g, "").trim() === k)) return true;
     return false;
 }
 
@@ -1575,7 +1610,7 @@ export function initSocial() {
     });
 
     $win.off("click.uieSocialClose");
-    $win.on("click.uieSocialClose", "#uie-social-close", (e) => { e.preventDefault(); e.stopPropagation(); $win.hide(); $("#uie-social-menu").hide(); closeAddModal(); });
+    $win.on("click.uieSocialClose", "#uie-social-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-overlay").removeAttr("data-open").hide(); $win.hide(); $("#uie-social-menu").hide(); closeAddModal(); });
     $win.on("click.uieSocialClose", ".uie-p-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-overlay").removeAttr("data-open").hide(); });
     $win.on("click.uieSocialMemClose", "#uie-social-mem-close", (e) => { e.preventDefault(); e.stopPropagation(); $("#uie-social-mem-overlay").hide(); });
     $win.on("click.uieSocialMemBackdrop", "#uie-social-mem-overlay", (e) => {
@@ -1784,7 +1819,7 @@ export function initSocial() {
         e.preventDefault();
         e.stopPropagation();
         if (activeProfileIndex === null) return;
-        $("#uie-social-overlay").hide();
+        $("#uie-social-overlay").removeAttr("data-open").hide();
         openAddModal({ mode: "edit", index: activeProfileIndex });
     });
 
@@ -1813,7 +1848,7 @@ export function initSocial() {
         s.social[currentTab].splice(activeProfileIndex, 1);
         commitStateUpdate({ save: true, layout: false, emit: true });
         activeProfileIndex = null;
-        $("#uie-social-overlay").hide();
+        $("#uie-social-overlay").removeAttr("data-open").hide();
         renderSocial();
     });
 

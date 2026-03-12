@@ -2,6 +2,7 @@
 import {
     getSettings,
     saveSettings,
+    isMobileUI,
     updateLayout
 } from "./core.js";
 import { loadFeatureTemplate } from "./featureLoader.js";
@@ -714,10 +715,13 @@ function setEditMode(on) {
 
 function isMobileLayout() {
   try {
-    return window.matchMedia("(max-width: 700px), (pointer: coarse)").matches;
+    if (window.matchMedia("(max-width: 900px), (pointer: coarse)").matches) return true;
   } catch (_) {
-    return false;
+    // continue
   }
+  try { if (isMobileUI()) return true; } catch (_) {}
+  try { return Number(navigator?.maxTouchPoints || 0) > 0; } catch (_) {}
+  return false;
 }
 
 function setFullscreen(on) {
@@ -1167,7 +1171,10 @@ function resetCreateStationMenuStyles(menu) {
   if (!menu) return;
   menu.style.inset = "";
   menu.style.width = "";
+  menu.style.maxWidth = "";
+  menu.style.minWidth = "";
   menu.style.height = "";
+  menu.style.minHeight = "";
   menu.style.maxHeight = "";
   menu.style.borderRadius = "";
   menu.style.overflow = "";
@@ -1180,6 +1187,8 @@ function resetCreateStationMenuStyles(menu) {
   menu.style.right = "";
   menu.style.bottom = "";
   menu.style.pointerEvents = "";
+  menu.style.paddingTop = "";
+  menu.style.paddingBottom = "";
 }
 
 function ensureCreateStationOverlay() {
@@ -1238,6 +1247,7 @@ function openCreateStation() {
           menu.style.zIndex = "2147483655";
           menu.style.pointerEvents = "auto";
           menu.style.width = `min(420px, calc(100vw - ${pad * 2}px))`;
+          menu.style.maxWidth = `calc(100vw - ${pad * 2}px)`;
           menu.style.maxHeight = `calc(100dvh - ${pad * 2}px)`;
           menu.style.height = "auto";
           menu.style.transform = "none";
@@ -1277,6 +1287,9 @@ function openCreateStation() {
 
   createStation.open = true;
 
+  // Clear any stale desktop constraints before forcing mobile fullscreen.
+  resetCreateStationMenuStyles(menu);
+
   // Ensure we move it to the shell
   if (menu.parentElement !== shell) {
       shell.appendChild(menu);
@@ -1291,14 +1304,19 @@ function openCreateStation() {
   menu.style.bottom = "0";
   menu.style.inset = "0";
   menu.style.width = "100vw";
+  menu.style.maxWidth = "100vw";
+  menu.style.minWidth = "100vw";
   menu.style.height = "100vh";
   menu.style.height = "100dvh";
+  menu.style.minHeight = "100dvh";
   menu.style.maxHeight = "100dvh";
   menu.style.borderRadius = "0";
   menu.style.overflow = "auto";
   menu.style.margin = "0";
   menu.style.transform = "none";
   menu.style.zIndex = "2147483655";
+  menu.style.paddingTop = "max(env(safe-area-inset-top), 0px)";
+  menu.style.paddingBottom = "max(env(safe-area-inset-bottom), 0px)";
 
   shell.style.width = "100vw";
   shell.style.height = "100vh";
@@ -1308,12 +1326,15 @@ function openCreateStation() {
   shell.style.position = "fixed";
   shell.style.top = "0";
   shell.style.left = "0";
+  shell.style.right = "0";
+  shell.style.bottom = "0";
   shell.style.borderRadius = "0";
 
   ov.style.display = "flex";
   ov.style.zIndex = "2147483654";
   ov.style.alignItems = "stretch";
   ov.style.justifyContent = "stretch";
+  ov.style.padding = "0";
 }
 
 function closeCreateStation() {
@@ -1333,6 +1354,37 @@ function closeCreateStation() {
   createStation.open = false;
 }
 
+function closeCreateFeatureOverlay() {
+  try {
+    const createOverlay = document.getElementById("uie-create-overlay");
+    if (createOverlay) {
+      try { createOverlay.style.setProperty("display", "none", "important"); } catch (_) { createOverlay.style.display = "none"; }
+      createOverlay.style.pointerEvents = "auto";
+    }
+    const createBody = document.getElementById("uie-create-overlay-body");
+    if (createBody) {
+      createBody.style.background = "transparent";
+      createBody.innerHTML = "";
+    }
+  } catch (_) {}
+
+  try {
+    const kitchenOverlay = document.getElementById("uie-kitchen-overlay");
+    if (kitchenOverlay && kitchenOverlay.style.display !== "none") {
+      if (typeof window.UIE_closeKitchen === "function") {
+        window.UIE_closeKitchen({ skipOnExit: true });
+      } else {
+        kitchenOverlay.style.display = "none";
+      }
+    }
+  } catch (_) {}
+}
+
+function closeInventoryTransientOverlays() {
+  try { closeCreateStation(); } catch (_) {}
+  try { closeCreateFeatureOverlay(); } catch (_) {}
+}
+
 export function initInventory() {
   const root = getRoot();
   if (!root) return;
@@ -1341,6 +1393,7 @@ export function initInventory() {
   ensureModel(s);
   ensureInventoryUi(s);
   portalInventoryOverlaysToBody();
+  closeInventoryTransientOverlays();
 
   const $win = $(root);
   const $editor = $("#uie-inv-editor");
@@ -1381,6 +1434,9 @@ export function initInventory() {
       if (tab && s2?.inventory?.ui?.tabs?.[tab] === false) return;
       if (!tab || !routes[tab]) return;
 
+      // Prevent stale fullscreen overlays from covering tabs on mobile.
+      closeInventoryTransientOverlays();
+
       $win.find("#tabs [data-tab]").removeClass("active");
       $(this).addClass("active");
 
@@ -1389,6 +1445,11 @@ export function initInventory() {
       showView(routes[tab].view);
 
       await ensureRouteLoaded(routes[tab]);
+    });
+
+  $win.off("click.uieInvCloseCleanup pointerup.uieInvCloseCleanup", "#uie-inv-close")
+    .on("click.uieInvCloseCleanup pointerup.uieInvCloseCleanup", "#uie-inv-close", function () {
+      closeInventoryTransientOverlays();
     });
 
   $sparkle.off("click.uieLootScan", "#uie-create-scan-loot")
@@ -1715,9 +1776,17 @@ export function initInventory() {
   const syncCreateInputs = () => {
     const kind = String($("#uie-create-kind").val() || "item").trim().toLowerCase();
     const isContainer = kind === "container";
+    const supportsImageGeneration = kind === "item" || kind === "container";
     const $containerControls = $("#uie-create-container-controls");
     if ($containerControls.length) {
       $containerControls.css("display", isContainer ? "flex" : "none");
+    }
+    const $genImgRow = $("#uie-create-gen-img-row");
+    if ($genImgRow.length) {
+      $genImgRow.css("display", supportsImageGeneration ? "flex" : "none");
+    }
+    if (!supportsImageGeneration) {
+      $("#uie-create-gen-img").prop("checked", false);
     }
     const $desc = $("#uie-create-desc");
     if ($desc.length) {
@@ -1760,7 +1829,7 @@ export function initInventory() {
       saveSettings();
       updateVitals();
       closeClassResetModal();
-      try { (await import("./features/equipment_rpg.js")).render?.(); } catch (_) {}
+      try { (await import("./features/equipment.js")).render?.(); } catch (_) {}
       try { (await import("./features/items.js")).render?.(); } catch (_) {}
       try { (await import("./features/skills.js")).init?.(); } catch (_) {}
       try { (await import("./features/assets.js")).init?.(); } catch (_) {}
@@ -1792,7 +1861,8 @@ export function initInventory() {
       const containerTypeChoice = resolveCreationContainerType($("#uie-create-container-type").val());
       const desc = String($("#uie-create-desc").val() || "").trim().slice(0, 600);
       const qty = Math.max(1, Math.min(20, Number($("#uie-create-qty").val() || 1)));
-      const genImg = $("#uie-create-gen-img").is(":checked");
+      const supportsImageGeneration = kind === "item" || kind === "container";
+      const genImg = supportsImageGeneration && $("#uie-create-gen-img").is(":checked");
 
       const st = document.getElementById("uie-create-status");
       if (st) st.textContent = "Creatingâ€¦";
@@ -1834,7 +1904,7 @@ export function initInventory() {
       } else {
           // Item / Skill / Asset
           const schema = kind === "skill"
-            ? `{"name":"","description":"","skillType":"active|passive","statusEffects":[""],"mods":{"str":0,"dex":0,"int":0}}`
+            ? `{"name":"","description":"","skillType":"active|passive","level":"1","statusEffects":[""],"mods":{"str":0,"dex":0,"int":0}}`
             : kind === "asset"
               ? `{"name":"","description":"","category":"","location":"","statusEffects":[""]}`
               : `{"name":"","description":"","type":"","rarity":"common|uncommon|rare|epic|legendary","qty":1,"statusEffects":[""],"img":""}`;
@@ -1869,7 +1939,7 @@ export function initInventory() {
                     applyClassWithResets(s2, obj, { skills: true, assets: true, stats: true, bars: true, life: true, items: true, equipment: true, statusEffects: true });
                     saveSettings();
                     updateVitals();
-                    try { (await import("./features/equipment_rpg.js")).render?.(); } catch (_) {}
+                    try { (await import("./features/equipment.js")).render?.(); } catch (_) {}
                     try { (await import("./features/items.js")).render?.(); } catch (_) {}
                     try { (await import("./features/skills.js")).init?.(); } catch (_) {}
                     try { (await import("./features/assets.js")).init?.(); } catch (_) {}
@@ -1890,7 +1960,7 @@ export function initInventory() {
                   }
                   s2.character.statusEffects = merged.slice(0, 20);
                   saveSettings();
-                  try { const mod = await import("./features/equipment_rpg.js"); if (mod?.render) mod.render(); } catch (_) {}
+                  try { const mod = await import("./features/equipment.js"); if (mod?.render) mod.render(); } catch (_) {}
              }
              if (st) st.textContent = "Done!";
              return;
@@ -1922,16 +1992,22 @@ export function initInventory() {
                     item.kind = kind;
                 }
                 const uid = Date.now() + Math.random().toString(36).substr(2, 9);
-
-                // Render Card
-                const card = $(`
-                    <div class="uie-stage-card" id="stage-${uid}" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px; display:flex; gap:10px;">
+                const supportsImage = kind === "item" || kind === "container";
+                const imageColumn = supportsImage
+                    ? `
                         <div style="width:80px; display:flex; flex-direction:column; gap:6px; align-items:center;">
                             <div class="uie-stage-img-box" style="width:80px; height:80px; background:#000; border:1px solid #444; border-radius:8px; overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;">
                                 ${item.img ? `<img src="${item.img}" style="width:100%;height:100%;object-fit:cover;">` : `<i class="fa-solid fa-image" style="color:#333;font-size:24px;"></i>`}
                             </div>
                             ${genImg ? `<button class="uie-stage-regen" data-uid="${uid}" style="font-size:10px; padding:4px; width:100%; background:#222; border:1px solid #444; color:#ccc; border-radius:4px; cursor:pointer;">Regen Img</button>` : ""}
                         </div>
+                    `
+                    : "";
+
+                // Render Card
+                const card = $(`
+                    <div class="uie-stage-card" id="stage-${uid}" style="background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:10px; display:flex; gap:10px;">
+                        ${imageColumn}
                         <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
                             <input class="uie-stage-name" value="${item.name || ""}" placeholder="Name" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:6px; border-radius:6px; font-weight:bold;">
                             <textarea class="uie-stage-desc" placeholder="Description" style="background:rgba(0,0,0,0.2); border:1px solid rgba(255,255,255,0.1); color:#aaa; padding:6px; border-radius:6px; height:50px; resize:vertical;">${item.description || ""}</textarea>
@@ -1948,7 +2024,7 @@ export function initInventory() {
                 $stage.append(card);
 
                 // Trigger Image Gen if requested
-                if (genImg) {
+                if (genImg && supportsImage) {
                     const imgBox = card.find(".uie-stage-img-box");
                     imgBox.html('<i class="fa-solid fa-spinner fa-spin" style="color:#f1c40f;"></i>');
                     generateImageAPI(`[UIE_LOCKED] Fantasy RPG icon/illustration for ${kind}: ${item.name}. ${item.description}`).then(url => {
@@ -1998,6 +2074,7 @@ export function initInventory() {
           const type = String(item.skillType || item.type || "active").trim().toLowerCase() === "passive" ? "passive" : "active";
           item.type = type;
           item.skillType = type;
+          item.level = String(item.level ?? "").trim() || "1";
           if (!item.mods || typeof item.mods !== "object") item.mods = {};
           if (!item.active || typeof item.active !== "object") item.active = null;
           if (!item.passive || typeof item.passive !== "object") item.passive = null;

@@ -469,12 +469,24 @@ export function saveSettings() {
         }
         else writeMirror();
     } catch (_) {}
-    if (window.saveSettingsDebounced) {
-        window.saveSettingsDebounced();
-    }
 
-    if (context && context.saveSettings) {
-        try { context.saveSettings(); } catch (_) {}
+    const saveFn = (() => {
+        try {
+            if (context && typeof context.saveSettingsDebounced === "function") {
+                return () => context.saveSettingsDebounced();
+            }
+            if (context && typeof context.saveSettings === "function") {
+                return () => context.saveSettings();
+            }
+            if (typeof window.saveSettingsDebounced === "function") {
+                return () => window.saveSettingsDebounced();
+            }
+        } catch (_) {}
+        return null;
+    })();
+
+    if (saveFn) {
+        try { saveFn(); } catch (_) {}
         return;
     }
 
@@ -484,7 +496,9 @@ export function saveSettings() {
             saveRetryScheduled = false;
             try {
                 const ctx = getContext();
-                if (ctx && ctx.saveSettings) ctx.saveSettings();
+                if (ctx && typeof ctx.saveSettingsDebounced === "function") ctx.saveSettingsDebounced();
+                else if (ctx && typeof ctx.saveSettings === "function") ctx.saveSettings();
+                else if (typeof window.saveSettingsDebounced === "function") window.saveSettingsDebounced();
             } catch (_) {}
         }, 1000);
     }
@@ -695,7 +709,7 @@ let lastChatId = null;
 const SESSION_KEYS = [
     "inventory", "character", "currency", "currencySymbol", "currencyRate", 
     "calendar", "map", "social", "diary", "databank", "activities",
-    "xp", "hp", "mp", "ap", "maxHp", "maxMp", "maxAp", "maxXp", "life", "image"
+    "xp", "hp", "mp", "ap", "maxHp", "maxMp", "maxAp", "maxXp", "life", "image", "worldState"
 ];
 
 function getChatScopedSocialDeletedNames(meta) {
@@ -910,7 +924,7 @@ export function updateLayout() {
 // --- Event Listeners ---
 
 // Settings Checkbox Listeners
-$("body").on("change", "#uie-sw-img-map, #uie-sw-img-doll, #uie-sw-img-social, #uie-sw-img-phone-bg, #uie-sw-img-msg, #uie-sw-img-party, #uie-sw-img-items", function(e) {
+$("body").on("change", "#uie-sw-img-map, #uie-sw-img-doll, #uie-sw-img-social, #uie-sw-img-phone-bg, #uie-sw-img-msg, #uie-sw-img-party, #uie-sw-img-items, #uie-img-map, #uie-img-doll, #uie-img-social, #uie-img-phone-bg, #uie-img-msg, #uie-img-party, #uie-img-items", function(e) {
     e.preventDefault();
     e.stopPropagation();
     const s = getSettings();
@@ -918,13 +932,46 @@ $("body").on("change", "#uie-sw-img-map, #uie-sw-img-doll, #uie-sw-img-social, #
     if (!s.image.features) s.image.features = {};
     const id = String(this.id || "");
     const on = $(this).prop("checked") === true;
-    if (id === "uie-sw-img-map") s.image.features.map = on;
-    if (id === "uie-sw-img-doll") s.image.features.doll = on;
-    if (id === "uie-sw-img-social") s.image.features.social = on;
-    if (id === "uie-sw-img-phone-bg") s.image.features.phoneBg = on;
-    if (id === "uie-sw-img-msg") s.image.features.msg = on;
-    if (id === "uie-sw-img-party") s.image.features.party = on;
-    if (id === "uie-sw-img-items") s.image.features.items = on;
+
+    const keyById = {
+        "uie-sw-img-map": "map",
+        "uie-img-map": "map",
+        "uie-sw-img-doll": "doll",
+        "uie-img-doll": "doll",
+        "uie-sw-img-social": "social",
+        "uie-img-social": "social",
+        "uie-sw-img-phone-bg": "phoneBg",
+        "uie-img-phone-bg": "phoneBg",
+        "uie-sw-img-msg": "msg",
+        "uie-img-msg": "msg",
+        "uie-sw-img-party": "party",
+        "uie-img-party": "party",
+        "uie-sw-img-items": "items",
+        "uie-img-items": "items",
+    };
+
+    const key = keyById[id];
+    if (!key) return;
+    s.image.features[key] = on;
+
+    const featureOn = {
+        map: s.image.features.map !== false,
+        doll: s.image.features.doll !== false,
+        social: s.image.features.social !== false,
+        phoneBg: s.image.features.phoneBg !== false,
+        msg: s.image.features.msg !== false,
+        party: s.image.features.party !== false,
+        items: s.image.features.items !== false,
+    };
+
+    $("#uie-img-map, #uie-sw-img-map").prop("checked", featureOn.map);
+    $("#uie-img-doll, #uie-sw-img-doll").prop("checked", featureOn.doll);
+    $("#uie-img-social, #uie-sw-img-social").prop("checked", featureOn.social);
+    $("#uie-img-phone-bg, #uie-sw-img-phone-bg").prop("checked", featureOn.phoneBg);
+    $("#uie-img-msg, #uie-sw-img-msg").prop("checked", featureOn.msg);
+    $("#uie-img-party, #uie-sw-img-party").prop("checked", featureOn.party);
+    $("#uie-img-items, #uie-sw-img-items").prop("checked", featureOn.items);
+
     saveSettings();
 });
 

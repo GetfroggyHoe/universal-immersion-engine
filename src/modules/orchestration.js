@@ -75,15 +75,7 @@ export async function scanAll(opts = {}) {
             notify("warning", "State scan partially failed", "Scanner");
         }
 
-        // 1. Scan Scavenge/Loot (if enabled)
-        try {
-            const { spawnScavengeNodes } = await import("./interaction.js");
-            spawnScavengeNodes();
-            // We don't know if items are found until clicked, but we can notify nodes spawned
-            notify("info", "Scavenge nodes refreshed", "Scanner");
-        } catch (e) { console.warn("[UIE] Scavenge scan failed", e); }
-
-        // 2. Scan Databank/World Info
+        // 1. Scan Databank/World Info
         try {
             // Check if Vector Storage extension is available and active
             // The command is /db-ingest or /databank-ingest
@@ -103,7 +95,7 @@ export async function scanAll(opts = {}) {
             }
         } catch (e) { console.warn("[UIE] Databank scan failed", e); }
 
-        // 3. Scan Inventory (UIE internal)
+        // 2. Scan Inventory (UIE internal)
         try {
             // Force re-initialization of inventory module to reload data
             const inv = await import("./features/items.js");
@@ -116,9 +108,9 @@ export async function scanAll(opts = {}) {
             if (invLegacy.initInventory) invLegacy.initInventory();
         } catch (e) { console.warn("[UIE] Inventory scan failed", e); }
 
-        // 4. Reality Engine (World) intentionally excluded from Scan All.
+        // 3. Reality Engine (World) intentionally excluded from Scan All.
 
-        // 5. Force update of UI layouts
+        // 4. Force update of UI layouts
         try {
             const { updateLayout } = await import("./core.js");
             updateLayout();
